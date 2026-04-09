@@ -1,6 +1,6 @@
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
-import { Button } from "@/components/ui/button";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { Header } from "@/components/layout/header";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 
 export default function DashboardLayout({
   children,
@@ -9,14 +9,13 @@ export default function DashboardLayout({
 }) {
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen">
-        <Button>a</Button>
-        <aside className="w-64 border-r p-4">
-          <AppSidebar />
-        </aside>
-
-        <main className="flex-1 p-6">{children}</main>
-      </div>
+      <AppSidebar />
+      <SidebarInset>
+        <Header />
+        <main className="app-shell-main">
+          <div className="content-wrap">{children}</div>
+        </main>
+      </SidebarInset>
     </SidebarProvider>
   );
 }
