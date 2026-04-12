@@ -101,7 +101,7 @@ export function SidebarNav() {
                   asChild
                   isActive={isGroupActive(item)}
                   tooltip={item.name}
-                  className="transition-all duration-200 data-[active=true]:bg-sidebar-primary/18 data-[active=true]:text-sidebar-foreground data-[active=true]:shadow-[0_0_0_1px_color-mix(in_oklch,var(--sidebar-primary)_26%,transparent)_inset] hover:bg-sidebar-accent/80"
+                  className="transition-all duration-200 data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground hover:bg-sidebar-primary/80 hover:text-sidebar-primary-foreground"
                 >
                   <Link href={item.href}>
                     <item.icon className="size-4" />
@@ -111,7 +111,7 @@ export function SidebarNav() {
                 {item.children && isGroupActive(item) && (
                   <SidebarMenuSub>
                     {item.children.map((child) => (
-                      <SidebarMenuSubItem key={child.href}>
+                      <SidebarMenuSubItem className="p-0.5" key={child.href}>
                         <SidebarMenuSubButton
                           asChild
                           isActive={isActive(child.href)}
@@ -139,7 +139,7 @@ export function SidebarNav() {
                 asChild
                 isActive={isActive(item.href)}
                 tooltip={item.name}
-                className="transition-all duration-200 data-[active=true]:bg-sidebar-primary/18 data-[active=true]:text-sidebar-foreground hover:bg-sidebar-accent/80"
+                className="transition-all duration-200 data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground hover:bg-sidebar-primary/80 hover:text-sidebar-primary-foreground"
               >
                 <Link href={item.href}>
                   <item.icon className="size-4" />

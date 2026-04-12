@@ -15,19 +15,19 @@ export function AppSidebar() {
   return (
     <Sidebar
       collapsible="icon"
-      className="border-r border-sidebar-border/70 bg-[linear-gradient(165deg,color-mix(in_oklch,var(--sidebar)_82%,var(--sidebar-primary)_18%)_0%,color-mix(in_oklch,var(--sidebar)_72%,var(--sidebar-accent)_28%)_58%,color-mix(in_oklch,var(--sidebar)_74%,var(--sidebar-primary)_26%)_100%)]"
+      className="border-r border-sidebar-border bg-sidebar"
     >
       <SidebarHeader className="p-4 pb-2">
-        <div className="flex items-center gap-2.5 px-1">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shadow-[0_8px_18px_color-mix(in_oklch,var(--sidebar-primary)_32%,transparent)]">
+        <div className="flex shrink-0 items-center gap-2.5 px-1">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
             <IconBolt className="size-4" />
           </div>
           <div className="flex flex-col group-data-[collapsible=icon]:hidden">
             <span className="text-sm font-bold tracking-tight text-sidebar-foreground">
-              Ray Finance
+              Ray App
             </span>
-            <span className="text-[10px] tracking-wide text-sidebar-foreground/50">
-              Tu negocio bajo control
+            <span className="text-[11px] tracking-wide text-sidebar-foreground/60">
+              Gestión moderna para tu negocio
             </span>
           </div>
         </div>

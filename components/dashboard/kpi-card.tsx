@@ -35,7 +35,7 @@ export function KpiCard({
 
   return (
     <Card className="group relative overflow-hidden border-border/60 bg-[linear-gradient(180deg,color-mix(in_oklch,var(--card)_97%,white)_0%,var(--card)_100%)] shadow-[0_1px_1px_color-mix(in_oklch,var(--foreground)_7%,transparent),0_10px_26px_-18px_color-mix(in_oklch,var(--foreground)_20%,transparent)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_1px_1px_color-mix(in_oklch,var(--foreground)_8%,transparent),0_16px_34px_-16px_color-mix(in_oklch,var(--foreground)_26%,transparent)]">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-[linear-gradient(180deg,color-mix(in_oklch,var(--primary)_8%,transparent)_0%,transparent_100%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,color-mix(in_oklch,var(--primary)_15%,transparent)_0%,transparent_100%)]" />
       <CardContent className="p-5">
         <div className="flex items-start justify-between">
           <div className="space-y-2">

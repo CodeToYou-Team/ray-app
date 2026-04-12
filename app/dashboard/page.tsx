@@ -11,7 +11,7 @@ import { RevenueChart } from "@/components/dashboard/revenue-chart";
 import { ExpensesPieChart } from "@/components/dashboard/expenses-pie-chart";
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import { QuickActions } from "@/components/dashboard/quick-actions";
-import { AlertsBanner } from "@/components/dashboard/alerts-banner";
+
 import { StaggerContainer, StaggerItem } from "@/components/motion";
 import {
   getCurrentMonthIncome,
@@ -38,9 +38,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Alerts */}
-      <AlertsBanner />
-
       {/* KPIs */}
       <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StaggerItem>

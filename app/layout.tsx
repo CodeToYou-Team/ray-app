@@ -18,7 +18,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Ray Finance — Tu negocio bajo control",
+  title: "Ray App — Tu negocio bajo control",
   description:
     "Plataforma financiera para pequeñas y medianas empresas. Control total de ingresos, gastos, productos e inventario.",
 };

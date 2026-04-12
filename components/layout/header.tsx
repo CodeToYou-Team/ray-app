@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const routeTitles: Record<string, { title: string; description: string }> = {
   "/dashboard": { title: "Inicio", description: "Vista general de tu negocio" },
@@ -69,7 +70,7 @@ const routeTitles: Record<string, { title: string; description: string }> = {
 export function Header() {
   const pathname = usePathname();
   const route = routeTitles[pathname] || {
-    title: "Ray Finance",
+    title: "Ray App",
     description: "",
   };
 
@@ -93,21 +94,19 @@ export function Header() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-1">
         <div className="relative hidden md:block">
-          <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+          <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
             placeholder="Buscar..."
-            className="h-9 w-56 pl-9 text-xs bg-card/75 border-border/60 shadow-[0_1px_0_0_color-mix(in_oklch,var(--foreground)_3%,transparent)_inset] focus-visible:ring-2"
+            className="h-9 w-56 pl-9 text-sm bg-card/80 border-border/60"
           />
         </div>
 
-        <Button
-          variant="outline"
-          size="icon"
-          className="relative size-9 border-border/70 bg-card/75 hover:bg-muted/60"
-        >
-          <IconBell className="size-4 text-muted-foreground" />
+        <ThemeToggle />
+
+        <Button variant="ghost" size="icon" className="relative size-9">
+          <IconBell className="size-[18px] text-muted-foreground" />
           <Badge className="absolute -top-0.5 -right-0.5 size-4 p-0 flex items-center justify-center text-[9px] bg-primary text-primary-foreground border-2 border-background">
             3
           </Badge>
