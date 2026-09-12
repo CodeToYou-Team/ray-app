@@ -1,11 +1,18 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
+    // ES2022 y no ES2017: lib/money.ts usa literales BigInt para que la
+    // aritmetica de dinero sea exacta. Next 16 pide Node 20+ y todos los
+    // navegadores que soporta tienen BigInt desde hace años.
+    "target": "ES2022",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
+    // Permite que los scripts de scripts/ importen modulos con extension .ts,
+    // que es lo que exige el type-stripping nativo de Node. Solo es legal con
+    // noEmit, que ya esta puesto.
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",

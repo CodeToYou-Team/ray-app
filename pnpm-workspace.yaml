@@ -1,3 +1,11 @@
+allowBuilds:
+  # unrs-resolver trae binarios precompilados como optionalDependencies por plataforma,
+  # asi que su script de postinstall (que es solo el fallback) no hace falta.
+  # esbuild tambien resuelve su binario por optionalDependencies de plataforma
+  # (@esbuild/win32-x64). Se deja en false y se verifica que vitest corra; si
+  # fallara con "installed for another platform", pasar a true.
+  esbuild: false
+  unrs-resolver: false
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver

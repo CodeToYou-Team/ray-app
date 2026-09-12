@@ -6,7 +6,6 @@ import {
   IconInfoCircle,
 } from "@tabler/icons-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { inventoryAlerts, calendarEvents } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import Link from "next/link";

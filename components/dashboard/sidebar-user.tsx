@@ -6,7 +6,9 @@ import {
   IconMoon,
   IconSun,
 } from "@tabler/icons-react";
+import { useTransition } from "react";
 import { useTheme } from "next-themes";
+import { signOut } from "@/lib/authz/actions";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -21,8 +23,27 @@ import {
   SidebarMenuButton,
 } from "@/components/ui/sidebar";
 
-export function SidebarUser() {
+export interface SidebarUserProps {
+  name: string;
+  email: string;
+  /** Rol dentro del cliente activo: owner, manager o staff. */
+  role: string;
+}
+
+/** Iniciales para el avatar. "Manuel Rodríguez" -> "MR", "ana@x.com" -> "AN". */
+function initialsOf(name: string, email: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  if (parts.length === 1 && parts[0].length >= 2) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return email.slice(0, 2).toUpperCase();
+}
+
+export function SidebarUser({ name, email, role }: SidebarUserProps) {
   const { setTheme, theme } = useTheme();
+  const [signingOut, startSignOut] = useTransition();
+  const initials = initialsOf(name, email);
 
   return (
     <SidebarMenu>
@@ -35,15 +56,15 @@ export function SidebarUser() {
             >
               <Avatar className="size-8 rounded-lg bg-sidebar-primary/20">
                 <AvatarFallback className="rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-xs font-semibold">
-                  MR
+                  {initials}
                 </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium text-sidebar-foreground">
-                  Manuel Rodríguez
+                  {name}
                 </span>
                 <span className="truncate text-xs text-sidebar-foreground/50">
-                  admin@rayfinance.mx
+                  {email}
                 </span>
               </div>
               <IconSelector className="ml-auto size-4 text-sidebar-foreground/40" />
@@ -66,9 +87,24 @@ export function SidebarUser() {
               {theme === "dark" ? "Modo claro" : "Modo oscuro"}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive">
+            <div className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+              Rol: {role}
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              disabled={signingOut}
+              onSelect={(event) => {
+                // Sin esto el menu se cierra y desmonta el item antes de que
+                // arranque la transicion, y el signOut nunca llega a correr.
+                event.preventDefault();
+                startSignOut(async () => {
+                  await signOut();
+                });
+              }}
+            >
               <IconLogout className="size-4 mr-2" />
-              Cerrar sesión
+              {signingOut ? "Cerrando sesión…" : "Cerrar sesión"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

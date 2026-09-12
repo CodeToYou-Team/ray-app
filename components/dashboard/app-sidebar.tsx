@@ -8,10 +8,10 @@ import {
 } from "@/components/ui/sidebar";
 
 import { SidebarNav } from "./sidebar-nav";
-import { SidebarUser } from "./sidebar-user";
+import { SidebarUser, type SidebarUserProps } from "./sidebar-user";
 import { IconBolt } from "@tabler/icons-react";
 
-export function AppSidebar() {
+export function AppSidebar({ user }: { user: SidebarUserProps }) {
   return (
     <Sidebar
       collapsible="icon"
@@ -38,7 +38,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-2">
-        <SidebarUser />
+        <SidebarUser {...user} />
       </SidebarFooter>
     </Sidebar>
   );

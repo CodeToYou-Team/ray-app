@@ -8,71 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/theme-toggle";
-
-const routeTitles: Record<string, { title: string; description: string }> = {
-  "/dashboard": { title: "Inicio", description: "Vista general de tu negocio" },
-  "/finanzas": { title: "Finanzas", description: "Gestión financiera" },
-  "/finanzas/ingresos": {
-    title: "Ingresos",
-    description: "Registro y seguimiento de ingresos",
-  },
-  "/finanzas/gastos": {
-    title: "Gastos",
-    description: "Registro y seguimiento de gastos",
-  },
-  "/finanzas/movimientos": {
-    title: "Movimientos",
-    description: "Todos los movimientos financieros",
-  },
-  "/finanzas/calendario": {
-    title: "Calendario",
-    description: "Eventos financieros programados",
-  },
-  "/finanzas/reportes": {
-    title: "Reportes",
-    description: "Análisis y reportes financieros",
-  },
-  "/finanzas/historial": {
-    title: "Historial",
-    description: "Historial financiero por periodo",
-  },
-  "/productos": {
-    title: "Productos y Servicios",
-    description: "Gestión de catálogo",
-  },
-  "/productos/nuevo": {
-    title: "Nuevo Producto",
-    description: "Registrar un nuevo producto",
-  },
-  "/productos/servicios/nuevo": {
-    title: "Nuevo Servicio",
-    description: "Registrar un nuevo servicio",
-  },
-  "/inventario": { title: "Inventario", description: "Stock disponible" },
-  "/inventario/catalogo-productos": {
-    title: "Catálogo de Productos",
-    description: "Vista de catálogo completo",
-  },
-  "/inventario/catalogo-servicios": {
-    title: "Catálogo de Servicios",
-    description: "Servicios disponibles",
-  },
-  "/inventario/impacto": {
-    title: "Impacto en Ingresos",
-    description: "Relación inventario-ventas",
-  },
-  "/inventario/alertas": {
-    title: "Alertas de Inventario",
-    description: "Notificaciones de stock",
-  },
-};
+import { resolveRoute } from "@/lib/nav";
 
 export function Header() {
   const pathname = usePathname();
-  const route = routeTitles[pathname] || {
-    title: "Ray App",
-    description: "",
-  };
+  const route = resolveRoute(pathname);
+
+  if (process.env.NODE_ENV === "development" && !route) {
+    // Antes esto caia en un titulo generico "Ray App" y la ruta faltante pasaba
+    // desapercibida. Ahora se avisa en dev.
+    console.warn(`[nav] Ruta sin registrar en lib/nav.ts: ${pathname}`);
+  }
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border/70 bg-background/85 backdrop-blur-lg px-4 md:px-6">
@@ -83,9 +29,9 @@ export function Header() {
         <div className="flex items-center gap-3">
           <div>
             <h1 className="text-base font-semibold leading-none tracking-tight">
-              {route.title}
+              {route?.title ?? "Ray App"}
             </h1>
-            {route.description && (
+            {route?.description && (
               <p className="text-xs text-muted-foreground mt-1 hidden sm:block">
                 {route.description}
               </p>

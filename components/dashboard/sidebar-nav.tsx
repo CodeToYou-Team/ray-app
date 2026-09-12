@@ -3,14 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  IconLayoutDashboard,
-  IconWallet,
-  IconPackage,
-  IconBuildingWarehouse,
-  IconSettings,
-} from "@tabler/icons-react";
-import type { ComponentType } from "react";
-import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
@@ -20,72 +12,10 @@ import {
   SidebarMenuSubItem,
   SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
-
-interface NavItem {
-  name: string;
-  href: string;
-  icon: ComponentType<{ className?: string }>;
-  children?: { name: string; href: string }[];
-}
-
-const navItems: NavItem[] = [
-  {
-    name: "Inicio",
-    href: "/dashboard",
-    icon: IconLayoutDashboard,
-  },
-  {
-    name: "Finanzas",
-    href: "/finanzas",
-    icon: IconWallet,
-    children: [
-      { name: "Ingresos", href: "/finanzas/ingresos" },
-      { name: "Gastos", href: "/finanzas/gastos" },
-      { name: "Movimientos", href: "/finanzas/movimientos" },
-      { name: "Calendario", href: "/finanzas/calendario" },
-      { name: "Reportes", href: "/finanzas/reportes" },
-      { name: "Historial", href: "/finanzas/historial" },
-    ],
-  },
-  {
-    name: "Productos",
-    href: "/productos",
-    icon: IconPackage,
-  },
-  {
-    name: "Inventario",
-    href: "/inventario",
-    icon: IconBuildingWarehouse,
-    children: [
-      { name: "Stock", href: "/inventario" },
-      { name: "Catálogo Productos", href: "/inventario/catalogo-productos" },
-      { name: "Catálogo Servicios", href: "/inventario/catalogo-servicios" },
-      { name: "Impacto", href: "/inventario/impacto" },
-      { name: "Alertas", href: "/inventario/alertas" },
-    ],
-  },
-];
-
-const bottomItems: NavItem[] = [
-  {
-    name: "Configuración",
-    href: "/configuracion",
-    icon: IconSettings,
-  },
-];
+import { NAV_TREE, NAV_BOTTOM, type NavItem } from "@/lib/nav";
 
 export function SidebarNav() {
   const pathname = usePathname();
-
-  const isActive = (href: string) => {
-    if (href === "/dashboard") return pathname === "/dashboard";
-    return pathname === href || pathname.startsWith(href + "/");
-  };
-
-  const isGroupActive = (item: NavItem) => {
-    if (isActive(item.href)) return true;
-    return item.children?.some((c) => isActive(c.href)) ?? false;
-  };
 
   return (
     <div className="flex flex-col h-full">
@@ -95,37 +25,8 @@ export function SidebarNav() {
             Principal
           </SidebarGroupLabel>
           <SidebarMenu>
-            {navItems.map((item) => (
-              <SidebarMenuItem key={item.name}>
-                <SidebarMenuButton
-                  asChild
-                  isActive={isGroupActive(item)}
-                  tooltip={item.name}
-                  className="transition-all duration-200 data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground hover:bg-sidebar-primary/80 hover:text-sidebar-primary-foreground"
-                >
-                  <Link href={item.href}>
-                    <item.icon className="size-4" />
-                    <span>{item.name}</span>
-                  </Link>
-                </SidebarMenuButton>
-                {item.children && isGroupActive(item) && (
-                  <SidebarMenuSub>
-                    {item.children.map((child) => (
-                      <SidebarMenuSubItem className="p-0.5" key={child.href}>
-                        <SidebarMenuSubButton
-                          asChild
-                          isActive={isActive(child.href)}
-                          className="data-[active=true]:text-sidebar-foreground data-[active=true]:font-medium"
-                        >
-                          <Link href={child.href}>
-                            <span>{child.name}</span>
-                          </Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    ))}
-                  </SidebarMenuSub>
-                )}
-              </SidebarMenuItem>
+            {NAV_TREE.map((item) => (
+              <NavEntry key={item.name} item={item} pathname={pathname} />
             ))}
           </SidebarMenu>
         </SidebarGroup>
@@ -133,23 +34,68 @@ export function SidebarNav() {
 
       <SidebarGroup>
         <SidebarMenu>
-          {bottomItems.map((item) => (
-            <SidebarMenuItem key={item.name}>
-              <SidebarMenuButton
-                asChild
-                isActive={isActive(item.href)}
-                tooltip={item.name}
-                className="transition-all duration-200 data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground hover:bg-sidebar-primary/80 hover:text-sidebar-primary-foreground"
-              >
-                <Link href={item.href}>
-                  <item.icon className="size-4" />
-                  <span>{item.name}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+          {NAV_BOTTOM.map((item) => (
+            <NavEntry key={item.name} item={item} pathname={pathname} />
           ))}
         </SidebarMenu>
       </SidebarGroup>
     </div>
+  );
+}
+
+function isActive(pathname: string, href: string): boolean {
+  // /dashboard es prefijo de nada, pero si se usara startsWith quedaria activo
+  // en rutas que solo empiezan igual.
+  if (href === "/dashboard") return pathname === "/dashboard";
+  return pathname === href || pathname.startsWith(href + "/");
+}
+
+function isGroupActive(pathname: string, item: NavItem): boolean {
+  if (isActive(pathname, item.href)) return true;
+  return item.children?.some((c) => isActive(pathname, c.href)) ?? false;
+}
+
+/**
+ * Una entrada del sidebar, con sus hijos si los tiene.
+ *
+ * Vive en un solo lugar a proposito: antes el bloque principal y el de abajo
+ * eran dos copias casi identicas, y solo la de arriba pintaba hijos. Por eso
+ * "Columnas" quedo invisible pese a estar registrada en lib/nav.ts.
+ */
+function NavEntry({ item, pathname }: { item: NavItem; pathname: string }) {
+  const activo = isGroupActive(pathname, item);
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        asChild
+        isActive={activo}
+        tooltip={item.name}
+        className="transition-all duration-200 data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground hover:bg-sidebar-primary/80 hover:text-sidebar-primary-foreground"
+      >
+        <Link href={item.href}>
+          <item.icon className="size-4" />
+          <span>{item.name}</span>
+        </Link>
+      </SidebarMenuButton>
+
+      {item.children && activo && (
+        <SidebarMenuSub>
+          {item.children.map((child) => (
+            <SidebarMenuSubItem className="p-0.5" key={child.href}>
+              <SidebarMenuSubButton
+                asChild
+                isActive={isActive(pathname, child.href)}
+                className="data-[active=true]:text-sidebar-foreground data-[active=true]:font-medium"
+              >
+                <Link href={child.href}>
+                  <span>{child.name}</span>
+                </Link>
+              </SidebarMenuSubButton>
+            </SidebarMenuSubItem>
+          ))}
+        </SidebarMenuSub>
+      )}
+    </SidebarMenuItem>
   );
 }

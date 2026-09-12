@@ -1052,6 +1052,11 @@ export function getStockStatus(product: Product): "ok" | "low" | "none" {
   return "ok";
 }
 
+/**
+ * @deprecated Fijo en MXN con cero decimales. Solo para las pantallas que todavia
+ * corren con datos mock. Para codigo nuevo usa `formatMoney` de lib/format.ts, que
+ * exige la moneda — los totales de esta app van separados por moneda.
+ */
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("es-MX", {
     style: "currency",
@@ -1061,19 +1066,8 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-export function formatDate(dateStr: string): string {
-  const date = new Date(dateStr + "T00:00:00");
-  return new Intl.DateTimeFormat("es-MX", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date);
-}
-
-export function getPercentChange(current: number, previous: number): number {
-  if (previous === 0) return 0;
-  return Math.round(((current - previous) / previous) * 100);
-}
+// Viven en lib/format.ts. Se re-exportan para no romper los imports existentes.
+export { formatDate, getPercentChange } from "@/lib/format";
 
 // Top selling products by revenue
 export function getTopProducts() {
