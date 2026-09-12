@@ -1,245 +1,204 @@
-"use client";
-
+import Link from "next/link";
 import {
   IconAlertTriangle,
   IconPackageOff,
-  IconPackage,
-  IconCircleCheck,
-  IconBell,
+  IconCheck,
 } from "@tabler/icons-react";
+import { PageTransition } from "@/components/motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  PageTransition,
-  StaggerContainer,
-  StaggerItem,
-} from "@/components/motion";
-import { inventoryAlerts, formatDate } from "@/lib/mock-data";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { requireTenant } from "@/lib/authz/session";
+import { listStock } from "@/lib/inventario/stock";
 import { cn } from "@/lib/utils";
 
-const typeConfig = {
-  no_stock: {
-    icon: IconPackageOff,
-    label: "Sin stock",
-    color: "text-destructive",
-    bg: "bg-destructive/10",
-    badge: "bg-destructive/10 text-destructive",
-  },
-  low_stock: {
-    icon: IconAlertTriangle,
-    label: "Stock bajo",
-    color: "text-warning",
-    bg: "bg-warning/10",
-    badge: "bg-warning/10 text-warning",
-  },
-  overstock: {
-    icon: IconPackage,
-    label: "Exceso",
-    color: "text-info",
-    bg: "bg-info/10",
-    badge: "bg-info/10 text-info",
-  },
-};
+/** "7.000" -> "7". */
+function cantidad(value: string): string {
+  return value.replace(/\.?0+$/, "") || "0";
+}
 
-export default function AlertasPage() {
-  const active = inventoryAlerts.filter((a) => !a.resolved);
-  const resolved = inventoryAlerts.filter((a) => a.resolved);
+/**
+ * Alertas de inventario.
+ *
+ * No hay tabla de alertas: se derivan del stock, que a su vez se deriva de los
+ * movimientos. Una tabla de alertas habria que mantenerla sincronizada y podria
+ * quedar mintiendo; derivarlas no puede desincronizarse de nada.
+ */
+export default async function AlertasPage() {
+  const { tenantId } = await requireTenant();
+  const stock = await listStock(tenantId);
+
+  const sinStock = stock.filter((s) => s.status === "sin_stock");
+  const bajos = stock.filter((s) => s.status === "bajo");
+  const sinMinimo = stock.filter((s) => s.status === "ok" && s.minStock === null);
 
   return (
     <PageTransition>
       <div className="space-y-4 max-w-5xl mx-auto">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold">Alertas de Inventario</h2>
-            <p className="text-sm text-muted-foreground">
-              Notificaciones sobre el estado de tu stock
-            </p>
-          </div>
-          <Badge variant="destructive" className="text-xs">
-            {active.length} activa{active.length !== 1 ? "s" : ""}
-          </Badge>
+        <div>
+          <h2 className="text-lg font-bold">Alertas de inventario</h2>
+          <p className="text-sm text-muted-foreground">
+            Productos que necesitan reposición. El stock sale de sumar cada
+            entrada y salida.
+          </p>
         </div>
 
-        {/* Summary */}
-        <div className="grid grid-cols-3 gap-3">
-          <Card className="border-destructive/30 bg-destructive/5 shadow-sm">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
-                <IconPackageOff className="size-4" />
+        {sinStock.length === 0 && bajos.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+              <div className="flex size-11 items-center justify-center rounded-xl bg-success/10 text-success">
+                <IconCheck className="size-5" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Sin stock</p>
-                <p className="text-xl font-bold text-destructive">
-                  {active.filter((a) => a.type === "no_stock").length}
+                <p className="font-medium">Todo en orden</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {stock.length === 0
+                    ? "Todavía no hay productos en el catálogo."
+                    : "Ningún producto está agotado ni por debajo de su mínimo."}
                 </p>
               </div>
+              {stock.length === 0 && (
+                <Button size="sm" asChild>
+                  <Link href="/productos">Crear un producto</Link>
+                </Button>
+              )}
             </CardContent>
           </Card>
-          <Card className="border-warning/30 bg-warning/5 shadow-sm">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-lg bg-warning/10 text-warning">
-                <IconAlertTriangle className="size-4" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Stock bajo</p>
-                <p className="text-xl font-bold text-warning">
-                  {active.filter((a) => a.type === "low_stock").length}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-success/30 bg-success/5 shadow-sm">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-lg bg-success/10 text-success">
-                <IconCircleCheck className="size-4" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Resueltas</p>
-                <p className="text-xl font-bold text-success">
-                  {resolved.length}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Active alerts */}
-        {active.length > 0 && (
-          <Card className="border-border/50 shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <IconBell className="size-4 text-warning" />
-                <CardTitle className="text-sm font-semibold">
-                  Alertas activas
-                </CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <StaggerContainer className="space-y-1">
-                {active.map((alert) => {
-                  const config = typeConfig[alert.type];
-                  const Icon = config.icon;
-
-                  return (
-                    <StaggerItem key={alert.id}>
-                      <div className="flex items-center gap-3 py-3 border-b border-border/30 last:border-0">
-                        <div
-                          className={cn(
-                            "flex size-9 items-center justify-center rounded-lg flex-shrink-0",
-                            config.bg,
-                          )}
-                        >
-                          <Icon className={cn("size-4", config.color)} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold">
-                              {alert.productName}
-                            </p>
-                            <Badge
-                              variant="secondary"
-                              className={cn("text-[10px]", config.badge)}
-                            >
-                              {config.label}
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            Stock actual:{" "}
-                            <span className="font-medium">
-                              {alert.currentStock}
-                            </span>{" "}
-                            · Stock mínimo:{" "}
-                            <span className="font-medium">
-                              {alert.minStock}
-                            </span>{" "}
-                            · Detectada: {formatDate(alert.date)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs"
-                          >
-                            Reabastecer
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs"
-                          >
-                            Resolver
-                          </Button>
-                        </div>
-                      </div>
-                    </StaggerItem>
-                  );
-                })}
-              </StaggerContainer>
-            </CardContent>
-          </Card>
+        ) : (
+          <>
+            {sinStock.length > 0 && (
+              <AlertGroup
+                title="Agotados"
+                description="Sin unidades disponibles. No se pueden vender."
+                icon={IconPackageOff}
+                tone="destructive"
+                rows={sinStock}
+              />
+            )}
+            {bajos.length > 0 && (
+              <AlertGroup
+                title="Por debajo del mínimo"
+                description="Quedan menos unidades de las que definiste como mínimo."
+                icon={IconAlertTriangle}
+                tone="warning"
+                rows={bajos}
+              />
+            )}
+          </>
         )}
 
-        {/* Resolved alerts */}
-        {resolved.length > 0 && (
-          <Card className="border-border/50 shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <IconCircleCheck className="size-4 text-success" />
-                <CardTitle className="text-sm font-semibold">
-                  Historial de alertas resueltas
-                </CardTitle>
-              </div>
+        {/*
+          Un producto sin minimo definido nunca va a avisar que se esta
+          acabando. No es un error, pero conviene saberlo: sin ese numero la
+          pantalla de alertas es ciega para ese producto.
+        */}
+        {sinMinimo.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Sin mínimo definido</CardTitle>
             </CardHeader>
-            <CardContent className="pt-0">
-              <div className="space-y-1">
-                {resolved.map((alert) => {
-                  const config = typeConfig[alert.type];
-                  const Icon = config.icon;
-
-                  return (
-                    <div
-                      key={alert.id}
-                      className="flex items-center gap-3 py-3 border-b border-border/30 last:border-0 opacity-60"
-                    >
-                      <div className="flex size-9 items-center justify-center rounded-lg bg-muted flex-shrink-0">
-                        <Icon className="size-4 text-muted-foreground" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium">
-                            {alert.productName}
-                          </p>
-                          <Badge variant="secondary" className="text-[10px]">
-                            Resuelta
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {config.label} · {formatDate(alert.date)}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
+            <CardContent>
+              <p className="mb-3 text-xs text-muted-foreground">
+                Estos productos nunca van a aparecer como stock bajo, porque no
+                tienen un mínimo con el cual comparar. Puedes definirlo al
+                editarlos.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {sinMinimo.map((s) => (
+                  <Badge key={s.productId} variant="outline" className="text-[11px]">
+                    {s.name}
+                    <span className="ml-1.5 font-mono text-muted-foreground">
+                      {cantidad(s.stock)}
+                    </span>
+                  </Badge>
+                ))}
               </div>
+              <Button variant="ghost" size="sm" className="mt-3" asChild>
+                <Link href="/productos">Ir a productos</Link>
+              </Button>
             </CardContent>
           </Card>
-        )}
-
-        {active.length === 0 && resolved.length === 0 && (
-          <div className="text-center py-16">
-            <IconCircleCheck className="size-12 mx-auto mb-3 text-success/30" />
-            <p className="text-sm font-medium text-muted-foreground">
-              No hay alertas de inventario
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Tu inventario está en buen estado
-            </p>
-          </div>
         )}
       </div>
     </PageTransition>
   );
 }
 
+function AlertGroup({
+  title,
+  description,
+  icon: Icon,
+  tone,
+  rows,
+}: {
+  title: string;
+  description: string;
+  icon: typeof IconAlertTriangle;
+  tone: "destructive" | "warning";
+  rows: { productId: string; name: string; sku: string | null; stock: string; minStock: string | null }[];
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <span
+            className={cn(
+              "flex size-7 items-center justify-center rounded-lg",
+              tone === "destructive"
+                ? "bg-destructive/10 text-destructive"
+                : "bg-warning/10 text-warning",
+            )}
+          >
+            <Icon className="size-4" />
+          </span>
+          {title}
+          <Badge variant="secondary" className="text-[10px]">
+            {rows.length}
+          </Badge>
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Producto</TableHead>
+              <TableHead className="w-28">SKU</TableHead>
+              <TableHead className="w-20 text-right">Stock</TableHead>
+              <TableHead className="w-20 text-right">Mínimo</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((r) => (
+              <TableRow key={r.productId}>
+                <TableCell className="font-medium">{r.name}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {r.sku ?? "—"}
+                </TableCell>
+                <TableCell
+                  className={cn(
+                    "text-right font-mono text-sm font-medium",
+                    tone === "destructive" ? "text-destructive" : "text-warning",
+                  )}
+                >
+                  {cantidad(r.stock)}
+                </TableCell>
+                <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                  {r.minStock ? cantidad(r.minStock) : "—"}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
