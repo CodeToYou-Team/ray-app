@@ -727,3 +727,58 @@ export type FieldConfigRow = typeof fieldConfig.$inferSelect;
 export type FieldEntity = (typeof fieldEntity.enumValues)[number];
 export type FieldSource = (typeof fieldSource.enumValues)[number];
 export type FieldType = (typeof fieldType.enumValues)[number];
+
+// ---------------------------------------------------------------------------
+// Invitaciones
+// ---------------------------------------------------------------------------
+
+/**
+ * Invitacion pendiente: un correo con un rol asignado de antemano.
+ *
+ * El flujo evita a proposito la API de administracion de Supabase Auth, que
+ * exige el `service_role` key — la misma llave que tiene BYPASSRLS y que todo
+ * este diseño trata de mantener fuera del proyecto.
+ *
+ * En su lugar: el dueño deja el correo apuntado aqui, la persona se registra
+ * sola por la pantalla publica, y al entrar la invitacion se canjea por una
+ * membresia. El unico correo que se manda es el de confirmacion que ya manda
+ * Supabase, asi que no hace falta infraestructura de envio propia.
+ *
+ * Consecuencia: registrarse NO da acceso a nada. Sin invitacion previa, el
+ * usuario queda autenticado pero sin cliente, y la app se lo dice.
+ */
+export const invitations = pgTable(
+  "invitations",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    /** Siempre en minusculas: es la clave con la que se busca al registrarse. */
+    email: text("email").notNull(),
+    role: membershipRole("role").notNull(),
+    invitedBy: uuid("invited_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    acceptedBy: uuid("accepted_by"),
+  },
+  (table) => [
+    /**
+     * Una sola invitacion pendiente por correo y cliente. Las ya aceptadas se
+     * quedan como registro de quien invito a quien y cuando.
+     */
+    uniqueIndex("invitations_pending_key")
+      .on(table.tenantId, table.email)
+      .where(sql`${table.acceptedAt} is null`),
+    index("invitations_email_idx").on(table.email),
+    check(
+      "invitations_email_lowercase",
+      sql`${table.email} = lower(${table.email})`,
+    ),
+    check("invitations_email_shape", sql`${table.email} like '%@%.%'`),
+  ],
+);
+
+export type Invitation = typeof invitations.$inferSelect;

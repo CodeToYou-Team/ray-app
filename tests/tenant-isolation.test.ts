@@ -63,8 +63,8 @@ describe.skipIf(!hasDb)("aislamiento entre clientes (RLS)", () => {
     `;
     await owner`
       insert into users (id, email) values
-        (${userA}, ${`a-${userA.slice(0, 8)}@test.local`}),
-        (${userB}, ${`b-${userB.slice(0, 8)}@test.local`})
+        (${userA}, ${`a-${userA.slice(-12)}@test.local`}),
+        (${userB}, ${`b-${userB.slice(-12)}@test.local`})
     `;
     await owner`
       insert into memberships (id, user_id, tenant_id, role) values
@@ -191,8 +191,8 @@ describe.skipIf(!hasDb)("arranque de sesion: resolver el cliente del usuario", (
         (${tB}, 'Boot B', ${"boot-b-" + tB.slice(0, 8)})`;
     await localOwner`
       insert into users (id, email, full_name) values
-        (${uA}, ${`boot-a-${uA.slice(0, 8)}@test.local`}, 'Ana Boot'),
-        (${uB}, ${`boot-b-${uB.slice(0, 8)}@test.local`}, null)`;
+        (${uA}, ${`boot-a-${uA.slice(-12)}@test.local`}, 'Ana Boot'),
+        (${uB}, ${`boot-b-${uB.slice(-12)}@test.local`}, null)`;
     await localOwner`
       insert into memberships (id, user_id, tenant_id, role) values
         (${uuidv7()}, ${uA}, ${tA}, 'owner'),

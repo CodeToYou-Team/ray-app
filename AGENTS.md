@@ -112,6 +112,10 @@ is superseded but remains the reference for infrastructure (Supabase pitfalls, R
   makes every `pnpm <script>` fail.
 - `pnpm lint` is expected to be completely clean. The React Compiler warnings about
   react-hook-form's `watch()` are gone: those forms were replaced.
+- **UUIDv7 is time-ordered**, so ids generated in the same millisecond share a long
+  prefix. Test fixtures that derive a unique value from `id.slice(0, 8)` produce
+  *identical* values for every user created in one `beforeAll`. Slice from the end
+  (`id.slice(-12)`) when a fixture needs distinct emails or slugs.
 - There is no mock data left. Every page reads from Postgres; if a screen has nothing
   to show it renders an empty state, not invented rows.
 

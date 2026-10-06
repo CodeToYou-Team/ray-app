@@ -1,4 +1,7 @@
 import type { ComponentType } from "react";
+import type { Capability } from "@/lib/authz/roles";
+import { roleHas } from "@/lib/authz/roles";
+import type { MembershipRole } from "@/lib/db/schema";
 import {
   IconLayoutDashboard,
   IconWallet,
@@ -67,6 +70,11 @@ export const ROUTES: RouteDef[] = [
     title: "Columnas",
     description: "Qué información guardas de productos y servicios",
   },
+  {
+    pattern: "/ajustes/usuarios",
+    title: "Equipo",
+    description: "Quién tiene acceso y con qué permisos",
+  },
 ];
 
 /**
@@ -125,6 +133,24 @@ export interface NavItem {
   children?: { name: string; href: string }[];
 }
 
+/**
+ * Permiso que exige cada ruta.
+ *
+ * Es la MISMA constante que verifica el servidor, no una copia: si una ruta se
+ * protege y se olvida aqui, el enlace aparece y al entrar rebota. Las que no
+ * estan en el mapa las puede ver cualquiera que haya iniciado sesion.
+ */
+const ROUTE_CAPABILITY: Record<string, Capability> = {
+  "/finanzas/reportes": "report:read",
+  "/finanzas/historial": "report:read",
+  "/ajustes/columnas": "field:manage",
+  "/ajustes/usuarios": "member:manage",
+};
+
+export function routeCapability(pathname: string): Capability | undefined {
+  return ROUTE_CAPABILITY[pathname];
+}
+
 /** Un hijo del sidebar: el href basta, o un objeto si necesita otra etiqueta. */
 type NavChild = string | { href: string; name: string };
 
@@ -171,12 +197,48 @@ function buildNav(groups: NavGroup[]): NavItem[] {
   }));
 }
 
-export const NAV_TREE: NavItem[] = buildNav(NAV_STRUCTURE);
+const NAV_TREE_ALL: NavItem[] = buildNav(NAV_STRUCTURE);
 
-export const NAV_BOTTOM: NavItem[] = buildNav([
+const NAV_BOTTOM_ALL: NavItem[] = buildNav([
   {
     href: "/ajustes",
     icon: IconSettings,
-    children: ["/ajustes/catalogos", "/ajustes/columnas"],
+    children: ["/ajustes/catalogos", "/ajustes/columnas", "/ajustes/usuarios"],
   },
 ]);
+
+/**
+ * Quita del menu lo que el rol no puede abrir.
+ *
+ * Esto es comodidad, no seguridad: cada pagina vuelve a verificar el permiso y
+ * cada Server Action tambien. Pero mostrar un enlace que rebota es una forma de
+ * mentirle al usuario sobre lo que puede hacer.
+ *
+ * Un grupo se oculta entero solo si NINGUNO de sus hijos es accesible: Ajustes
+ * le sigue sirviendo a un encargado aunque no vea Equipo.
+ */
+function filtrarPorRol(items: NavItem[], role: MembershipRole): NavItem[] {
+  return items
+    .map((item) => ({
+      ...item,
+      children: item.children?.filter((c) => {
+        const cap = routeCapability(c.href);
+        return !cap || roleHas(role, cap);
+      }),
+    }))
+    .filter((item) => {
+      const cap = routeCapability(item.href);
+      if (cap && !roleHas(role, cap)) return false;
+      // Un grupo cuyos hijos quedaron todos fuera no tiene a donde llevar.
+      if (item.children && item.children.length === 0) return false;
+      return true;
+    });
+}
+
+export function navTreeFor(role: MembershipRole): NavItem[] {
+  return filtrarPorRol(NAV_TREE_ALL, role);
+}
+
+export function navBottomFor(role: MembershipRole): NavItem[] {
+  return filtrarPorRol(NAV_BOTTOM_ALL, role);
+}

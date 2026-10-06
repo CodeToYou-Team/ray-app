@@ -1,6 +1,8 @@
 import { PageTransition } from "@/components/motion";
 import { ReportsView } from "@/components/finanzas/reports-view";
-import { requireCapability } from "@/lib/authz/session";
+import { requireTenant } from "@/lib/authz/session";
+import { roleHas } from "@/lib/authz/roles";
+import { SinPermiso } from "@/components/layout/sin-permiso";
 import { usedCurrencies } from "@/lib/finanzas/queries";
 import {
   byCategory,
@@ -34,7 +36,11 @@ export default async function ReportesPage({
 }: {
   searchParams: Promise<{ moneda?: string; periodo?: string }>;
 }) {
-  const { tenantId, primaryCurrency } = await requireCapability("report:read");
+  const { tenantId, primaryCurrency, role } = await requireTenant();
+
+  if (!roleHas(role, "report:read")) {
+    return <SinPermiso role={role} explicacion={"Los reportes muestran los totales del negocio. Tu rol registra operaciones, pero no ve los consolidados."} />;
+  }
   const params = await searchParams;
 
   const disponibles = await usedCurrencies(tenantId);

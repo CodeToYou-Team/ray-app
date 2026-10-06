@@ -82,7 +82,7 @@ describe.skipIf(!hasDb)("transacciones e inventario", () => {
     sql = postgres(process.env.TEST_DIRECT_URL!, { max: 1, prepare: false });
 
     await sql`insert into tenants (id, name, slug) values (${tenant}, 'TX', ${"tx-" + tenant.slice(0, 8)})`;
-    await sql`insert into users (id, email) values (${user}, ${`tx-${user.slice(0, 8)}@test.local`})`;
+    await sql`insert into users (id, email) values (${user}, ${`tx-${user.slice(-12)}@test.local`})`;
 
     await sql`
       insert into catalog_items (id, tenant_id, catalog_key, code, label, currency) values

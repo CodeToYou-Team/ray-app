@@ -4,6 +4,7 @@ import { cache } from "react";
 import { eq } from "drizzle-orm";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { withUser } from "@/lib/db/tenant";
+import { claimInvitation } from "./members";
 import { memberships, tenants, users } from "@/lib/db/schema";
 import type { MembershipRole } from "@/lib/db/schema";
 import { roleHas, ForbiddenError, type Capability } from "./roles";
@@ -81,26 +82,20 @@ export const requireSession = cache(async (): Promise<SessionUser> => {
 export const requireTenant = cache(async (): Promise<TenantContext> => {
   const user = await requireSession();
 
-  // withUser y no getDb() suelto: sin contexto, RLS no deja ver ninguna
-  // membresia y la resolucion del cliente devolveria cero filas siempre.
-  const rows = await withUser(user.id, (tx) =>
-    tx
-      .select({
-        tenantId: tenants.id,
-        tenantSlug: tenants.slug,
-        timezone: tenants.timezone,
-        primaryCurrency: tenants.primaryCurrency,
-        role: memberships.role,
-        fullName: users.fullName,
-      })
-      .from(memberships)
-      .innerJoin(tenants, eq(tenants.id, memberships.tenantId))
-      .innerJoin(users, eq(users.id, memberships.userId))
-      .where(eq(memberships.userId, user.id))
-      .limit(1),
-  );
+  let row = await findMembership(user.id);
 
-  const row = rows[0];
+  /**
+   * Sin membresia, puede ser alguien recien registrado a quien invitaron.
+   *
+   * El canje va aqui y no en el login para que funcione sea cual sea la puerta
+   * de entrada: un enlace directo a una pantalla interna tiene que llevar al
+   * mismo lugar que entrar por /login.
+   */
+  if (!row) {
+    const claimed = await claimInvitation(user.id, user.email);
+    if (claimed) row = await findMembership(user.id);
+  }
+
   if (!row) throw new NoMembershipError(user.id);
 
   const { fullName, ...tenant } = row;
@@ -114,6 +109,30 @@ export const requireTenant = cache(async (): Promise<TenantContext> => {
     ...tenant,
   };
 });
+
+/** Membresia del usuario, o undefined. Separado para poder reintentar tras canjear. */
+async function findMembership(userId: string) {
+  // withUser y no getDb() suelto: sin contexto, RLS no deja ver ninguna
+  // membresia y la resolucion del cliente devolveria cero filas siempre.
+  const rows = await withUser(userId, (tx) =>
+    tx
+      .select({
+        tenantId: tenants.id,
+        tenantSlug: tenants.slug,
+        timezone: tenants.timezone,
+        primaryCurrency: tenants.primaryCurrency,
+        role: memberships.role,
+        fullName: users.fullName,
+      })
+      .from(memberships)
+      .innerJoin(tenants, eq(tenants.id, memberships.tenantId))
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(eq(memberships.userId, userId))
+      .limit(1),
+  );
+
+  return rows[0];
+}
 
 /**
  * Exige un permiso y devuelve el contexto.
@@ -139,6 +158,16 @@ export async function requireCapability(
  * Para los layouts, que necesitan decidir a donde redirigir. No usar en Server
  * Actions: ahi se quiere que falle fuerte.
  */
+/** Sesion sin lanzar. Distingue "no entro" de "entro pero no lo invitaron". */
+export const trySession = cache(async (): Promise<SessionUser | null> => {
+  try {
+    return await requireSession();
+  } catch (error) {
+    if (error instanceof UnauthenticatedError) return null;
+    throw error;
+  }
+});
+
 export const tryGetTenant = cache(async (): Promise<TenantContext | null> => {
   try {
     return await requireTenant();

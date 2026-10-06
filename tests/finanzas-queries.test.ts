@@ -37,7 +37,7 @@ describe.skipIf(!hasDb)("consultas de finanzas e inventario", () => {
     await sql`insert into tenants (id, name, slug) values
       (${tenant}, 'Q', ${"q-" + tenant.slice(0, 8)}),
       (${otro},   'R', ${"r-" + otro.slice(0, 8)})`;
-    await sql`insert into users (id, email) values (${user}, ${`q-${user.slice(0, 8)}@test.local`})`;
+    await sql`insert into users (id, email) values (${user}, ${`q-${user.slice(-12)}@test.local`})`;
     await sql`insert into catalog_items (id, tenant_id, catalog_key, code, label, currency) values
       (${catIngreso},  ${tenant}, 'income_category',  'ventas',  'Ventas',  null),
       (${catGasto},    ${tenant}, 'expense_category', 'insumos', 'Insumos', null),

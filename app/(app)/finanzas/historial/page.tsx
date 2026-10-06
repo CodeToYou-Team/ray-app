@@ -1,6 +1,8 @@
 import { PageTransition } from "@/components/motion";
 import { HistoryView } from "@/components/finanzas/history-view";
-import { requireCapability } from "@/lib/authz/session";
+import { requireTenant } from "@/lib/authz/session";
+import { roleHas } from "@/lib/authz/roles";
+import { SinPermiso } from "@/components/layout/sin-permiso";
 import { usedCurrencies } from "@/lib/finanzas/queries";
 import { monthlySeries } from "@/lib/finanzas/reports";
 
@@ -15,7 +17,11 @@ export default async function HistorialPage({
 }: {
   searchParams: Promise<{ moneda?: string }>;
 }) {
-  const { tenantId, primaryCurrency } = await requireCapability("report:read");
+  const { tenantId, primaryCurrency, role } = await requireTenant();
+
+  if (!roleHas(role, "report:read")) {
+    return <SinPermiso role={role} explicacion={"El historial muestra los totales mes a mes. Tu rol registra operaciones, pero no ve los consolidados."} />;
+  }
   const params = await searchParams;
 
   const disponibles = await usedCurrencies(tenantId);

@@ -9,9 +9,16 @@ import {
 
 import { SidebarNav } from "./sidebar-nav";
 import { SidebarUser, type SidebarUserProps } from "./sidebar-user";
+import type { MembershipRole } from "@/lib/db/schema";
 import { IconBolt } from "@tabler/icons-react";
 
-export function AppSidebar({ user }: { user: SidebarUserProps }) {
+export function AppSidebar({
+  user,
+  role,
+}: {
+  user: SidebarUserProps;
+  role: MembershipRole;
+}) {
   return (
     <Sidebar
       collapsible="icon"
@@ -34,7 +41,7 @@ export function AppSidebar({ user }: { user: SidebarUserProps }) {
       </SidebarHeader>
 
       <SidebarContent className="px-2">
-        <SidebarNav />
+        <SidebarNav role={role} />
       </SidebarContent>
 
       <SidebarFooter className="p-2">

@@ -30,7 +30,7 @@ describe.skipIf(!hasDb)("catalogo de productos y servicios", () => {
   beforeAll(async () => {
     sql = postgres(process.env.TEST_DIRECT_URL!, { max: 1, prepare: false });
     await sql`insert into tenants (id, name, slug) values (${tenant}, 'Cat', ${"cat-" + tenant.slice(0, 8)})`;
-    await sql`insert into users (id, email) values (${user}, ${`cat-${user.slice(0, 8)}@test.local`})`;
+    await sql`insert into users (id, email) values (${user}, ${`cat-${user.slice(-12)}@test.local`})`;
     await sql`insert into catalog_items (id, tenant_id, catalog_key, code, label, currency) values
       (${catProd},    ${tenant}, 'product_category', 'general', 'General', null),
       (${catServ},    ${tenant}, 'service_category', 'general', 'General', null),

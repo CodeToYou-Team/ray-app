@@ -12,10 +12,13 @@ import {
   SidebarMenuSubItem,
   SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
-import { NAV_TREE, NAV_BOTTOM, type NavItem } from "@/lib/nav";
+import { navTreeFor, navBottomFor, type NavItem } from "@/lib/nav";
+import type { MembershipRole } from "@/lib/db/schema";
 
-export function SidebarNav() {
+export function SidebarNav({ role }: { role: MembershipRole }) {
   const pathname = usePathname();
+  const arriba = navTreeFor(role);
+  const abajo = navBottomFor(role);
 
   return (
     <div className="flex flex-col h-full">
@@ -25,7 +28,7 @@ export function SidebarNav() {
             Principal
           </SidebarGroupLabel>
           <SidebarMenu>
-            {NAV_TREE.map((item) => (
+            {arriba.map((item) => (
               <NavEntry key={item.name} item={item} pathname={pathname} />
             ))}
           </SidebarMenu>
@@ -34,7 +37,7 @@ export function SidebarNav() {
 
       <SidebarGroup>
         <SidebarMenu>
-          {NAV_BOTTOM.map((item) => (
+          {abajo.map((item) => (
             <NavEntry key={item.name} item={item} pathname={pathname} />
           ))}
         </SidebarMenu>

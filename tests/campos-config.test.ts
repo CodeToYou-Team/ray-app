@@ -50,7 +50,7 @@ describe.skipIf(!hasDb)("configuracion de columnas", () => {
   beforeAll(async () => {
     sql = postgres(process.env.TEST_DIRECT_URL!, { max: 1, prepare: false });
     await sql`insert into tenants (id, name, slug) values (${tenant}, 'Fields', ${"f-" + tenant.slice(0, 8)})`;
-    await sql`insert into users (id, email) values (${user}, ${`f-${user.slice(0, 8)}@test.local`})`;
+    await sql`insert into users (id, email) values (${user}, ${`f-${user.slice(-12)}@test.local`})`;
     await sql`insert into catalog_items (id, tenant_id, catalog_key, code, label)
               values (${catProd}, ${tenant}, 'product_category', 'general', 'General')`;
   });

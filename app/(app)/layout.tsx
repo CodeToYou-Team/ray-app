@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { Header } from "@/components/layout/header";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { tryGetTenant } from "@/lib/authz/session";
+import { tryGetTenant, trySession } from "@/lib/authz/session";
 
 /**
  * Shell de la aplicacion. Reemplaza los cuatro layouts byte-identicos que habia
@@ -20,11 +20,21 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const context = await tryGetTenant();
-  if (!context) redirect("/login");
+
+  if (!context) {
+    /**
+     * Se distinguen los dos casos a proposito. Mandar a /login a alguien que YA
+     * entro produce un bucle: inicia sesion bien, el layout lo rebota, y vuelve
+     * a ver el formulario sin que nada explique por que.
+     */
+    const session = await trySession();
+    redirect(session ? "/sin-acceso" : "/login");
+  }
 
   return (
     <SidebarProvider>
       <AppSidebar
+        role={context.role}
         user={{
           name: context.user.displayName,
           email: context.user.email,

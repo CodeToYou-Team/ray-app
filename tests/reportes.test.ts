@@ -45,7 +45,7 @@ describe.skipIf(!hasDb)("reportes", () => {
     sql = postgres(process.env.TEST_DIRECT_URL!, { max: 1, prepare: false });
 
     await sql`insert into tenants (id, name, slug) values (${tenant}, 'Rep', ${"rep-" + tenant.slice(0, 8)})`;
-    await sql`insert into users (id, email) values (${user}, ${`rep-${user.slice(0, 8)}@test.local`})`;
+    await sql`insert into users (id, email) values (${user}, ${`rep-${user.slice(-12)}@test.local`})`;
     await sql`insert into catalog_items (id, tenant_id, catalog_key, code, label, currency) values
       (${catVentas},    ${tenant}, 'income_category',  'ventas',   'Ventas',    null),
       (${catServicios}, ${tenant}, 'income_category',  'servicios','Servicios', null),
