@@ -85,9 +85,10 @@ export function slugifyCode(label: string): string {
 }
 
 /**
- * Catalogos por defecto de un cliente nuevo. Salen de lib/mock-data.ts, que era
- * el contenido con el que se diseñaron las pantallas. Son un punto de partida
- * editable: el cliente renombra, agrega y archiva lo que necesite.
+ * Catalogos por defecto de un cliente nuevo.
+ *
+ * Son un punto de partida editable: el cliente renombra, agrega y archiva lo que
+ * necesite desde Ajustes > Catalogos.
  */
 export const DEFAULT_CATALOG_ITEMS: Record<CatalogKey, { label: string; currency?: string }[]> = {
   income_category: [

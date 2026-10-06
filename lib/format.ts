@@ -1,10 +1,9 @@
 /**
  * Helpers de formato compartidos.
  *
- * Reemplazan a `formatCurrency` de lib/mock-data.ts, que estaba fijo en MXN con
- * cero decimales. Como los totales van separados por moneda (ver
- * docs/plan_arquitectura_v2.md), todo formateo de dinero necesita saber en que
- * moneda esta el monto.
+ * Como los totales van separados por moneda y no se convierte nada entre ellas
+ * (ver docs/plan_arquitectura_v2.md), `formatMoney` EXIGE la moneda: no hay un
+ * formateador de dinero sin moneda, porque no habria forma de que fuera correcto.
  */
 
 /** Locale por defecto. Pasa a ser configurable por cliente cuando exista `tenants`. */

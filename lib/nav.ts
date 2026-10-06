@@ -34,7 +34,6 @@ export const ROUTES: RouteDef[] = [
   { pattern: "/finanzas/ingresos", title: "Ingresos", description: "Registro y seguimiento de ingresos" },
   { pattern: "/finanzas/gastos", title: "Gastos", description: "Registro y seguimiento de gastos" },
   { pattern: "/finanzas/movimientos", title: "Movimientos", description: "Todos los movimientos financieros" },
-  { pattern: "/finanzas/calendario", title: "Calendario", description: "Eventos financieros programados" },
   { pattern: "/finanzas/reportes", title: "Reportes", description: "Análisis y reportes financieros" },
   { pattern: "/finanzas/historial", title: "Historial", description: "Historial financiero por periodo" },
 
@@ -50,24 +49,6 @@ export const ROUTES: RouteDef[] = [
   // Ojo: en el sidebar es el grupo "Inventario", y ademas aparece como hijo
   // "Stock". Esa etiqueta de hijo se declara en NAV_STRUCTURE, no aqui.
   { pattern: "/inventario", title: "Inventario", description: "Stock disponible" },
-  {
-    pattern: "/inventario/catalogo-productos",
-    title: "Catálogo de Productos",
-    description: "Vista de catálogo completo",
-    navLabel: "Catálogo Productos",
-  },
-  {
-    pattern: "/inventario/catalogo-servicios",
-    title: "Catálogo de Servicios",
-    description: "Servicios disponibles",
-    navLabel: "Catálogo Servicios",
-  },
-  {
-    pattern: "/inventario/impacto",
-    title: "Impacto en Ingresos",
-    description: "Relación inventario-ventas",
-    navLabel: "Impacto",
-  },
   {
     pattern: "/inventario/alertas",
     title: "Alertas de Inventario",
@@ -162,7 +143,6 @@ const NAV_STRUCTURE: NavGroup[] = [
       "/finanzas/ingresos",
       "/finanzas/gastos",
       "/finanzas/movimientos",
-      "/finanzas/calendario",
       "/finanzas/reportes",
       "/finanzas/historial",
     ],
@@ -173,9 +153,6 @@ const NAV_STRUCTURE: NavGroup[] = [
     icon: IconBuildingWarehouse,
     children: [
       { href: "/inventario", name: "Stock" },
-      "/inventario/catalogo-productos",
-      "/inventario/catalogo-servicios",
-      "/inventario/impacto",
       "/inventario/alertas",
     ],
   },

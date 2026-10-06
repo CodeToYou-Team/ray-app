@@ -38,7 +38,6 @@
 - `/lib/nav.ts` - Single route registry. Feeds both the header title and the sidebar
   tree. Adding a route means adding an entry here, or the header warns in dev.
 - `/lib/format.ts` - `formatMoney` (currency-aware), `formatDate`, `getPercentChange`.
-- `/lib/mock-data.ts` - Placeholder data. Being replaced phase by phase.
 - `/lib/db` - Drizzle schema, connection, and `withTenant()`. Server-only.
 - `/lib/authz` - `requireSession` / `requireTenant` / `requireCapability`, plus the
   role-to-capability map. Every Server Action starts with one of these.
@@ -111,8 +110,10 @@ is superseded but remains the reference for infrastructure (Supabase pitfalls, R
 - `pnpm-workspace.yaml` blocks package build scripts on purpose. If pnpm asks about a
   new one, decide explicitly rather than leaving the placeholder — an unresolved entry
   makes every `pnpm <script>` fail.
-- The three remaining lint warnings are React Compiler complaints about
-  react-hook-form's `watch()`. Those forms get rebuilt later; the warnings are expected.
+- `pnpm lint` is expected to be completely clean. The React Compiler warnings about
+  react-hook-form's `watch()` are gone: those forms were replaced.
+- There is no mock data left. Every page reads from Postgres; if a screen has nothing
+  to show it renders an empty state, not invented rows.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
