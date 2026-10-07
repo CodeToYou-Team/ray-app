@@ -196,7 +196,9 @@ describe.skipIf(!hasDb)("reportes", () => {
     await registerTransaction(ctx, {
       type: "gasto", kind: "compra", concept: "Reposición", occurredOn: "2026-01-20",
       categoryId: catNomina, paymentMethodId: payEfectivo,
-      items: [{ itemType: "product", refId: monitor, qty: "10" }],
+      items: [
+        { itemType: "product", refId: monitor, qty: "10", unitPrice: "110.00" },
+      ],
       clientRequestId: uuidv7(),
     });
 

@@ -7,6 +7,7 @@ import { listSellables } from "@/lib/productos/queries";
 import {
   listTransactions,
   itemsForTransactions,
+  lastPurchasePrices,
   totalsByCurrency,
   balanceByCurrency,
 } from "./queries";
@@ -66,7 +67,7 @@ export async function loadTransactionsPage(
   // Quien no puede corregir no recibe los renglones: no los va a usar.
   const canEdit = roleHas(role, "transaction:update");
 
-  const [{ rows, total }, totals, balances, catalogs, sellables] =
+  const [{ rows, total }, totals, balances, catalogs, sellables, ultimoCosto] =
     await Promise.all([
       listTransactions(tenantId, { ...filters, type, page, perPage: PER_PAGE }),
       /**
@@ -86,6 +87,7 @@ export async function loadTransactionsPage(
         "payment_method",
       ]),
       listSellables(tenantId),
+      lastPurchasePrices(tenantId),
     ]);
 
   /**
@@ -139,5 +141,7 @@ export async function loadTransactionsPage(
       currency: m.currency,
     })),
     sellables,
+    /** Sugerencia para el precio de compra, no un valor fijo. */
+    ultimoCosto,
   };
 }

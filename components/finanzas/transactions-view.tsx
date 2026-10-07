@@ -95,6 +95,8 @@ interface Props {
   categoriesByType: { ingreso: FormOption[]; gasto: FormOption[] };
   paymentMethods: FormOption[];
   sellables: FormSellable[];
+  /** Lo último que se pagó por cada producto, para precargar la compra. */
+  ultimoCosto: Record<string, string>;
 }
 
 const KIND_BADGE: Record<string, { label: string; icon: typeof IconPackage }> = {
@@ -118,6 +120,7 @@ export function TransactionsView({
   categoriesByType,
   paymentMethods,
   sellables,
+  ultimoCosto,
 }: Props) {
   // En Movimientos el formulario sirve para las dos clases, asi que cual abrir
   // se decide con el boton que se presiono.
@@ -446,6 +449,7 @@ export function TransactionsView({
         categories={categoriesByType[formType]}
         paymentMethods={paymentMethods}
         sellables={sellables}
+        ultimoCosto={ultimoCosto}
         editing={editing ? toEditing(editing) : undefined}
       />
     </div>

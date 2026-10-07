@@ -57,7 +57,7 @@ export interface EditingItem {
   itemType: "product" | "service";
   refId: string;
   qty: string;
-  /** El precio CONGELADO, no el del catalogo hoy. */
+  /** En una venta, el precio CONGELADO. En una compra, lo que se pagó. */
   unitPrice: string;
 }
 
@@ -82,6 +82,11 @@ interface Props {
   paymentMethods: FormOption[];
   sellables: FormSellable[];
   /**
+   * Lo ultimo que se pago por cada producto. Precarga el precio de compra; es
+   * una sugerencia, no un valor fijo.
+   */
+  ultimoCosto?: Record<string, string>;
+  /**
    * Presente = corregir esa operacion en vez de registrar una nueva.
    *
    * El estado inicial se deriva de aqui una sola vez, asi que el padre monta el
@@ -94,6 +99,8 @@ interface Linea {
   key: string;
   refId: string;
   qty: string;
+  /** Solo en compras: lo que se pagó por unidad, tecleado a mano. */
+  unitPrice: string;
 }
 
 /** Un ingreso vende; un gasto compra. */
@@ -125,6 +132,7 @@ export function TransactionForm({
   categories,
   paymentMethods,
   sellables,
+  ultimoCosto = {},
   editing,
 }: Props) {
   const router = useRouter();
@@ -149,6 +157,7 @@ export function TransactionForm({
       key: crypto.randomUUID(),
       refId: i.refId,
       qty: i.qty,
+      unitPrice: i.unitPrice,
     })),
   );
 
@@ -163,14 +172,20 @@ export function TransactionForm({
   const conRenglones = kind !== "operacion";
 
   /**
-   * Solo se ofrecen items en la moneda del pago. Sumar un producto con precio
-   * en USD dentro de una venta cobrada en Bs daria un total sin significado,
-   * porque no se convierte nada entre monedas.
+   * Que se puede elegir como renglon.
+   *
+   * En una VENTA, solo items con precio en la moneda del pago: sumar un
+   * producto en USD dentro de una venta cobrada en Bs daria un total sin
+   * significado, porque no se convierte nada entre monedas.
+   *
+   * En una COMPRA, cualquier producto. El precio se teclea en la moneda del
+   * pago y el del catalogo ni se lee, asi que que un producto se venda en Bs no
+   * impide pagarselo al proveedor en USD. Servicios no: una compra de insumos
+   * solo lleva productos.
    */
   const disponibles = useMemo(() => {
-    const base = sellables.filter((s) => !currency || s.currency === currency);
-    // Una compra de insumos no lleva servicios.
-    return kind === "compra" ? base.filter((s) => s.kind === "product") : base;
+    if (kind === "compra") return sellables.filter((s) => s.kind === "product");
+    return sellables.filter((s) => !currency || s.currency === currency);
   }, [sellables, currency, kind]);
 
   const porId = useMemo(
@@ -191,12 +206,21 @@ export function TransactionForm({
     [editing],
   );
 
-  function precioDe(refId: string): string | null {
-    return precioOriginal.get(refId) ?? porId.get(refId)?.price ?? null;
+  /**
+   * De donde sale el precio de un renglon.
+   *
+   * En una COMPRA lo escribe quien registra: el precio de venta de un producto
+   * no es lo que costo reabastecerlo, y darlo por bueno inflaba el gasto con un
+   * numero inventado. En una VENTA viene del catalogo y el servidor lo recalcula
+   * igual — no se le cree al navegador el numero que suman los reportes.
+   */
+  function precioDe(linea: Linea): string | null {
+    if (kind === "compra") return isMoney(linea.unitPrice) ? linea.unitPrice : null;
+    return precioOriginal.get(linea.refId) ?? porId.get(linea.refId)?.price ?? null;
   }
 
   const subtotales = lineas.map((l) => {
-    const price = precioDe(l.refId);
+    const price = precioDe(l);
     if (!price || !isQuantity(l.qty)) return "0.00";
     try {
       return lineSubtotal(l.qty, price);
@@ -239,6 +263,8 @@ export function TransactionForm({
             itemType: porId.get(l.refId)?.kind ?? ("product" as const),
             refId: l.refId,
             qty: l.qty,
+            // Solo lo mira el servidor si es una compra; en una venta lo ignora.
+            unitPrice: kind === "compra" ? l.unitPrice : undefined,
           }))
         : undefined,
       notes: notes || undefined,
@@ -270,7 +296,14 @@ export function TransactionForm({
     categoryId &&
     paymentMethodId &&
     (conRenglones
-      ? lineas.length > 0 && lineas.every((l) => l.refId && isQuantity(l.qty))
+      ? lineas.length > 0 &&
+        lineas.every(
+          (l) =>
+            l.refId &&
+            isQuantity(l.qty) &&
+            // Una compra sin precio no se puede enviar: no hay de donde sacarlo.
+            (kind !== "compra" || isMoney(l.unitPrice)),
+        )
       : isMoney(amount));
 
   const opciones = kindsFor(type);
@@ -428,6 +461,7 @@ export function TransactionForm({
               disponibles={disponibles}
               porId={porId}
               precioDe={precioDe}
+              ultimoCosto={ultimoCosto}
               subtotales={subtotales}
               total={totalRenglones}
               currency={currency}
@@ -475,6 +509,7 @@ function LineItemsEditor({
   disponibles,
   porId,
   precioDe,
+  ultimoCosto,
   subtotales,
   total,
   currency,
@@ -484,7 +519,8 @@ function LineItemsEditor({
   setLineas: (l: Linea[]) => void;
   disponibles: FormSellable[];
   porId: Map<string, FormSellable>;
-  precioDe: (refId: string) => string | null;
+  precioDe: (linea: Linea) => string | null;
+  ultimoCosto: Record<string, string>;
   subtotales: string[];
   total: string;
   currency: string | null;
@@ -492,6 +528,7 @@ function LineItemsEditor({
 }) {
   const productos = disponibles.filter((d) => d.kind === "product");
   const servicios = disponibles.filter((d) => d.kind === "service");
+  const esCompra = kind === "compra";
 
   if (!currency) {
     return (
@@ -505,7 +542,9 @@ function LineItemsEditor({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <Label>{kind === "venta" ? "Qué se vendió" : "Qué se compró"}</Label>
+        <Label>
+          {kind === "venta" ? "Qué se vendió" : "Qué se compró y a qué precio"}
+        </Label>
         <Button
           type="button"
           variant="outline"
@@ -514,7 +553,7 @@ function LineItemsEditor({
           onClick={() =>
             setLineas([
               ...lineas,
-              { key: crypto.randomUUID(), refId: "", qty: "1" },
+              { key: crypto.randomUUID(), refId: "", qty: "1", unitPrice: "" },
             ])
           }
         >
@@ -525,9 +564,9 @@ function LineItemsEditor({
 
       {disponibles.length === 0 && (
         <p className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
-          No hay {kind === "compra" ? "productos" : "productos ni servicios"} con
-          precio en {currency}. Créalos primero, o elige un método de pago en otra
-          moneda.
+          {esCompra
+            ? "No hay productos cargados todavía. Créalos primero para poder reabastecerlos."
+            : `No hay productos ni servicios con precio en ${currency}. Créalos primero, o elige un método de pago en otra moneda.`}
         </p>
       )}
 
@@ -540,7 +579,19 @@ function LineItemsEditor({
                 value={l.refId}
                 onValueChange={(v) =>
                   setLineas(
-                    lineas.map((x) => (x.key === l.key ? { ...x, refId: v } : x)),
+                    lineas.map((x) =>
+                      x.key === l.key
+                        ? {
+                            ...x,
+                            refId: v,
+                            // Lo que se pagó la última vez, como punto de
+                            // partida. Si nunca se compró, queda en blanco:
+                            // mejor vacío que el precio de venta, que es otro
+                            // número y además uno creíble.
+                            unitPrice: esCompra ? (ultimoCosto[v] ?? "") : "",
+                          }
+                        : x,
+                    ),
                   )
                 }
               >
@@ -582,14 +633,46 @@ function LineItemsEditor({
               </Select>
               {ref && (
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  {formatMoney(precioDe(l.refId) ?? ref.price, ref.currency)}{" "}
-                  × {l.qty || 0} ={" "}
-                  <span className="font-medium text-foreground">
-                    {formatMoney(subtotales[i] ?? "0", currency)}
-                  </span>
+                  {esCompra && !isMoney(l.unitPrice) ? (
+                    <span>
+                      Escribe cuánto costó cada uno
+                      {ultimoCosto[l.refId] && (
+                        <> (la última vez: {formatMoney(ultimoCosto[l.refId], currency)})</>
+                      )}
+                    </span>
+                  ) : (
+                    <>
+                      {formatMoney(precioDe(l) ?? ref.price, currency)} ×{" "}
+                      {l.qty || 0} ={" "}
+                      <span className="font-medium text-foreground">
+                        {formatMoney(subtotales[i] ?? "0", currency)}
+                      </span>
+                    </>
+                  )}
                 </p>
               )}
             </div>
+
+            {/*
+              En una compra el precio se teclea; en una venta sale del catálogo
+              y mostrarlo editable sería mentir sobre lo que se puede cambiar.
+            */}
+            {esCompra && (
+              <Input
+                value={l.unitPrice}
+                inputMode="decimal"
+                className="w-24 font-mono"
+                aria-label="Precio de compra"
+                placeholder="Costo"
+                onChange={(e) =>
+                  setLineas(
+                    lineas.map((x) =>
+                      x.key === l.key ? { ...x, unitPrice: e.target.value } : x,
+                    ),
+                  )
+                }
+              />
+            )}
 
             <Input
               value={l.qty}

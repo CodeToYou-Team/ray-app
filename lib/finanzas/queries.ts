@@ -202,6 +202,52 @@ export async function itemsForTransactions(
 }
 
 /**
+ * Lo ultimo que se pago por cada producto, para precargar la proxima compra.
+ *
+ * Se deriva de las compras ya registradas en vez de guardarse en `products`:
+ * una columna "costo" habria que mantenerla sincronizada a mano, y lo que
+ * importa (cuanto costo la ultima vez) ya esta en los renglones.
+ *
+ * Es una sugerencia, no el precio: quien registra la sobreescribe si el
+ * proveedor subio. Se ordena por fecha de la operacion y no por cuando se
+ * tecleo, porque una compra cargada tarde no es la mas reciente.
+ */
+export async function lastPurchasePrices(
+  tenantId: string,
+): Promise<Record<string, string>> {
+  const rows = await withTenant(tenantId, (tx) =>
+    tx
+      .select({
+        productId: transactionItems.productId,
+        unitPrice: transactionItems.unitPrice,
+        occurredOn: transactions.occurredOn,
+        id: transactions.id,
+      })
+      .from(transactionItems)
+      .innerJoin(
+        transactions,
+        eq(transactions.id, transactionItems.transactionId),
+      )
+      .where(
+        and(
+          eq(transactionItems.tenantId, tenantId),
+          eq(transactions.kind, "compra"),
+          isNull(transactions.deletedAt),
+        ),
+      )
+      // Ascendente a proposito: al recorrer, cada producto queda con la ultima
+      // compra que se vio, que es la mas reciente.
+      .orderBy(transactions.occurredOn, transactions.id),
+  );
+
+  const ultimo: Record<string, string> = {};
+  for (const r of rows) {
+    if (r.productId) ultimo[r.productId] = r.unitPrice;
+  }
+  return ultimo;
+}
+
+/**
  * Totales agrupados por moneda.
  *
  * Devuelve una fila por moneda a proposito. Sumar Bs con USD daria un numero sin

@@ -45,7 +45,41 @@ const itemSchema = z.object({
   itemType: z.enum(["product", "service"]),
   refId: z.uuid(),
   qty: z.string().refine(isQuantity, "Cantidad inválida"),
+  /**
+   * Solo para compras: lo que se PAGO por unidad.
+   *
+   * En una venta se ignora — ahi el precio sale del catalogo y lo calcula el
+   * servidor, porque es el numero que suman los reportes del dueño y no puede
+   * venir del navegador. En una compra no hay de donde sacarlo: el precio de
+   * venta de un producto no es lo que costo reabastecerlo.
+   */
+  unitPrice: z.string().optional(),
 });
+
+/**
+ * Resuelve el precio unitario de un renglon de compra.
+ *
+ * Se valida aparte del esquema porque solo es obligatorio cuando la operacion
+ * es una compra, y eso depende de otro campo.
+ */
+function precioDeCompra(
+  valor: string | undefined,
+  nombre: string,
+): { ok: true; value: string } | { ok: false; error: string } {
+  if (!valor || !isMoney(valor)) {
+    return {
+      ok: false,
+      error: `Escribe cuánto costó cada "${nombre}". El precio de venta no sirve: no es lo que pagaste.`,
+    };
+  }
+  const value = normalizeMoney(valor);
+  // La base tambien lo rechaza (transaction_items_price_non_negative), pero
+  // ahi llegaria como un error de Postgres que no le dice nada a nadie.
+  if (value.startsWith("-")) {
+    return { ok: false, error: `El precio de compra de "${nombre}" no puede ser negativo.` };
+  }
+  return { ok: true, value };
+}
 
 const inputSchema = z.object({
   type: z.enum(["ingreso", "gasto"]),
@@ -223,21 +257,32 @@ export async function registerTransaction(
           }
 
           /**
-           * La moneda del renglon tiene que coincidir con la del pago.
+           * En una VENTA, la moneda del renglon tiene que coincidir con la del
+           * pago: el precio sale del catalogo, viene denominado en la moneda
+           * del producto, y como NO se convierte entre monedas, sumar un
+           * producto en USD dentro de una venta cobrada en Bs daria un total
+           * sin significado — el numero saldria, pero no seria dinero.
            *
-           * Como NO se convierte entre monedas, sumar un producto con precio en
-           * USD dentro de una venta cobrada en Bs daria un total sin significado
-           * — el numero saldria, pero no seria dinero.
+           * En una COMPRA no aplica: el precio lo escribe quien registra, en la
+           * moneda del pago, y el precio de venta del catalogo ni se lee. Que
+           * un producto se venda en Bs no impide pagarle al proveedor en USD.
            */
-          if (ref.currency !== currency) {
-            return {
-              ok: false as const,
-              error: `"${ref.name}" tiene precio en ${ref.currency} y el pago es en ${currency}. Los montos no se convierten entre monedas.`,
-            };
+          let unitPrice: string;
+          if (input.kind === "compra") {
+            const precio = precioDeCompra(item.unitPrice, ref.name);
+            if (!precio.ok) return { ok: false as const, error: precio.error };
+            unitPrice = precio.value;
+          } else {
+            if (ref.currency !== currency) {
+              return {
+                ok: false as const,
+                error: `"${ref.name}" tiene precio en ${ref.currency} y el pago es en ${currency}. Los montos no se convierten entre monedas.`,
+              };
+            }
+            unitPrice = normalizeMoney(ref.price);
           }
 
           const qty = normalizeQuantity(item.qty);
-          const unitPrice = normalizeMoney(ref.price);
           lineas.push({
             id: uuidv7(),
             itemType: item.itemType,
@@ -557,17 +602,30 @@ export async function editTransaction(
             };
           }
 
-          if (ref.currency !== currency) {
-            return {
-              ok: false as const,
-              error: `"${ref.name}" tiene precio en ${ref.currency} y el pago es en ${currency}. Los montos no se convierten entre monedas.`,
-            };
+          let unitPrice: string;
+          if (actual.kind === "compra") {
+            // Al corregir una compra el precio se puede cambiar: puede ser
+            // justamente lo que estaba mal. El formulario lo manda precargado
+            // con el que se registro.
+            const precio = precioDeCompra(
+              item.unitPrice ?? precioOriginal.get(item.refId),
+              ref.name,
+            );
+            if (!precio.ok) return { ok: false as const, error: precio.error };
+            unitPrice = precio.value;
+          } else {
+            if (ref.currency !== currency) {
+              return {
+                ok: false as const,
+                error: `"${ref.name}" tiene precio en ${ref.currency} y el pago es en ${currency}. Los montos no se convierten entre monedas.`,
+              };
+            }
+            unitPrice = normalizeMoney(
+              precioOriginal.get(item.refId) ?? ref.price,
+            );
           }
 
           const qty = normalizeQuantity(item.qty);
-          const unitPrice = normalizeMoney(
-            precioOriginal.get(item.refId) ?? ref.price,
-          );
           lineas.push({
             id: uuidv7(),
             itemType: item.itemType,

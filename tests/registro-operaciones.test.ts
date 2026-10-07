@@ -7,7 +7,11 @@ import {
   revertTransaction,
 } from "@/lib/finanzas/register";
 import { getStock, listMovements } from "@/lib/inventario/stock";
-import { totalsByCurrency, listTransactions } from "@/lib/finanzas/queries";
+import {
+  totalsByCurrency,
+  listTransactions,
+  lastPurchasePrices,
+} from "@/lib/finanzas/queries";
 
 /**
  * Registro de operaciones de punta a punta, contra la base real.
@@ -225,9 +229,28 @@ describe.skipIf(!hasDb)("registro de operaciones", () => {
   // Compra
   // -------------------------------------------------------------------------
 
-  it("una compra suma al inventario", async () => {
+  it("una compra suma al inventario y vale lo que costo, no lo que se vende", async () => {
     const antes = Number(await getStock(tenant, monitor));
 
+    const r = await registerTransaction(ctx, {
+      ...base,
+      type: "gasto",
+      kind: "compra",
+      categoryId: catGasto,
+      // El monitor se vende a 150; al proveedor se le paga 110.
+      items: [
+        { itemType: "product", refId: monitor, qty: "5", unitPrice: "110.00" },
+      ],
+      clientRequestId: uuidv7(),
+    });
+
+    // 5 x 110. NO 750: cobrar el precio de venta inflaba el gasto con un
+    // numero que nadie pago.
+    expect(r.ok && r.amount).toBe("550.00");
+    expect(Number(await getStock(tenant, monitor))).toBe(antes + 5);
+  });
+
+  it("una compra sin precio no se registra", async () => {
     const r = await registerTransaction(ctx, {
       ...base,
       type: "gasto",
@@ -236,9 +259,61 @@ describe.skipIf(!hasDb)("registro de operaciones", () => {
       items: [{ itemType: "product", refId: monitor, qty: "5" }],
       clientRequestId: uuidv7(),
     });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toMatch(/cuánto costó/i);
+  });
 
-    expect(r.ok && r.amount).toBe("750.00");
-    expect(Number(await getStock(tenant, monitor))).toBe(antes + 5);
+  it("una compra con precio negativo no se registra", async () => {
+    const r = await registerTransaction(ctx, {
+      ...base,
+      type: "gasto",
+      kind: "compra",
+      categoryId: catGasto,
+      items: [
+        { itemType: "product", refId: monitor, qty: "1", unitPrice: "-10.00" },
+      ],
+      clientRequestId: uuidv7(),
+    });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toMatch(/negativo/i);
+  });
+
+  it("se puede comprar un producto que se vende en otra moneda", async () => {
+    // El cable tiene precio de venta en VES; al proveedor se le paga en USD.
+    // No hay conversion: el costo se teclea directo en la moneda del pago.
+    const r = await registerTransaction(ctx, {
+      ...base,
+      type: "gasto",
+      kind: "compra",
+      categoryId: catGasto,
+      paymentMethodId: payUsd,
+      items: [
+        { itemType: "product", refId: productoEnBs, qty: "2", unitPrice: "3.50" },
+      ],
+      clientRequestId: uuidv7(),
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.amount).toBe("7.00");
+    expect(r.currency).toBe("USD");
+  });
+
+  it("una venta sigue tomando el precio del catalogo, no el que manden", async () => {
+    const r = await registerTransaction(ctx, {
+      ...base,
+      type: "ingreso",
+      kind: "venta",
+      categoryId: catIngreso,
+      // Un precio inventado en el renglon de una venta se ignora: es el numero
+      // que suman los reportes del dueño y no puede venir del navegador.
+      items: [
+        { itemType: "product", refId: monitor, qty: "1", unitPrice: "1.00" },
+      ],
+      clientRequestId: uuidv7(),
+    });
+    expect(r.ok && r.amount).toBe("150.00");
   });
 
   it("una compra no admite servicios", async () => {
@@ -247,7 +322,9 @@ describe.skipIf(!hasDb)("registro de operaciones", () => {
       type: "gasto",
       kind: "compra",
       categoryId: catGasto,
-      items: [{ itemType: "service", refId: instalacion, qty: "1" }],
+      items: [
+        { itemType: "service", refId: instalacion, qty: "1", unitPrice: "40.00" },
+      ],
       clientRequestId: uuidv7(),
     });
     expect(r.ok).toBe(false);
@@ -639,7 +716,9 @@ describe.skipIf(!hasDb)("registro de operaciones", () => {
       type: "gasto",
       kind: "compra",
       categoryId: catGasto,
-      items: [{ itemType: "product", refId: teclado, qty: "10" }],
+      items: [
+        { itemType: "product", refId: teclado, qty: "10", unitPrice: "20.00" },
+      ],
       clientRequestId: uuidv7(),
     });
     expect(tx.ok).toBe(true);
@@ -653,10 +732,73 @@ describe.skipIf(!hasDb)("registro de operaciones", () => {
       occurredOn: "2026-09-11",
       categoryId: catGasto,
       paymentMethodId: payUsd,
-      items: [{ itemType: "product", refId: teclado, qty: "6" }],
+      items: [
+        { itemType: "product", refId: teclado, qty: "6", unitPrice: "20.00" },
+      ],
     });
     expect(r.ok).toBe(true);
     expect(Number(await getStock(tenant, teclado))).toBe(Number(antes) + 6);
+  });
+
+  it("corregir una compra deja cambiar el precio pagado", async () => {
+    const tx = await registerTransaction(ctx, {
+      ...base,
+      type: "gasto",
+      kind: "compra",
+      categoryId: catGasto,
+      items: [
+        { itemType: "product", refId: teclado, qty: "4", unitPrice: "20.00" },
+      ],
+      clientRequestId: uuidv7(),
+    });
+    expect(tx.ok).toBe(true);
+    if (!tx.ok) return;
+    expect(tx.amount).toBe("80.00");
+
+    // La factura decia 22.75, no 20. A diferencia de una venta, aqui el precio
+    // SI se corrige: es un dato que se tecleo y pudo teclearse mal.
+    const r = await editTransaction(ctx, {
+      id: tx.id,
+      concept: "Prueba",
+      occurredOn: "2026-09-11",
+      categoryId: catGasto,
+      paymentMethodId: payUsd,
+      items: [
+        { itemType: "product", refId: teclado, qty: "4", unitPrice: "22.75" },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.amount).toBe("91.00");
+  });
+
+  it("corregir una compra sin mandar precio conserva el que tenia", async () => {
+    const tx = await registerTransaction(ctx, {
+      ...base,
+      type: "gasto",
+      kind: "compra",
+      categoryId: catGasto,
+      items: [
+        { itemType: "product", refId: teclado, qty: "2", unitPrice: "17.00" },
+      ],
+      clientRequestId: uuidv7(),
+    });
+    expect(tx.ok).toBe(true);
+    if (!tx.ok) return;
+
+    // Solo se corrige la cantidad. El costo no se reinventa con el precio de
+    // venta del catalogo: se queda el que se pago.
+    const r = await editTransaction(ctx, {
+      id: tx.id,
+      concept: "Prueba",
+      occurredOn: "2026-09-11",
+      categoryId: catGasto,
+      paymentMethodId: payUsd,
+      items: [{ itemType: "product", refId: teclado, qty: "3" }],
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.amount).toBe("51.00"); // 3 x 17, no 3 x 25.50
   });
 
   it("no se puede corregir una operacion anulada", async () => {
@@ -761,5 +903,88 @@ describe.skipIf(!hasDb)("registro de operaciones", () => {
     expect(evento).toBeTruthy();
     expect(evento.diff.concept).toEqual({ from: "Antes", to: "Después" });
     expect(evento.diff.amount).toEqual({ from: "5.00", to: "8.00" });
+  });
+
+  // -------------------------------------------------------------------------
+  // Sugerencia de precio para la proxima compra
+  // -------------------------------------------------------------------------
+
+  it("sugiere lo ultimo que se pago, no el precio de venta", async () => {
+    const producto = uuidv7();
+    await sql`insert into products (id, tenant_id, name, category_id, price, currency)
+              values (${producto}, ${tenant}, 'Mouse', ${catProd}, '45.00', 'USD')`;
+
+    // Dos compras: la de marzo es la mas reciente aunque se cargue despues.
+    await registerTransaction(ctx, {
+      ...base,
+      type: "gasto",
+      kind: "compra",
+      categoryId: catGasto,
+      occurredOn: "2026-03-01",
+      items: [
+        { itemType: "product", refId: producto, qty: "1", unitPrice: "31.00" },
+      ],
+      clientRequestId: uuidv7(),
+    });
+    await registerTransaction(ctx, {
+      ...base,
+      type: "gasto",
+      kind: "compra",
+      categoryId: catGasto,
+      occurredOn: "2026-01-15",
+      items: [
+        { itemType: "product", refId: producto, qty: "1", unitPrice: "28.00" },
+      ],
+      clientRequestId: uuidv7(),
+    });
+
+    const costos = await lastPurchasePrices(tenant);
+    // La de marzo, aunque la de enero se registro de ultima. Y no 45.00, que es
+    // lo que se cobra, no lo que cuesta.
+    expect(costos[producto]).toBe("31.00");
+  });
+
+  it("un producto que nunca se compro no tiene sugerencia", async () => {
+    const costos = await lastPurchasePrices(tenant);
+    expect(costos[instalacion]).toBeUndefined();
+  });
+
+  it("una compra anulada deja de ser la referencia", async () => {
+    const producto = uuidv7();
+    await sql`insert into products (id, tenant_id, name, category_id, price, currency)
+              values (${producto}, ${tenant}, 'Hub', ${catProd}, '60.00', 'USD')`;
+
+    await registerTransaction(ctx, {
+      ...base,
+      type: "gasto",
+      kind: "compra",
+      categoryId: catGasto,
+      occurredOn: "2026-02-01",
+      items: [
+        { itemType: "product", refId: producto, qty: "1", unitPrice: "40.00" },
+      ],
+      clientRequestId: uuidv7(),
+    });
+    const mala = await registerTransaction(ctx, {
+      ...base,
+      type: "gasto",
+      kind: "compra",
+      categoryId: catGasto,
+      occurredOn: "2026-04-01",
+      items: [
+        { itemType: "product", refId: producto, qty: "1", unitPrice: "999.00" },
+      ],
+      clientRequestId: uuidv7(),
+    });
+    expect(mala.ok).toBe(true);
+    if (!mala.ok) return;
+
+    expect((await lastPurchasePrices(tenant))[producto]).toBe("999.00");
+
+    await revertTransaction(ctx, { id: mala.id });
+
+    // Anulada deja de contar: si no, un error anulado seguiria precargando el
+    // formulario de la proxima compra.
+    expect((await lastPurchasePrices(tenant))[producto]).toBe("40.00");
   });
 });
