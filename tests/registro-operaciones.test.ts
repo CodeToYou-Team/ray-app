@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import postgres from "postgres";
 import { uuidv7 } from "uuidv7";
-import { registerTransaction, revertTransaction } from "@/lib/finanzas/register";
+import {
+  editTransaction,
+  registerTransaction,
+  revertTransaction,
+} from "@/lib/finanzas/register";
 import { getStock, listMovements } from "@/lib/inventario/stock";
 import { totalsByCurrency, listTransactions } from "@/lib/finanzas/queries";
 
@@ -421,5 +425,341 @@ describe.skipIf(!hasDb)("registro de operaciones", () => {
     expect(evento.action).toBe("create");
     expect(evento.actor_id).toBe(user);
     expect(evento.diff.amount).toBe("77.00");
+  });
+
+  // -------------------------------------------------------------------------
+  // Correccion de una operacion ya registrada
+  // -------------------------------------------------------------------------
+
+  it("corrige el monto de una operacion suelta", async () => {
+    const tx = await registerTransaction(ctx, {
+      ...base,
+      type: "gasto",
+      kind: "operacion",
+      categoryId: catGasto,
+      amount: "30.00",
+      concept: "Papeleria",
+      clientRequestId: uuidv7(),
+    });
+    expect(tx.ok).toBe(true);
+    if (!tx.ok) return;
+
+    const r = await editTransaction(ctx, {
+      id: tx.id,
+      concept: "Papelería y tinta",
+      occurredOn: "2026-09-12",
+      categoryId: catGasto,
+      paymentMethodId: payUsd,
+      amount: "47.25",
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.amount).toBe("47.25");
+
+    const [fila] = await sql`select * from transactions where id = ${tx.id}`;
+    expect(fila.concept).toBe("Papelería y tinta");
+    expect(fila.occurred_on.toISOString().slice(0, 10)).toBe("2026-09-12");
+    expect(fila.amount).toBe("47.25");
+  });
+
+  it("cambiar de metodo de pago cambia la moneda del registro", async () => {
+    const tx = await registerTransaction(ctx, {
+      ...base,
+      type: "ingreso",
+      kind: "operacion",
+      categoryId: catIngreso,
+      amount: "100.00",
+      clientRequestId: uuidv7(),
+    });
+    expect(tx.ok).toBe(true);
+    if (!tx.ok) return;
+    expect(tx.currency).toBe("USD");
+
+    // Se registro en el metodo equivocado: era pago movil, en bolivares.
+    const r = await editTransaction(ctx, {
+      id: tx.id,
+      concept: "Prueba",
+      occurredOn: "2026-09-11",
+      categoryId: catIngreso,
+      paymentMethodId: payVes,
+      amount: "100.00",
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // El monto NO se convierte: se corrige en que moneda estaba, nada mas.
+    expect(r.currency).toBe("VES");
+  });
+
+  it("conserva el precio congelado de un renglon que ya estaba", async () => {
+    const tx = await registerTransaction(ctx, {
+      ...base,
+      type: "ingreso",
+      kind: "venta",
+      categoryId: catIngreso,
+      items: [{ itemType: "product", refId: monitor, qty: "2" }],
+      clientRequestId: uuidv7(),
+    });
+    expect(tx.ok).toBe(true);
+    if (!tx.ok) return;
+    expect(tx.amount).toBe("300.00");
+
+    // El monitor sube de precio DESPUES de la venta.
+    await sql`update products set price = '175.00' where id = ${monitor}`;
+
+    try {
+      // Se corrige la cantidad: eran 3, no 2.
+      const r = await editTransaction(ctx, {
+        id: tx.id,
+        concept: "Prueba",
+        occurredOn: "2026-09-11",
+        categoryId: catIngreso,
+        paymentMethodId: payUsd,
+        items: [{ itemType: "product", refId: monitor, qty: "3" }],
+      });
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+
+      // 3 x 150, el precio con que se vendio. NO 3 x 175: corregir una cantidad
+      // mal tecleada no revalua la venta al precio de hoy.
+      expect(r.amount).toBe("450.00");
+
+      const renglones =
+        await sql`select unit_price from transaction_items where transaction_id = ${tx.id}`;
+      expect(renglones).toHaveLength(1);
+      expect(renglones[0].unit_price).toBe("150.00");
+    } finally {
+      await sql`update products set price = '150.00' where id = ${monitor}`;
+    }
+  });
+
+  it("un renglon NUEVO si toma el precio actual del catalogo", async () => {
+    const tx = await registerTransaction(ctx, {
+      ...base,
+      type: "ingreso",
+      kind: "venta",
+      categoryId: catIngreso,
+      items: [{ itemType: "product", refId: monitor, qty: "1" }],
+      clientRequestId: uuidv7(),
+    });
+    expect(tx.ok).toBe(true);
+    if (!tx.ok) return;
+
+    // Se olvido cargar el teclado.
+    const r = await editTransaction(ctx, {
+      id: tx.id,
+      concept: "Prueba",
+      occurredOn: "2026-09-11",
+      categoryId: catIngreso,
+      paymentMethodId: payUsd,
+      items: [
+        { itemType: "product", refId: monitor, qty: "1" },
+        { itemType: "product", refId: teclado, qty: "2" },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.amount).toBe("201.00"); // 150 + 2 x 25.50
+  });
+
+  it("ajusta el inventario con un movimiento compensatorio, sin tocar el original", async () => {
+    const antes = await getStock(tenant, monitor);
+
+    const tx = await registerTransaction(ctx, {
+      ...base,
+      type: "ingreso",
+      kind: "venta",
+      categoryId: catIngreso,
+      items: [{ itemType: "product", refId: monitor, qty: "2" }],
+      clientRequestId: uuidv7(),
+    });
+    expect(tx.ok).toBe(true);
+    if (!tx.ok) return;
+    expect(Number(await getStock(tenant, monitor))).toBe(Number(antes) - 2);
+
+    // Eran 5, no 2.
+    const r = await editTransaction(ctx, {
+      id: tx.id,
+      concept: "Prueba",
+      occurredOn: "2026-09-11",
+      categoryId: catIngreso,
+      paymentMethodId: payUsd,
+      items: [{ itemType: "product", refId: monitor, qty: "5" }],
+    });
+    expect(r.ok).toBe(true);
+
+    // El stock queda como si se hubiera registrado bien desde el principio.
+    expect(Number(await getStock(tenant, monitor))).toBe(Number(antes) - 5);
+
+    // Pero el original sigue ahi: es lo que responde "por que dice 15 y conte 15
+    // pero la venta decia 2". Nunca se reescribe un movimiento.
+    const movimientos = await listMovements(tenant, monitor, 10);
+    const venta = movimientos.find((m) => m.reason === "venta");
+    const ajuste = movimientos.find((m) => m.reason === "ajuste");
+    expect(venta?.delta).toBe("-2.000");
+    expect(ajuste?.delta).toBe("-3.000");
+  });
+
+  it("quitar un renglon devuelve lo que se habia descontado", async () => {
+    const antes = await getStock(tenant, monitor);
+
+    const tx = await registerTransaction(ctx, {
+      ...base,
+      type: "ingreso",
+      kind: "venta",
+      categoryId: catIngreso,
+      items: [
+        { itemType: "product", refId: monitor, qty: "1" },
+        { itemType: "service", refId: instalacion, qty: "1" },
+      ],
+      clientRequestId: uuidv7(),
+    });
+    expect(tx.ok).toBe(true);
+    if (!tx.ok) return;
+
+    // El monitor no era de esta venta, solo la instalación.
+    const r = await editTransaction(ctx, {
+      id: tx.id,
+      concept: "Prueba",
+      occurredOn: "2026-09-11",
+      categoryId: catIngreso,
+      paymentMethodId: payUsd,
+      items: [{ itemType: "service", refId: instalacion, qty: "1" }],
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.amount).toBe("40.00");
+    expect(Number(await getStock(tenant, monitor))).toBe(Number(antes));
+  });
+
+  it("una compra corregida hacia abajo saca del inventario", async () => {
+    const antes = await getStock(tenant, teclado);
+
+    const tx = await registerTransaction(ctx, {
+      ...base,
+      type: "gasto",
+      kind: "compra",
+      categoryId: catGasto,
+      items: [{ itemType: "product", refId: teclado, qty: "10" }],
+      clientRequestId: uuidv7(),
+    });
+    expect(tx.ok).toBe(true);
+    if (!tx.ok) return;
+    expect(Number(await getStock(tenant, teclado))).toBe(Number(antes) + 10);
+
+    // Llegaron 6, no 10.
+    const r = await editTransaction(ctx, {
+      id: tx.id,
+      concept: "Prueba",
+      occurredOn: "2026-09-11",
+      categoryId: catGasto,
+      paymentMethodId: payUsd,
+      items: [{ itemType: "product", refId: teclado, qty: "6" }],
+    });
+    expect(r.ok).toBe(true);
+    expect(Number(await getStock(tenant, teclado))).toBe(Number(antes) + 6);
+  });
+
+  it("no se puede corregir una operacion anulada", async () => {
+    const tx = await registerTransaction(ctx, {
+      ...base,
+      type: "ingreso",
+      kind: "operacion",
+      categoryId: catIngreso,
+      amount: "12.00",
+      clientRequestId: uuidv7(),
+    });
+    expect(tx.ok).toBe(true);
+    if (!tx.ok) return;
+    expect((await revertTransaction(ctx, { id: tx.id })).ok).toBe(true);
+
+    const r = await editTransaction(ctx, {
+      id: tx.id,
+      concept: "Prueba",
+      occurredOn: "2026-09-11",
+      categoryId: catIngreso,
+      paymentMethodId: payUsd,
+      amount: "99.00",
+    });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toMatch(/anulada/i);
+  });
+
+  it("no se puede mezclar monedas al corregir", async () => {
+    const tx = await registerTransaction(ctx, {
+      ...base,
+      type: "ingreso",
+      kind: "venta",
+      categoryId: catIngreso,
+      items: [{ itemType: "product", refId: monitor, qty: "1" }],
+      clientRequestId: uuidv7(),
+    });
+    expect(tx.ok).toBe(true);
+    if (!tx.ok) return;
+
+    // El monitor tiene precio en USD; el pago movil cobra en VES.
+    const r = await editTransaction(ctx, {
+      id: tx.id,
+      concept: "Prueba",
+      occurredOn: "2026-09-11",
+      categoryId: catIngreso,
+      paymentMethodId: payVes,
+      items: [{ itemType: "product", refId: monitor, qty: "1" }],
+    });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toMatch(/no se convierten/i);
+  });
+
+  it("una venta no se puede quedar sin renglones", async () => {
+    const tx = await registerTransaction(ctx, {
+      ...base,
+      type: "ingreso",
+      kind: "venta",
+      categoryId: catIngreso,
+      items: [{ itemType: "product", refId: monitor, qty: "1" }],
+      clientRequestId: uuidv7(),
+    });
+    expect(tx.ok).toBe(true);
+    if (!tx.ok) return;
+
+    const r = await editTransaction(ctx, {
+      id: tx.id,
+      concept: "Prueba",
+      occurredOn: "2026-09-11",
+      categoryId: catIngreso,
+      paymentMethodId: payUsd,
+      items: [],
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it("corregir deja el rastro en la bitacora", async () => {
+    const tx = await registerTransaction(ctx, {
+      ...base,
+      type: "gasto",
+      kind: "operacion",
+      categoryId: catGasto,
+      amount: "5.00",
+      concept: "Antes",
+      clientRequestId: uuidv7(),
+    });
+    expect(tx.ok).toBe(true);
+    if (!tx.ok) return;
+
+    await editTransaction(ctx, {
+      id: tx.id,
+      concept: "Después",
+      occurredOn: "2026-09-11",
+      categoryId: catGasto,
+      paymentMethodId: payUsd,
+      amount: "8.00",
+    });
+
+    const [evento] = await sql`select * from audit_log
+      where entity = 'transactions' and entity_id = ${tx.id} and action = 'update'`;
+    expect(evento).toBeTruthy();
+    expect(evento.diff.concept).toEqual({ from: "Antes", to: "Después" });
+    expect(evento.diff.amount).toEqual({ from: "5.00", to: "8.00" });
   });
 });

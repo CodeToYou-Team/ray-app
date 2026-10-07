@@ -4,7 +4,12 @@ import { requireTenant } from "@/lib/authz/session";
 import { roleHas } from "@/lib/authz/roles";
 import { listCatalogs } from "@/lib/catalogs/queries";
 import { listSellables } from "@/lib/productos/queries";
-import { listTransactions, totalsByCurrency, balanceByCurrency } from "./queries";
+import {
+  listTransactions,
+  itemsForTransactions,
+  totalsByCurrency,
+  balanceByCurrency,
+} from "./queries";
 import type { TransactionType } from "@/lib/db/schema";
 
 export const PER_PAGE = 20;
@@ -25,6 +30,9 @@ export async function loadTransactionsPage(
   // Sin `type` es la pantalla de Movimientos, la unica que muestra balance.
   const esMovimientos = type === undefined;
 
+  // Quien no puede corregir no recibe los renglones: no los va a usar.
+  const canEdit = roleHas(role, "transaction:update");
+
   const [{ rows, total }, totals, balances, catalogs, sellables] =
     await Promise.all([
       listTransactions(tenantId, { type, page, perPage: PER_PAGE }),
@@ -38,17 +46,32 @@ export async function loadTransactionsPage(
       listSellables(tenantId),
     ]);
 
+  /**
+   * Los renglones de las ventas y compras de ESTA pagina.
+   *
+   * Se traen junto con las filas, en una sola consulta, para que el dialogo de
+   * correccion abra con los datos ya puestos. Las operaciones sueltas no tienen
+   * renglones, asi que ni se preguntan.
+   */
+  const items = canEdit
+    ? await itemsForTransactions(
+        tenantId,
+        rows.filter((r) => r.kind !== "operacion").map((r) => r.id),
+      )
+    : {};
+
   const asOptions = (key: "income_category" | "expense_category") =>
     (catalogs[key] ?? []).map((c) => ({ id: c.id, label: c.label }));
 
   return {
-    rows,
+    rows: rows.map((r) => ({ ...r, items: items[r.id] ?? [] })),
     total,
     totals,
     balances,
     // El menu de anular solo se pinta si el rol puede; el Server Action lo
     // vuelve a exigir de todos modos, porque es un endpoint publico.
     canVoid: roleHas(role, "transaction:delete"),
+    canEdit,
     page,
     perPage: PER_PAGE,
     /**

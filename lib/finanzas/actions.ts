@@ -3,9 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { requireCapability } from "@/lib/authz/session";
 import {
+  editTransaction,
   registerTransaction,
   revertTransaction,
   type CreateTransactionInput,
+  type EditTransactionInput,
   type TxResult,
 } from "./register";
 
@@ -21,7 +23,7 @@ import {
  * que el permiso se exija aqui y no en el componente.
  */
 
-export type { CreateTransactionInput, TxResult };
+export type { CreateTransactionInput, EditTransactionInput, TxResult };
 
 function revalidateFinanzas() {
   revalidatePath("/finanzas/ingresos");
@@ -37,6 +39,24 @@ export async function createTransaction(
   const { tenantId, user } = await requireCapability("transaction:create");
   try {
     return await registerTransaction({ tenantId, userId: user.id }, input);
+  } finally {
+    revalidateFinanzas();
+  }
+}
+
+/**
+ * Corrige una operacion ya registrada.
+ *
+ * Exige `transaction:update`, que el rol `staff` no tiene: quien registra en el
+ * dia a dia puede equivocarse, pero reescribir lo que ya quedo asentado es cosa
+ * del dueño o el encargado.
+ */
+export async function updateTransaction(
+  input: EditTransactionInput,
+): Promise<TxResult> {
+  const { tenantId, user } = await requireCapability("transaction:update");
+  try {
+    return await editTransaction({ tenantId, userId: user.id }, input);
   } finally {
     revalidateFinanzas();
   }

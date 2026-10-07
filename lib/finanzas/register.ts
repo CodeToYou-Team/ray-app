@@ -24,7 +24,18 @@ import {
   transactionItems,
   transactions,
 } from "@/lib/db/schema";
-import { isMoney, isQuantity, lineSubtotal, normalizeMoney, normalizeQuantity, negateQuantity, sumMoney } from "@/lib/money";
+import {
+  isMoney,
+  isQuantity,
+  isZero,
+  lineSubtotal,
+  normalizeMoney,
+  normalizeQuantity,
+  negateQuantity,
+  subtractQuantity,
+  sumMoney,
+  sumQuantity,
+} from "@/lib/money";
 
 export type TxResult =
   | { ok: true; id: string; amount: string; currency: string; duplicate?: true }
@@ -344,6 +355,360 @@ export async function registerTransaction(
  * compensatorios. Los originales se quedan — es lo que deja rastro de que hubo
  * una correccion, y sin eso "por que dice 14 y hay 12" no tiene respuesta.
  */
+// ---------------------------------------------------------------------------
+// Edicion
+// ---------------------------------------------------------------------------
+
+const editSchema = inputSchema
+  .omit({ clientRequestId: true, type: true, kind: true })
+  .extend({ id: z.uuid() });
+
+export type EditTransactionInput = z.infer<typeof editSchema>;
+
+/**
+ * Corrige una operacion ya registrada.
+ *
+ * `type` y `kind` NO se pueden cambiar a proposito. Convertir una venta en una
+ * operacion suelta, o un ingreso en un gasto, no es corregir un dato: es otra
+ * operacion distinta, y dejarlo haria imposible razonar sobre el inventario.
+ * Para eso esta anular y volver a registrar.
+ *
+ * El inventario se corrige con movimientos COMPENSATORIOS, no reescribiendo los
+ * originales. Si una venta decia 2 unidades y en realidad eran 3, entra un
+ * movimiento de -1 con motivo de ajuste: el stock queda igual que si se hubiera
+ * registrado bien desde el principio, pero el historial muestra que hubo una
+ * correccion y cuando.
+ */
+export async function editTransaction(
+  { tenantId, userId }: ActorContext,
+  raw: EditTransactionInput,
+): Promise<TxResult> {
+  const parsed = editSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0].message };
+  }
+  const input = parsed.data;
+
+  try {
+    return await withTenant(tenantId, async (tx) => {
+      const [actual] = await tx
+        .select()
+        .from(transactions)
+        .where(
+          and(eq(transactions.id, input.id), eq(transactions.tenantId, tenantId)),
+        );
+
+      if (!actual) return { ok: false as const, error: "No se encontró esa operación." };
+      if (actual.deletedAt) {
+        return {
+          ok: false as const,
+          error: "Esa operación está anulada. Registra una nueva en su lugar.",
+        };
+      }
+
+      const conRenglones = actual.kind !== "operacion";
+
+      if (conRenglones && (!input.items || input.items.length === 0)) {
+        return {
+          ok: false as const,
+          error:
+            actual.kind === "venta"
+              ? "Una venta necesita al menos un producto o servicio."
+              : "Una compra necesita al menos un producto.",
+        };
+      }
+      if (!conRenglones && (!input.amount || !isMoney(input.amount))) {
+        return { ok: false as const, error: "Escribe un monto válido." };
+      }
+
+      // ----------------------------------------------------------------
+      // 1. Metodo de pago -> moneda (snapshot nuevo)
+      // ----------------------------------------------------------------
+      const [metodo] = await tx
+        .select()
+        .from(catalogItems)
+        .where(
+          and(
+            eq(catalogItems.id, input.paymentMethodId),
+            eq(catalogItems.tenantId, tenantId),
+            eq(catalogItems.catalogKey, "payment_method"),
+          ),
+        );
+
+      if (!metodo) return { ok: false as const, error: "Método de pago no válido." };
+      if (metodo.archivedAt && metodo.id !== actual.paymentMethodId) {
+        return { ok: false as const, error: `"${metodo.label}" está archivado.` };
+      }
+      const currency = metodo.currency!;
+
+      // ----------------------------------------------------------------
+      // 2. Categoria, del catalogo que corresponde al tipo original
+      // ----------------------------------------------------------------
+      const categoryCatalogKey =
+        actual.type === "ingreso" ? "income_category" : "expense_category";
+
+      const [categoria] = await tx
+        .select()
+        .from(catalogItems)
+        .where(
+          and(
+            eq(catalogItems.id, input.categoryId),
+            eq(catalogItems.tenantId, tenantId),
+            eq(catalogItems.catalogKey, categoryCatalogKey),
+          ),
+        );
+
+      if (!categoria) {
+        return {
+          ok: false as const,
+          error: `Esa categoría no existe entre las de ${actual.type}.`,
+        };
+      }
+      // Una categoria archivada se admite si ya era la de esta operacion: de lo
+      // contrario corregir la fecha de un registro viejo seria imposible.
+      if (categoria.archivedAt && categoria.id !== actual.categoryId) {
+        return { ok: false as const, error: `"${categoria.label}" está archivada.` };
+      }
+
+      // ----------------------------------------------------------------
+      // 3. Renglones
+      // ----------------------------------------------------------------
+      const anteriores = conRenglones
+        ? await tx
+            .select()
+            .from(transactionItems)
+            .where(
+              and(
+                eq(transactionItems.transactionId, input.id),
+                eq(transactionItems.tenantId, tenantId),
+              ),
+            )
+        : [];
+
+      type Linea = {
+        id: string;
+        itemType: "product" | "service";
+        productId: string | null;
+        serviceId: string | null;
+        qty: string;
+        unitPrice: string;
+        subtotal: string;
+      };
+
+      const lineas: Linea[] = [];
+      let amount: string;
+
+      if (conRenglones) {
+        const items = input.items!;
+        const productIds = items.filter((i) => i.itemType === "product").map((i) => i.refId);
+        const serviceIds = items.filter((i) => i.itemType === "service").map((i) => i.refId);
+
+        const catalogoProductos = productIds.length
+          ? await tx
+              .select()
+              .from(products)
+              .where(
+                and(
+                  eq(products.tenantId, tenantId),
+                  inArray(products.id, productIds),
+                  isNull(products.deletedAt),
+                ),
+              )
+          : [];
+        const catalogoServicios = serviceIds.length
+          ? await tx
+              .select()
+              .from(services)
+              .where(
+                and(
+                  eq(services.tenantId, tenantId),
+                  inArray(services.id, serviceIds),
+                  isNull(services.deletedAt),
+                ),
+              )
+          : [];
+
+        const porId = new Map<string, { name: string; price: string; currency: string }>();
+        for (const p of catalogoProductos) porId.set(p.id, p);
+        for (const s of catalogoServicios) porId.set(s.id, s);
+
+        /**
+         * Precio ORIGINAL de los renglones que ya estaban.
+         *
+         * Corregir "puse 2 unidades y eran 3" no debe revaluar la venta al
+         * precio de hoy: el precio congelado es el que regia cuando se vendio.
+         * Solo un renglon NUEVO toma el precio actual.
+         */
+        const precioOriginal = new Map(
+          anteriores.map((a) => [a.productId ?? a.serviceId ?? "", a.unitPrice]),
+        );
+
+        for (const item of items) {
+          const ref = porId.get(item.refId);
+          if (!ref) {
+            return { ok: false as const, error: "Uno de los renglones ya no existe." };
+          }
+
+          if (actual.kind === "compra" && item.itemType === "service") {
+            return {
+              ok: false as const,
+              error:
+                "Una compra de insumos solo lleva productos. Para pagar un servicio, registra un gasto suelto.",
+            };
+          }
+
+          if (ref.currency !== currency) {
+            return {
+              ok: false as const,
+              error: `"${ref.name}" tiene precio en ${ref.currency} y el pago es en ${currency}. Los montos no se convierten entre monedas.`,
+            };
+          }
+
+          const qty = normalizeQuantity(item.qty);
+          const unitPrice = normalizeMoney(
+            precioOriginal.get(item.refId) ?? ref.price,
+          );
+          lineas.push({
+            id: uuidv7(),
+            itemType: item.itemType,
+            productId: item.itemType === "product" ? item.refId : null,
+            serviceId: item.itemType === "service" ? item.refId : null,
+            qty,
+            unitPrice,
+            subtotal: lineSubtotal(qty, unitPrice),
+          });
+        }
+
+        amount = sumMoney(lineas.map((l) => l.subtotal));
+      } else {
+        amount = normalizeMoney(input.amount!);
+      }
+
+      // ----------------------------------------------------------------
+      // 4. Inventario: solo la DIFERENCIA, como movimiento compensatorio
+      // ----------------------------------------------------------------
+      if (conRenglones) {
+        const antesPorProducto = new Map<string, string>();
+        for (const a of anteriores) {
+          if (!a.productId) continue;
+          antesPorProducto.set(
+            a.productId,
+            sumQuantity([antesPorProducto.get(a.productId) ?? "0", a.qty]),
+          );
+        }
+
+        const despuesPorProducto = new Map<string, string>();
+        for (const l of lineas) {
+          if (!l.productId) continue;
+          despuesPorProducto.set(
+            l.productId,
+            sumQuantity([despuesPorProducto.get(l.productId) ?? "0", l.qty]),
+          );
+        }
+
+        const compensaciones: (typeof stockMovements.$inferInsert)[] = [];
+        const todos = new Set([...antesPorProducto.keys(), ...despuesPorProducto.keys()]);
+
+        for (const productId of todos) {
+          const antes = antesPorProducto.get(productId) ?? "0";
+          const despues = despuesPorProducto.get(productId) ?? "0";
+          // Cuanto cambio la cantidad vendida/comprada de este producto.
+          const cambio = subtractQuantity(despues, antes);
+          if (isZero(cambio, 3)) continue;
+
+          compensaciones.push({
+            id: uuidv7(),
+            tenantId,
+            productId,
+            // Vender MAS saca mas; comprar MAS mete mas.
+            delta: actual.kind === "venta" ? negateQuantity(cambio) : cambio,
+            reason: "ajuste",
+            note: `Corrección de "${actual.concept}"`,
+            occurredAt: new Date(),
+            createdBy: userId,
+          });
+        }
+
+        if (compensaciones.length) {
+          await tx.insert(stockMovements).values(compensaciones);
+        }
+
+        // Los renglones se reemplazan. Los movimientos originales se quedan
+        // apuntando a los ids viejos: son hechos historicos, y esa referencia
+        // es justamente lo que permite reconstruir que paso.
+        await tx
+          .delete(transactionItems)
+          .where(
+            and(
+              eq(transactionItems.transactionId, input.id),
+              eq(transactionItems.tenantId, tenantId),
+            ),
+          );
+
+        await tx.insert(transactionItems).values(
+          lineas.map((l) => ({ ...l, tenantId, transactionId: input.id })),
+        );
+      }
+
+      // ----------------------------------------------------------------
+      // 5. La transaccion
+      // ----------------------------------------------------------------
+      await tx
+        .update(transactions)
+        .set({
+          concept: input.concept,
+          occurredOn: input.occurredOn,
+          categoryId: input.categoryId,
+          categoryCatalogKey,
+          paymentMethodId: input.paymentMethodId,
+          amount,
+          currency,
+          notes: input.notes || null,
+        })
+        .where(
+          and(eq(transactions.id, input.id), eq(transactions.tenantId, tenantId)),
+        );
+
+      const diff: Record<string, unknown> = {};
+      if (actual.concept !== input.concept) {
+        diff.concept = { from: actual.concept, to: input.concept };
+      }
+      if (actual.occurredOn !== input.occurredOn) {
+        diff.occurredOn = { from: actual.occurredOn, to: input.occurredOn };
+      }
+      if (actual.amount !== amount) {
+        diff.amount = { from: actual.amount, to: amount };
+      }
+      if (actual.currency !== currency) {
+        diff.currency = { from: actual.currency, to: currency };
+      }
+      if (actual.categoryId !== input.categoryId) {
+        diff.categoryId = { from: actual.categoryId, to: input.categoryId };
+      }
+      if (actual.paymentMethodId !== input.paymentMethodId) {
+        diff.paymentMethodId = {
+          from: actual.paymentMethodId,
+          to: input.paymentMethodId,
+        };
+      }
+
+      await tx.insert(auditLog).values({
+        id: uuidv7(),
+        tenantId,
+        entity: "transactions",
+        entityId: input.id,
+        action: "update",
+        actorId: userId,
+        diff,
+      });
+
+      return { ok: true as const, id: input.id, amount, currency };
+    });
+  } catch {
+    return { ok: false, error: "No se pudo guardar la corrección." };
+  }
+}
+
 export async function revertTransaction(
   { tenantId, userId }: ActorContext,
   input: { id: string; reason?: string },

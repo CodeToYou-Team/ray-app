@@ -1,9 +1,9 @@
 import "server-only";
 
-import { and, desc, eq, gte, isNull, lte, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lte, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { withTenant } from "@/lib/db/tenant";
-import { catalogItems, transactions } from "@/lib/db/schema";
+import { catalogItems, transactionItems, transactions } from "@/lib/db/schema";
 import { normalizeMoney, subtractMoney } from "@/lib/money";
 import type { TransactionType } from "@/lib/db/schema";
 
@@ -17,8 +17,20 @@ export interface TransactionRow {
   currency: string;
   categoryLabel: string;
   paymentMethodLabel: string;
+  /** Los ids, no solo las etiquetas: el formulario de correccion los precarga. */
+  categoryId: string;
+  paymentMethodId: string;
   notes: string | null;
   createdAt: Date;
+}
+
+/** Un renglon tal como quedo guardado, para precargar la correccion. */
+export interface TransactionItemRow {
+  itemType: "product" | "service";
+  refId: string;
+  qty: string;
+  /** El precio CONGELADO, no el del catalogo hoy. */
+  unitPrice: string;
 }
 
 export interface ListFilters {
@@ -84,6 +96,8 @@ export async function listTransactions(
         currency: transactions.currency,
         notes: transactions.notes,
         createdAt: transactions.createdAt,
+        categoryId: transactions.categoryId,
+        paymentMethodId: transactions.paymentMethodId,
         categoryLabel: categoria.label,
         paymentMethodLabel: metodo.label,
       })
@@ -102,6 +116,52 @@ export async function listTransactions(
 
     return { rows: rows as TransactionRow[], total: Number(count) };
   });
+}
+
+/**
+ * Los renglones de varias transacciones, en UNA consulta.
+ *
+ * Va por lote y no por transaccion al abrir el dialogo porque una pagina trae
+ * 20 filas: pedirlos de a uno serian 20 viajes, y pedirlos desde el cliente
+ * obligaria a exponer una lectura como Server Action.
+ */
+export async function itemsForTransactions(
+  tenantId: string,
+  ids: string[],
+): Promise<Record<string, TransactionItemRow[]>> {
+  if (ids.length === 0) return {};
+
+  const rows = await withTenant(tenantId, (tx) =>
+    tx
+      .select({
+        transactionId: transactionItems.transactionId,
+        itemType: transactionItems.itemType,
+        productId: transactionItems.productId,
+        serviceId: transactionItems.serviceId,
+        qty: transactionItems.qty,
+        unitPrice: transactionItems.unitPrice,
+      })
+      .from(transactionItems)
+      .where(
+        and(
+          eq(transactionItems.tenantId, tenantId),
+          inArray(transactionItems.transactionId, ids),
+        ),
+      ),
+  );
+
+  const porTransaccion: Record<string, TransactionItemRow[]> = {};
+  for (const r of rows) {
+    const refId = r.productId ?? r.serviceId;
+    if (!refId) continue;
+    (porTransaccion[r.transactionId] ??= []).push({
+      itemType: r.itemType,
+      refId,
+      qty: r.qty,
+      unitPrice: r.unitPrice,
+    });
+  }
+  return porTransaccion;
 }
 
 /**

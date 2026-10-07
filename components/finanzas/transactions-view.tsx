@@ -12,6 +12,7 @@ import {
   IconChevronRight,
   IconDotsVertical,
   IconBan,
+  IconPencil,
 } from "@tabler/icons-react";
 import {
   Table,
@@ -26,6 +27,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   TransactionForm,
+  type EditingItem,
+  type EditingTransaction,
   type FormOption,
   type FormSellable,
 } from "./transaction-form";
@@ -33,6 +36,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { voidTransaction } from "@/lib/finanzas/actions";
@@ -49,6 +53,11 @@ export interface ViewRow {
   currency: string;
   categoryLabel: string;
   paymentMethodLabel: string;
+  /** Lo que hace falta para precargar la corrección, no para la tabla. */
+  categoryId: string;
+  paymentMethodId: string;
+  notes: string | null;
+  items: EditingItem[];
 }
 
 export interface ViewTotal {
@@ -73,6 +82,7 @@ interface Props {
     count: number;
   }[];
   canVoid?: boolean;
+  canEdit?: boolean;
   total: number;
   page: number;
   perPage: number;
@@ -94,6 +104,7 @@ export function TransactionsView({
   totals,
   balances,
   canVoid = false,
+  canEdit = false,
   total,
   page,
   perPage,
@@ -105,6 +116,8 @@ export function TransactionsView({
   // se decide con el boton que se presiono.
   const [formType, setFormType] = useState<"ingreso" | "gasto">(type ?? "ingreso");
   const [dialogOpen, setDialogOpen] = useState(false);
+  /** La fila que se está corrigiendo. `null` = el diálogo registra una nueva. */
+  const [editing, setEditing] = useState<ViewRow | null>(null);
   const [navigating, startNavigation] = useTransition();
   const router = useRouter();
   const pathname = usePathname();
@@ -136,6 +149,7 @@ export function TransactionsView({
               size="sm"
               className="gap-1.5"
               onClick={() => {
+                setEditing(null);
                 setFormType("ingreso");
                 setDialogOpen(true);
               }}
@@ -150,6 +164,7 @@ export function TransactionsView({
               variant={type === undefined ? "outline" : "default"}
               className="gap-1.5"
               onClick={() => {
+                setEditing(null);
                 setFormType("gasto");
                 setDialogOpen(true);
               }}
@@ -244,14 +259,14 @@ export function TransactionsView({
                 <TableHead>Categoría</TableHead>
                 <TableHead>Método</TableHead>
                 <TableHead className="text-right">Monto</TableHead>
-                {canVoid && <TableHead className="w-12" />}
+                {(canEdit || canVoid) && <TableHead className="w-12" />}
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={canVoid ? 6 : 5}
+                    colSpan={canEdit || canVoid ? 6 : 5}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
                     Todavía no hay{" "}
@@ -304,9 +319,18 @@ export function TransactionsView({
                         {formatMoney(r.amount, r.currency)}
                       </span>
                     </TableCell>
-                    {canVoid && (
+                    {(canEdit || canVoid) && (
                       <TableCell className="text-right">
-                        <VoidMenu row={r} />
+                        <RowMenu
+                          row={r}
+                          canEdit={canEdit}
+                          canVoid={canVoid}
+                          onEdit={() => {
+                            setEditing(r);
+                            setFormType(r.type);
+                            setDialogOpen(true);
+                          }}
+                        />
                       </TableCell>
                     )}
                   </TableRow>
@@ -345,25 +369,65 @@ export function TransactionsView({
         </div>
       )}
 
+      {/*
+        `key` fuerza el remontaje al pasar de alta a corrección o entre filas:
+        el formulario siembra su estado del `editing` que recibe al montarse,
+        así que sin esto la segunda fila abriría con los datos de la primera.
+      */}
       <TransactionForm
+        key={editing?.id ?? `nuevo-${formType}`}
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(next) => {
+          setDialogOpen(next);
+          if (!next) setEditing(null);
+        }}
         type={formType}
         categories={categoriesByType[formType]}
         paymentMethods={paymentMethods}
         sellables={sellables}
+        editing={editing ? toEditing(editing) : undefined}
       />
     </div>
   );
 }
 
+/** La fila de la tabla, en la forma que espera el formulario. */
+function toEditing(row: ViewRow): EditingTransaction {
+  return {
+    id: row.id,
+    kind: row.kind as EditingTransaction["kind"],
+    concept: row.concept,
+    occurredOn: row.occurredOn,
+    categoryId: row.categoryId,
+    paymentMethodId: row.paymentMethodId,
+    amount: row.amount,
+    notes: row.notes,
+    items: row.items,
+  };
+}
+
 /**
- * Anular una operacion.
+ * Acciones de una operacion: corregirla o anularla.
  *
- * No borra: marca la operacion como anulada e inserta los movimientos de stock
- * compensatorios, dejando los originales como rastro de la correccion.
+ * Son cosas distintas y se ofrecen por separado. Corregir arregla un dato mal
+ * tecleado y deja el registro en su sitio; anular dice que la operacion no
+ * debio existir. Ninguna de las dos borra: la correccion compensa el inventario
+ * con un movimiento de ajuste, la anulacion con uno de anulacion.
+ *
+ * Cada opcion aparece solo si el rol la tiene, y el Server Action vuelve a
+ * exigir el permiso igual, porque es un endpoint publico.
  */
-function VoidMenu({ row }: { row: ViewRow }) {
+function RowMenu({
+  row,
+  canEdit,
+  canVoid,
+  onEdit,
+}: {
+  row: ViewRow;
+  canEdit: boolean;
+  canVoid: boolean;
+  onEdit: () => void;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -378,6 +442,14 @@ function VoidMenu({ row }: { row: ViewRow }) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {canEdit && (
+            <DropdownMenuItem onSelect={onEdit}>
+              <IconPencil className="mr-2 size-4" />
+              Corregir
+            </DropdownMenuItem>
+          )}
+          {canEdit && canVoid && <DropdownMenuSeparator />}
+          {canVoid && (
           <DropdownMenuItem
             className="text-destructive focus:text-destructive"
             onSelect={(event) => {
@@ -395,6 +467,7 @@ function VoidMenu({ row }: { row: ViewRow }) {
             <IconBan className="mr-2 size-4" />
             {pending ? "Anulando…" : "Anular"}
           </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       {error && (

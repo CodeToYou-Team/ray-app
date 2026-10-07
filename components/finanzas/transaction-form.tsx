@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createTransaction } from "@/lib/finanzas/actions";
+import { createTransaction, updateTransaction } from "@/lib/finanzas/actions";
 import { lineSubtotal, sumMoney, isMoney, isQuantity } from "@/lib/money";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -52,6 +52,28 @@ export interface FormSellable {
 
 type Kind = "operacion" | "venta" | "compra";
 
+/** Un renglon tal como quedo guardado. */
+export interface EditingItem {
+  itemType: "product" | "service";
+  refId: string;
+  qty: string;
+  /** El precio CONGELADO, no el del catalogo hoy. */
+  unitPrice: string;
+}
+
+/** Una operacion ya guardada, para precargar el formulario al corregirla. */
+export interface EditingTransaction {
+  id: string;
+  kind: Kind;
+  concept: string;
+  occurredOn: string;
+  categoryId: string;
+  paymentMethodId: string;
+  amount: string;
+  notes: string | null;
+  items: EditingItem[];
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -59,6 +81,13 @@ interface Props {
   categories: FormOption[];
   paymentMethods: FormOption[];
   sellables: FormSellable[];
+  /**
+   * Presente = corregir esa operacion en vez de registrar una nueva.
+   *
+   * El estado inicial se deriva de aqui una sola vez, asi que el padre monta el
+   * formulario con `key` para que cambiar de fila lo vuelva a sembrar.
+   */
+  editing?: EditingTransaction;
 }
 
 interface Linea {
@@ -96,21 +125,32 @@ export function TransactionForm({
   categories,
   paymentMethods,
   sellables,
+  editing,
 }: Props) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const [kind, setKind] = useState<Kind>("operacion");
-  const [concept, setConcept] = useState("");
+  const [kind, setKind] = useState<Kind>(editing?.kind ?? "operacion");
+  const [concept, setConcept] = useState(editing?.concept ?? "");
   const [occurredOn, setOccurredOn] = useState(
-    () => new Date().toISOString().slice(0, 10),
+    () => editing?.occurredOn ?? new Date().toISOString().slice(0, 10),
   );
-  const [categoryId, setCategoryId] = useState("");
-  const [paymentMethodId, setPaymentMethodId] = useState("");
-  const [amount, setAmount] = useState("");
-  const [notes, setNotes] = useState("");
-  const [lineas, setLineas] = useState<Linea[]>([]);
+  const [categoryId, setCategoryId] = useState(editing?.categoryId ?? "");
+  const [paymentMethodId, setPaymentMethodId] = useState(
+    editing?.paymentMethodId ?? "",
+  );
+  const [amount, setAmount] = useState(
+    editing && editing.kind === "operacion" ? editing.amount : "",
+  );
+  const [notes, setNotes] = useState(editing?.notes ?? "");
+  const [lineas, setLineas] = useState<Linea[]>(() =>
+    (editing?.items ?? []).map((i) => ({
+      key: crypto.randomUUID(),
+      refId: i.refId,
+      qty: i.qty,
+    })),
+  );
 
   /**
    * Se genera una vez por apertura del formulario y viaja con el envio. Si el
@@ -138,11 +178,28 @@ export function TransactionForm({
     [sellables],
   );
 
+  /**
+   * El precio CONGELADO de los renglones que ya estaban.
+   *
+   * Al corregir, el servidor conserva el precio con que se registro: subir la
+   * lista hoy no revalua una venta de hace un mes. La vista previa usa el mismo
+   * criterio para que el total que se ve sea el que se va a guardar. Un renglon
+   * nuevo si toma el precio actual del catalogo.
+   */
+  const precioOriginal = useMemo(
+    () => new Map((editing?.items ?? []).map((i) => [i.refId, i.unitPrice])),
+    [editing],
+  );
+
+  function precioDe(refId: string): string | null {
+    return precioOriginal.get(refId) ?? porId.get(refId)?.price ?? null;
+  }
+
   const subtotales = lineas.map((l) => {
-    const ref = porId.get(l.refId);
-    if (!ref || !isQuantity(l.qty)) return "0.00";
+    const price = precioDe(l.refId);
+    if (!price || !isQuantity(l.qty)) return "0.00";
     try {
-      return lineSubtotal(l.qty, ref.price);
+      return lineSubtotal(l.qty, price);
     } catch {
       return "0.00";
     }
@@ -163,31 +220,41 @@ export function TransactionForm({
   }
 
   function close(next: boolean) {
-    if (!next) reset();
+    // Al corregir no se limpia: el padre monta el dialogo con `key`, asi que
+    // cerrarlo lo desmonta y la proxima apertura siembra de cero.
+    if (!next && !editing) reset();
     onOpenChange(next);
   }
 
   function submit() {
     setError(null);
+    const comun = {
+      concept,
+      occurredOn,
+      categoryId,
+      paymentMethodId,
+      amount: conRenglones ? undefined : amount,
+      items: conRenglones
+        ? lineas.map((l) => ({
+            itemType: porId.get(l.refId)?.kind ?? ("product" as const),
+            refId: l.refId,
+            qty: l.qty,
+          }))
+        : undefined,
+      notes: notes || undefined,
+    };
+
     start(async () => {
-      const result = await createTransaction({
-        type,
-        kind,
-        concept,
-        occurredOn,
-        categoryId,
-        paymentMethodId,
-        amount: conRenglones ? undefined : amount,
-        items: conRenglones
-          ? lineas.map((l) => ({
-              itemType: porId.get(l.refId)?.kind ?? "product",
-              refId: l.refId,
-              qty: l.qty,
-            }))
-          : undefined,
-        notes: notes || undefined,
-        clientRequestId: requestId,
-      });
+      // Ni `type` ni `kind` viajan al corregir: el servidor conserva los suyos.
+      // Volver una venta en gasto suelto no es cambiar un dato, es otra cosa.
+      const result = editing
+        ? await updateTransaction({ id: editing.id, ...comun })
+        : await createTransaction({
+            type,
+            kind,
+            ...comun,
+            clientRequestId: requestId,
+          });
 
       if (result.ok) {
         close(false);
@@ -213,42 +280,58 @@ export function TransactionForm({
       <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-base">
-            {type === "ingreso" ? "Registrar ingreso" : "Registrar gasto"}
+            {editing
+              ? "Corregir operación"
+              : type === "ingreso"
+                ? "Registrar ingreso"
+                : "Registrar gasto"}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            El monto queda registrado en la moneda del método de pago. Los totales
-            se llevan separados por moneda.
+            {editing
+              ? "Los ítems que ya estaban conservan el precio con que se registraron. El inventario se corrige con un movimiento de ajuste, sin borrar el original."
+              : "El monto queda registrado en la moneda del método de pago. Los totales se llevan separados por moneda."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Tipo de operación */}
-          <div className="space-y-2">
-            <Label>Tipo de operación</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {opciones.map((o) => (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => {
-                    setKind(o.value);
-                    setLineas([]);
-                  }}
-                  className={cn(
-                    "rounded-lg border p-3 text-left transition-colors",
-                    kind === o.value
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:bg-muted/50",
-                  )}
-                >
-                  <span className="block text-sm font-medium">{o.label}</span>
-                  <span className="mt-0.5 block text-[11px] leading-tight text-muted-foreground">
-                    {o.hint}
-                  </span>
-                </button>
-              ))}
+          {/* Tipo de operación. Al corregir es un dato fijo, no una elección. */}
+          {editing ? (
+            <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2">
+              <Badge variant="secondary" className="shrink-0 text-[10px]">
+                {opciones.find((o) => o.value === kind)?.label ?? kind}
+              </Badge>
+              <span className="text-[11px] text-muted-foreground">
+                Para cambiar de tipo, anula esta operación y registra otra.
+              </span>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>Tipo de operación</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {opciones.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    onClick={() => {
+                      setKind(o.value);
+                      setLineas([]);
+                    }}
+                    className={cn(
+                      "rounded-lg border p-3 text-left transition-colors",
+                      kind === o.value
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:bg-muted/50",
+                    )}
+                  >
+                    <span className="block text-sm font-medium">{o.label}</span>
+                    <span className="mt-0.5 block text-[11px] leading-tight text-muted-foreground">
+                      {o.hint}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
@@ -344,6 +427,7 @@ export function TransactionForm({
               setLineas={setLineas}
               disponibles={disponibles}
               porId={porId}
+              precioDe={precioDe}
               subtotales={subtotales}
               total={totalRenglones}
               currency={currency}
@@ -377,7 +461,7 @@ export function TransactionForm({
             Cancelar
           </Button>
           <Button onClick={submit} disabled={pending || !puedeEnviar}>
-            {pending ? "Guardando…" : "Registrar"}
+            {pending ? "Guardando…" : editing ? "Guardar cambios" : "Registrar"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -390,6 +474,7 @@ function LineItemsEditor({
   setLineas,
   disponibles,
   porId,
+  precioDe,
   subtotales,
   total,
   currency,
@@ -399,6 +484,7 @@ function LineItemsEditor({
   setLineas: (l: Linea[]) => void;
   disponibles: FormSellable[];
   porId: Map<string, FormSellable>;
+  precioDe: (refId: string) => string | null;
   subtotales: string[];
   total: string;
   currency: string | null;
@@ -496,7 +582,8 @@ function LineItemsEditor({
               </Select>
               {ref && (
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  {formatMoney(ref.price, ref.currency)} × {l.qty || 0} ={" "}
+                  {formatMoney(precioDe(l.refId) ?? ref.price, ref.currency)}{" "}
+                  × {l.qty || 0} ={" "}
                   <span className="font-medium text-foreground">
                     {formatMoney(subtotales[i] ?? "0", currency)}
                   </span>

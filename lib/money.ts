@@ -98,6 +98,11 @@ export function sumQuantity(values: string[]): string {
   return fromScaled(total, 3);
 }
 
+/** Resta exacta de cantidades con 3 decimales. */
+export function subtractQuantity(a: string, b: string): string {
+  return fromScaled(toScaled(a, 3) - toScaled(b, 3), 3);
+}
+
 /** Niega una cantidad: la salida de stock de una venta. */
 export function negateQuantity(value: string): string {
   return fromScaled(-toScaled(value, 3), 3);
