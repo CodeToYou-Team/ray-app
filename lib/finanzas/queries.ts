@@ -1,6 +1,17 @@
 import "server-only";
 
-import { and, desc, eq, gte, inArray, isNull, lte, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  lte,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { withTenant } from "@/lib/db/tenant";
 import { catalogItems, transactionItems, transactions } from "@/lib/db/schema";
@@ -39,8 +50,22 @@ export interface ListFilters {
   from?: string;
   to?: string;
   currency?: string;
+  /** Texto a buscar en el concepto. ILIKE: ignora may\u00fasculas, no acentos. */
+  q?: string;
   page?: number;
   perPage?: number;
+}
+
+/**
+ * Escapa los comodines de LIKE en lo que escribio el usuario.
+ *
+ * `%` y `_` significan algo dentro de un LIKE: sin esto, buscar "100%" traeria
+ * todo lo que empieza por 100, y "a_b" cualquier cosa con una letra en medio.
+ * El valor va igual como parametro, asi que esto no es contra inyeccion sino
+ * contra que el buscador devuelva cosas que nadie pidio.
+ */
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
 /** Total de una moneda. Los totales NUNCA se suman entre monedas. */
@@ -60,6 +85,18 @@ function baseWhere(tenantId: string, filters: ListFilters): SQL[] {
   if (filters.from) clauses.push(gte(transactions.occurredOn, filters.from));
   if (filters.to) clauses.push(lte(transactions.occurredOn, filters.to));
   if (filters.currency) clauses.push(eq(transactions.currency, filters.currency));
+
+  /**
+   * Busqueda por concepto.
+   *
+   * Es un `%texto%`, asi que no usa indice: a esta escala (los movimientos de
+   * un negocio, ya acotados al tenant por el WHERE y por RLS) un recorrido es
+   * mas barato que mantener un indice de trigramas. Si algun dia deja de
+   * serlo, lo que cambia es el indice, no esta funcion.
+   */
+  const q = filters.q?.trim();
+  if (q) clauses.push(ilike(transactions.concept, `%${escapeLike(q)}%`));
+
   return clauses;
 }
 

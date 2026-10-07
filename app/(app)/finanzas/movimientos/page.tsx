@@ -1,6 +1,9 @@
 import { PageTransition } from "@/components/motion";
 import { TransactionsView } from "@/components/finanzas/transactions-view";
-import { loadTransactionsPage } from "@/lib/finanzas/page-data";
+import {
+  loadTransactionsPage,
+  type TransactionsSearchParams,
+} from "@/lib/finanzas/page-data";
 
 /**
  * Ingresos y gastos juntos, con balance por moneda.
@@ -11,7 +14,7 @@ import { loadTransactionsPage } from "@/lib/finanzas/page-data";
 export default async function MovimientosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<TransactionsSearchParams>;
 }) {
   const data = await loadTransactionsPage(undefined, await searchParams);
 

@@ -14,6 +14,38 @@ import type { TransactionType } from "@/lib/db/schema";
 
 export const PER_PAGE = 20;
 
+/** Lo que el usuario puede filtrar desde la URL. */
+export interface TransactionsSearchParams {
+  page?: string;
+  q?: string;
+  desde?: string;
+  hasta?: string;
+}
+
+const FECHA = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Los filtros de la URL, saneados.
+ *
+ * La URL la escribe cualquiera, asi que una fecha que no tenga la forma
+ * esperada se ignora en vez de llegar a Postgres y reventar la pagina entera
+ * por un parametro mal pegado.
+ */
+function parseFilters(params: TransactionsSearchParams) {
+  const q = params.q?.trim().slice(0, 100) || undefined;
+  const from = params.desde && FECHA.test(params.desde) ? params.desde : undefined;
+  const to = params.hasta && FECHA.test(params.hasta) ? params.hasta : undefined;
+
+  // Un rango al reves no devuelve nada y parece que no hay datos. Se voltea,
+  // que es lo que la persona quiso decir.
+  const invertido = from && to && from > to;
+  return {
+    q,
+    from: invertido ? to : from,
+    to: invertido ? from : to,
+  };
+}
+
 /**
  * Todo lo que necesita una pantalla de ingresos o gastos, en un solo lugar.
  *
@@ -22,10 +54,11 @@ export const PER_PAGE = 20;
  */
 export async function loadTransactionsPage(
   type: TransactionType | undefined,
-  searchParams: { page?: string },
+  searchParams: TransactionsSearchParams,
 ) {
   const { tenantId, role } = await requireTenant();
   const page = Math.max(0, Number(searchParams.page ?? 0) || 0);
+  const filters = parseFilters(searchParams);
 
   // Sin `type` es la pantalla de Movimientos, la unica que muestra balance.
   const esMovimientos = type === undefined;
@@ -35,9 +68,18 @@ export async function loadTransactionsPage(
 
   const [{ rows, total }, totals, balances, catalogs, sellables] =
     await Promise.all([
-      listTransactions(tenantId, { type, page, perPage: PER_PAGE }),
-      totalsByCurrency(tenantId, { type }),
-      esMovimientos ? balanceByCurrency(tenantId) : Promise.resolve(undefined),
+      listTransactions(tenantId, { ...filters, type, page, perPage: PER_PAGE }),
+      /**
+       * Los totales llevan los MISMOS filtros que la lista.
+       *
+       * Si no, buscar "alquiler" mostraria tres filas y arriba el total de todo
+       * el año: el numero mas visible de la pantalla no estaria hablando de lo
+       * que se esta viendo.
+       */
+      totalsByCurrency(tenantId, { ...filters, type }),
+      esMovimientos
+        ? balanceByCurrency(tenantId, filters)
+        : Promise.resolve(undefined),
       listCatalogs(tenantId, [
         "income_category",
         "expense_category",
@@ -74,6 +116,12 @@ export async function loadTransactionsPage(
     canEdit,
     page,
     perPage: PER_PAGE,
+    /** Lo que se aplico de verdad, no lo que venia en la URL. */
+    filtros: {
+      q: filters.q ?? "",
+      desde: filters.from ?? "",
+      hasta: filters.to ?? "",
+    },
     /**
      * Las categorias de las DOS clases, no solo la de la pantalla.
      *

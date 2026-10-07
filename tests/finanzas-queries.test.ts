@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import postgres from "postgres";
 import { uuidv7 } from "uuidv7";
 import {
+  balanceByCurrency,
   listTransactions,
   totalsByCurrency,
   usedCurrencies,
@@ -179,5 +180,125 @@ describe.skipIf(!hasDb)("consultas de finanzas e inventario", () => {
     expect((await listTransactions(otro)).total).toBe(0);
     expect(await totalsByCurrency(otro)).toEqual([]);
     expect(await listStock(otro)).toEqual([]);
+  });
+});
+
+
+/**
+ * Buscador por concepto y rango de fechas.
+ *
+ * Va en su propio tenant: agregarle conceptos distintos a los de arriba
+ * cambiaria los totales que esas pruebas dan por sentados.
+ */
+const tBuscar = uuidv7();
+const uBuscar = uuidv7();
+const catB = uuidv7();
+const payB = uuidv7();
+
+describe.skipIf(!hasDb)("buscador de transacciones", () => {
+  let db: ReturnType<typeof postgres>;
+
+  beforeAll(async () => {
+    db = postgres(process.env.TEST_DIRECT_URL!, { max: 1, prepare: false });
+
+    await db`insert into tenants (id, name, slug) values (${tBuscar}, 'B', ${"b-" + tBuscar.slice(-12)})`;
+    await db`insert into users (id, email) values (${uBuscar}, ${`b-${uBuscar.slice(-12)}@test.local`})`;
+    await db`insert into catalog_items (id, tenant_id, catalog_key, code, label, currency) values
+      (${catB}, ${tBuscar}, 'income_category', 'ventas', 'Ventas', null),
+      (${payB}, ${tBuscar}, 'payment_method',  'efec',   'Efectivo', 'USD')`;
+
+    const tx = (concept: string, occurredOn: string, amount: string) => ({
+      id: uuidv7(), tenant_id: tBuscar, type: "ingreso", kind: "operacion",
+      concept, occurred_on: occurredOn, category_id: catB,
+      category_catalog_key: "income_category", payment_method_id: payB,
+      payment_catalog_key: "payment_method", amount, currency: "USD",
+      created_by: uBuscar,
+    });
+
+    await db`insert into transactions ${db(tx("Alquiler del local", "2026-01-10", "500.00"))}`;
+    await db`insert into transactions ${db(tx("ALQUILER del depósito", "2026-02-10", "300.00"))}`;
+    await db`insert into transactions ${db(tx("Venta del día", "2026-03-10", "120.00"))}`;
+    // Conceptos con comodines de LIKE adentro.
+    await db`insert into transactions ${db(tx("Descuento 100% aplicado", "2026-04-10", "7.00"))}`;
+    await db`insert into transactions ${db(tx("Caja a_b", "2026-05-10", "8.00"))}`;
+    await db`insert into transactions ${db(tx("Caja axb", "2026-06-10", "9.00"))}`;
+    // Existe para que la prueba del % signifique algo: con el comodin sin
+    // escapar, buscar "100%" tambien traeria esta.
+    await db`insert into transactions ${db(tx("Abono 1000 inicial", "2026-07-10", "11.00"))}`;
+  });
+
+  afterAll(async () => {
+    if (!db) return;
+    await db`delete from tenants where id = ${tBuscar}`;
+    await db`delete from users where id = ${uBuscar}`;
+    await db.end();
+  });
+
+  it("busca por una parte del concepto, sin importar las mayúsculas", async () => {
+    const { rows, total } = await listTransactions(tBuscar, { q: "alquiler" });
+    expect(total).toBe(2);
+    expect(rows.every((r) => /alquiler/i.test(r.concept))).toBe(true);
+  });
+
+  it("el espacio sobrante no cambia el resultado", async () => {
+    expect((await listTransactions(tBuscar, { q: "  alquiler  " })).total).toBe(2);
+  });
+
+  it("un buscador vacío no filtra nada", async () => {
+    expect((await listTransactions(tBuscar, { q: "   " })).total).toBe(7);
+  });
+
+  it("el % que escribe el usuario es un carácter, no un comodín", async () => {
+    // Sin escapar, "100%" seria "todo lo que empiece por 100" y ademas traeria
+    // de vuelta cualquier cosa: el buscador devolveria lo que nadie pidio.
+    const { rows, total } = await listTransactions(tBuscar, { q: "100%" });
+    expect(total).toBe(1);
+    expect(rows[0].concept).toBe("Descuento 100% aplicado");
+  });
+
+  it("el _ que escribe el usuario tampoco es un comodín", async () => {
+    const { rows, total } = await listTransactions(tBuscar, { q: "a_b" });
+    expect(total).toBe(1);
+    // "Caja axb" NO entra: con el _ sin escapar habria entrado.
+    expect(rows[0].concept).toBe("Caja a_b");
+  });
+
+  it("filtra por rango de fechas, con los extremos incluidos", async () => {
+    const { total } = await listTransactions(tBuscar, {
+      from: "2026-02-10",
+      to: "2026-04-10",
+    });
+    expect(total).toBe(3);
+  });
+
+  it("combina el texto con el rango de fechas", async () => {
+    const { rows, total } = await listTransactions(tBuscar, {
+      q: "alquiler",
+      from: "2026-02-01",
+    });
+    expect(total).toBe(1);
+    expect(rows[0].concept).toContain("depósito");
+  });
+
+  it("los totales respetan el mismo filtro que la lista", async () => {
+    // Lo que no puede pasar: dos filas en la tabla y arriba el total del año.
+    const totales = await totalsByCurrency(tBuscar, { q: "alquiler" });
+    expect(totales).toHaveLength(1);
+    expect(totales[0].total).toBe("800.00");
+    expect(totales[0].count).toBe(2);
+  });
+
+  it("el balance tambien respeta el filtro", async () => {
+    const balance = await balanceByCurrency(tBuscar, { q: "alquiler" });
+    expect(balance).toHaveLength(1);
+    expect(balance[0].ingresos).toBe("800.00");
+    expect(balance[0].balance).toBe("800.00");
+  });
+
+  it("una busqueda sin resultados devuelve vacio, no todo", async () => {
+    const { rows, total } = await listTransactions(tBuscar, { q: "notengoidea" });
+    expect(total).toBe(0);
+    expect(rows).toHaveLength(0);
+    expect(await totalsByCurrency(tBuscar, { q: "notengoidea" })).toEqual([]);
   });
 });

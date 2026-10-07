@@ -1,6 +1,9 @@
 import { PageTransition } from "@/components/motion";
 import { TransactionsView } from "@/components/finanzas/transactions-view";
-import { loadTransactionsPage } from "@/lib/finanzas/page-data";
+import {
+  loadTransactionsPage,
+  type TransactionsSearchParams,
+} from "@/lib/finanzas/page-data";
 
 /**
  * Server Component: la consulta trae solo la pagina que se muestra, ya filtrada
@@ -9,7 +12,7 @@ import { loadTransactionsPage } from "@/lib/finanzas/page-data";
 export default async function GastosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<TransactionsSearchParams>;
 }) {
   const data = await loadTransactionsPage("gasto", await searchParams);
 
