@@ -25,12 +25,15 @@ import {
   transactions,
 } from "@/lib/db/schema";
 import {
+  convertMoney,
   isMoney,
   isQuantity,
+  isRate,
   isZero,
   lineSubtotal,
   normalizeMoney,
   normalizeQuantity,
+  normalizeRate,
   negateQuantity,
   subtractQuantity,
   sumMoney,
@@ -90,6 +93,11 @@ const inputSchema = z.object({
   paymentMethodId: z.uuid("Elige un método de pago"),
   amount: z.string().optional(),
   items: z.array(itemSchema).optional(),
+  /**
+   * Cuantas unidades de la moneda del pago equivale 1 de la moneda de los
+   * precios. Solo hace falta cuando no coinciden.
+   */
+  exchangeRate: z.string().optional(),
   notes: z.string().trim().max(1000).optional(),
   /** Generado en el navegador al abrir el formulario. */
   clientRequestId: z.uuid(),
@@ -105,6 +113,61 @@ function pgCode(error: unknown): string | undefined {
     current = (current as { cause?: unknown }).cause;
   }
   return undefined;
+}
+
+type Vendible = { name: string; price: string; currency: string };
+
+/**
+ * Decide en que moneda estan los precios de catalogo de estos renglones.
+ *
+ * Todos tienen que estar en la misma: una venta con un producto en USD y otro
+ * en VES necesitaria dos tasas, y el total no seria de ninguna de las dos
+ * monedas. Se rechaza en vez de inventar un criterio.
+ */
+function monedaDeLosPrecios(
+  refs: Vendible[],
+): { ok: true; currency: string | null } | { ok: false; error: string } {
+  const monedas = [...new Set(refs.map((r) => r.currency))];
+  if (monedas.length === 0) return { ok: true, currency: null };
+  if (monedas.length > 1) {
+    return {
+      ok: false,
+      error: `No se pueden mezclar precios en ${monedas.join(" y ")} en una misma operación. Regístralas por separado.`,
+    };
+  }
+  return { ok: true, currency: monedas[0] };
+}
+
+/**
+ * Resuelve la tasa de cambio de una operacion con renglones.
+ *
+ * Devuelve `null` cuando los precios ya estan en la moneda del pago, que es el
+ * caso normal y no lleva tasa. Cuando no coinciden, la tasa es obligatoria: es
+ * justamente el dato que la app no puede inventar — no hay tabla de tasas ni
+ * servicio que consultar, y suponer una seria inventar dinero.
+ */
+function resolverTasa(
+  baseCurrency: string | null,
+  currency: string,
+  raw: string | undefined,
+):
+  | { ok: true; rate: string | null; baseCurrency: string | null }
+  | { ok: false; error: string } {
+  if (!baseCurrency || baseCurrency === currency) {
+    return { ok: true, rate: null, baseCurrency: null };
+  }
+  if (!raw || !isRate(raw)) {
+    return {
+      ok: false,
+      error: `Los precios están en ${baseCurrency} y el pago es en ${currency}. Escribe la tasa de cambio que aplicaste.`,
+    };
+  }
+  return { ok: true, rate: normalizeRate(raw), baseCurrency };
+}
+
+/** El precio de catalogo de un renglon, ya en la moneda del pago. */
+function precioConvertido(ref: Vendible, rate: string | null): string {
+  return rate ? convertMoney(ref.price, rate) : normalizeMoney(ref.price);
 }
 
 /**
@@ -203,6 +266,10 @@ export async function registerTransaction(
       // ----------------------------------------------------------------
       // 3. Renglones: precios snapshot y monto calculado EN SERVIDOR.
       // ----------------------------------------------------------------
+      /** Solo quedan en algo distinto de null si hubo que convertir. */
+      let rate: string | null = null;
+      let baseCurrency: string | null = null;
+
       type Linea = {
         id: string;
         itemType: "product" | "service";
@@ -246,40 +313,45 @@ export async function registerTransaction(
               )
           : [];
 
-        const porId = new Map<string, { name: string; price: string; currency: string }>();
+        const porId = new Map<string, Vendible>();
         for (const p of catalogoProductos) porId.set(p.id, p);
         for (const s of catalogoServicios) porId.set(s.id, s);
 
+        const refs: Vendible[] = [];
         for (const item of items) {
           const ref = porId.get(item.refId);
           if (!ref) {
             return { ok: false as const, error: "Uno de los renglones ya no existe." };
           }
+          refs.push(ref);
+        }
 
-          /**
-           * En una VENTA, la moneda del renglon tiene que coincidir con la del
-           * pago: el precio sale del catalogo, viene denominado en la moneda
-           * del producto, y como NO se convierte entre monedas, sumar un
-           * producto en USD dentro de una venta cobrada en Bs daria un total
-           * sin significado — el numero saldria, pero no seria dinero.
-           *
-           * En una COMPRA no aplica: el precio lo escribe quien registra, en la
-           * moneda del pago, y el precio de venta del catalogo ni se lee. Que
-           * un producto se venda en Bs no impide pagarle al proveedor en USD.
-           */
+        /**
+         * La tasa solo entra en juego en una VENTA.
+         *
+         * En una compra el precio lo escribe quien registra, ya en la moneda
+         * del pago, y el del catalogo ni se lee: no hay nada que convertir.
+         */
+        if (input.kind !== "compra") {
+          const moneda = monedaDeLosPrecios(refs);
+          if (!moneda.ok) return { ok: false as const, error: moneda.error };
+
+          const resuelta = resolverTasa(moneda.currency, currency, input.exchangeRate);
+          if (!resuelta.ok) return { ok: false as const, error: resuelta.error };
+          rate = resuelta.rate;
+          baseCurrency = resuelta.baseCurrency;
+        }
+
+        for (const [i, item] of items.entries()) {
+          const ref = refs[i];
+
           let unitPrice: string;
           if (input.kind === "compra") {
             const precio = precioDeCompra(item.unitPrice, ref.name);
             if (!precio.ok) return { ok: false as const, error: precio.error };
             unitPrice = precio.value;
           } else {
-            if (ref.currency !== currency) {
-              return {
-                ok: false as const,
-                error: `"${ref.name}" tiene precio en ${ref.currency} y el pago es en ${currency}. Los montos no se convierten entre monedas.`,
-              };
-            }
-            unitPrice = normalizeMoney(ref.price);
+            unitPrice = precioConvertido(ref, rate);
           }
 
           const qty = normalizeQuantity(item.qty);
@@ -317,6 +389,8 @@ export async function registerTransaction(
         paymentCatalogKey: "payment_method",
         amount,
         currency,
+        exchangeRate: rate,
+        baseCurrency,
         notes: input.notes || null,
         clientRequestId: input.clientRequestId,
         createdBy: userId,
@@ -530,6 +604,9 @@ export async function editTransaction(
             )
         : [];
 
+      let rate: string | null = null;
+      let baseCurrency: string | null = null;
+
       type Linea = {
         id: string;
         itemType: "product" | "service";
@@ -573,7 +650,7 @@ export async function editTransaction(
               )
           : [];
 
-        const porId = new Map<string, { name: string; price: string; currency: string }>();
+        const porId = new Map<string, Vendible>();
         for (const p of catalogoProductos) porId.set(p.id, p);
         for (const s of catalogoServicios) porId.set(s.id, s);
 
@@ -588,12 +665,12 @@ export async function editTransaction(
           anteriores.map((a) => [a.productId ?? a.serviceId ?? "", a.unitPrice]),
         );
 
+        const refs: Vendible[] = [];
         for (const item of items) {
           const ref = porId.get(item.refId);
           if (!ref) {
             return { ok: false as const, error: "Uno de los renglones ya no existe." };
           }
-
           if (actual.kind === "compra" && item.itemType === "service") {
             return {
               ok: false as const,
@@ -601,6 +678,36 @@ export async function editTransaction(
                 "Una compra de insumos solo lleva productos. Para pagar un servicio, registra un gasto suelto.",
             };
           }
+          refs.push(ref);
+        }
+
+        /**
+         * La base de conversion, que al corregir tambien se puede cambiar: que
+         * la tasa se tecleara mal es justo una de las cosas que hay que poder
+         * arreglar. Si no mandan ninguna, se conserva la que tenia.
+         */
+        let mismaBase = true;
+        if (actual.kind !== "compra") {
+          const moneda = monedaDeLosPrecios(refs);
+          if (!moneda.ok) return { ok: false as const, error: moneda.error };
+
+          const resuelta = resolverTasa(
+            moneda.currency,
+            currency,
+            input.exchangeRate ?? actual.exchangeRate ?? undefined,
+          );
+          if (!resuelta.ok) return { ok: false as const, error: resuelta.error };
+          rate = resuelta.rate;
+          baseCurrency = resuelta.baseCurrency;
+
+          mismaBase =
+            rate === (actual.exchangeRate ?? null) &&
+            baseCurrency === (actual.baseCurrency ?? null) &&
+            currency === actual.currency;
+        }
+
+        for (const [i, item] of items.entries()) {
+          const ref = refs[i];
 
           let unitPrice: string;
           if (actual.kind === "compra") {
@@ -613,16 +720,22 @@ export async function editTransaction(
             );
             if (!precio.ok) return { ok: false as const, error: precio.error };
             unitPrice = precio.value;
+          } else if (mismaBase) {
+            // Nada cambio en la conversion: los renglones que ya estaban
+            // conservan su precio congelado, y uno nuevo toma el de catalogo.
+            unitPrice =
+              precioOriginal.get(item.refId) ?? precioConvertido(ref, rate);
           } else {
-            if (ref.currency !== currency) {
-              return {
-                ok: false as const,
-                error: `"${ref.name}" tiene precio en ${ref.currency} y el pago es en ${currency}. Los montos no se convierten entre monedas.`,
-              };
-            }
-            unitPrice = normalizeMoney(
-              precioOriginal.get(item.refId) ?? ref.price,
-            );
+            /**
+             * Cambio la tasa, la moneda base o la del pago.
+             *
+             * Los precios guardados estaban expresados con la conversion
+             * vieja, asi que conservarlos seria dejar numeros que ya no
+             * corresponden a nada. Se recalculan todos desde el catalogo con
+             * la base nueva. El efecto secundario: si ademas cambio el precio
+             * de lista desde que se registro, la correccion lo adopta.
+             */
+            unitPrice = precioConvertido(ref, rate);
           }
 
           const qty = normalizeQuantity(item.qty);
@@ -721,6 +834,8 @@ export async function editTransaction(
           paymentMethodId: input.paymentMethodId,
           amount,
           currency,
+          exchangeRate: rate,
+          baseCurrency,
           notes: input.notes || null,
         })
         .where(
@@ -739,6 +854,9 @@ export async function editTransaction(
       }
       if (actual.currency !== currency) {
         diff.currency = { from: actual.currency, to: currency };
+      }
+      if ((actual.exchangeRate ?? null) !== rate) {
+        diff.exchangeRate = { from: actual.exchangeRate, to: rate };
       }
       if (actual.categoryId !== input.categoryId) {
         diff.categoryId = { from: actual.categoryId, to: input.categoryId };

@@ -99,6 +99,13 @@
       "when": 1791312592589,
       "tag": "0013_invitations_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791312593589,
+      "tag": "0014_exchange_rate",
+      "breakpoints": true
     }
   ]
 }

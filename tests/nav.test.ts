@@ -15,10 +15,14 @@ describe("menu segun el rol", () => {
     expect(hrefs).toContain("/ajustes/usuarios");
     expect(hrefs).toContain("/ajustes/columnas");
     expect(hrefs).toContain("/finanzas/reportes");
+    expect(hrefs).toContain("/ajustes/negocio");
   });
 
   it("el encargado no ve Equipo ni Columnas, pero si Reportes", () => {
     const hrefs = hrefsVisibles("manager");
+    // La moneda por defecto decide como se registra todo lo demas: no es una
+    // preferencia que cambie quien opera el dia a dia.
+    expect(hrefs).not.toContain("/ajustes/negocio");
     // El caso concreto que fallaba: el enlace aparecia y al entrar reventaba.
     expect(hrefs).not.toContain("/ajustes/usuarios");
     expect(hrefs).not.toContain("/ajustes/columnas");

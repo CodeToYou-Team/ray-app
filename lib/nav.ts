@@ -75,6 +75,11 @@ export const ROUTES: RouteDef[] = [
     title: "Equipo",
     description: "Quién tiene acceso y con qué permisos",
   },
+  {
+    pattern: "/ajustes/negocio",
+    title: "Negocio",
+    description: "Moneda por defecto y datos del negocio",
+  },
 ];
 
 /**
@@ -145,6 +150,7 @@ const ROUTE_CAPABILITY: Record<string, Capability> = {
   "/finanzas/historial": "report:read",
   "/ajustes/columnas": "field:manage",
   "/ajustes/usuarios": "member:manage",
+  "/ajustes/negocio": "tenant:manage",
 };
 
 export function routeCapability(pathname: string): Capability | undefined {
@@ -203,7 +209,12 @@ const NAV_BOTTOM_ALL: NavItem[] = buildNav([
   {
     href: "/ajustes",
     icon: IconSettings,
-    children: ["/ajustes/catalogos", "/ajustes/columnas", "/ajustes/usuarios"],
+    children: [
+      "/ajustes/negocio",
+      "/ajustes/catalogos",
+      "/ajustes/columnas",
+      "/ajustes/usuarios",
+    ],
   },
 ]);
 

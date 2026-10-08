@@ -827,7 +827,7 @@ describe.skipIf(!hasDb)("registro de operaciones", () => {
     expect(r.error).toMatch(/anulada/i);
   });
 
-  it("no se puede mezclar monedas al corregir", async () => {
+  it("corregir a un pago en otra moneda pide la tasa", async () => {
     const tx = await registerTransaction(ctx, {
       ...base,
       type: "ingreso",
@@ -839,7 +839,8 @@ describe.skipIf(!hasDb)("registro de operaciones", () => {
     expect(tx.ok).toBe(true);
     if (!tx.ok) return;
 
-    // El monitor tiene precio en USD; el pago movil cobra en VES.
+    // El monitor tiene precio en USD; el pago móvil cobra en VES. Antes esto
+    // era un callejón sin salida; ahora falta un dato y se dice cuál.
     const r = await editTransaction(ctx, {
       id: tx.id,
       concept: "Prueba",
@@ -850,7 +851,22 @@ describe.skipIf(!hasDb)("registro de operaciones", () => {
     });
     expect(r.ok).toBe(false);
     if (r.ok) return;
-    expect(r.error).toMatch(/no se convierten/i);
+    expect(r.error).toMatch(/tasa de cambio/i);
+
+    // Con la tasa, pasa.
+    const conTasa = await editTransaction(ctx, {
+      id: tx.id,
+      concept: "Prueba",
+      occurredOn: "2026-09-11",
+      categoryId: catIngreso,
+      paymentMethodId: payVes,
+      items: [{ itemType: "product", refId: monitor, qty: "1" }],
+      exchangeRate: "40",
+    });
+    expect(conTasa.ok).toBe(true);
+    if (!conTasa.ok) return;
+    expect(conTasa.amount).toBe("6000.00");
+    expect(conTasa.currency).toBe("VES");
   });
 
   it("una venta no se puede quedar sin renglones", async () => {
@@ -986,5 +1002,286 @@ describe.skipIf(!hasDb)("registro de operaciones", () => {
     // Anulada deja de contar: si no, un error anulado seguiria precargando el
     // formulario de la proxima compra.
     expect((await lastPurchasePrices(tenant))[producto]).toBe("40.00");
+  });
+
+  // -------------------------------------------------------------------------
+  // Tasa de cambio
+  // -------------------------------------------------------------------------
+
+  it("vender en otra moneda convierte con la tasa que se escribe", async () => {
+    // El monitor cuesta 150 USD. Se cobra por pago móvil, en bolívares.
+    const r = await registerTransaction(ctx, {
+      ...base,
+      type: "ingreso",
+      kind: "venta",
+      categoryId: catIngreso,
+      paymentMethodId: payVes,
+      items: [{ itemType: "product", refId: monitor, qty: "2" }],
+      exchangeRate: "40",
+      clientRequestId: uuidv7(),
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+
+    // 2 x 150 USD x 40 = 12000 VES. La operación vive en VES de aquí en
+    // adelante: no se guarda nada en USD que después haya que reconvertir.
+    expect(r.amount).toBe("12000.00");
+    expect(r.currency).toBe("VES");
+
+    const [fila] = await sql`select * from transactions where id = ${r.id}`;
+    expect(fila.exchange_rate).toBe("40.000000");
+    expect(fila.base_currency).toBe("USD");
+
+    // El renglón guarda el precio YA convertido, que es lo que hace que los
+    // reportes por moneda sigan sumando cosas comparables.
+    const [renglon] =
+      await sql`select * from transaction_items where transaction_id = ${r.id}`;
+    expect(renglon.unit_price).toBe("6000.00");
+    expect(renglon.subtotal).toBe("12000.00");
+  });
+
+  it("vender en otra moneda sin tasa no se registra", async () => {
+    const r = await registerTransaction(ctx, {
+      ...base,
+      type: "ingreso",
+      kind: "venta",
+      categoryId: catIngreso,
+      paymentMethodId: payVes,
+      items: [{ itemType: "product", refId: monitor, qty: "1" }],
+      clientRequestId: uuidv7(),
+    });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toMatch(/tasa de cambio/i);
+  });
+
+  it("una tasa cero o negativa no se acepta", async () => {
+    for (const tasa of ["0", "-40"]) {
+      const r = await registerTransaction(ctx, {
+        ...base,
+        type: "ingreso",
+        kind: "venta",
+        categoryId: catIngreso,
+        paymentMethodId: payVes,
+        items: [{ itemType: "product", refId: monitor, qty: "1" }],
+        exchangeRate: tasa,
+        clientRequestId: uuidv7(),
+      });
+      expect(r.ok, `tasa ${tasa}`).toBe(false);
+    }
+  });
+
+  it("vender en la misma moneda no guarda tasa", async () => {
+    const r = await registerTransaction(ctx, {
+      ...base,
+      type: "ingreso",
+      kind: "venta",
+      categoryId: catIngreso,
+      paymentMethodId: payUsd,
+      items: [{ itemType: "product", refId: monitor, qty: "1" }],
+      // Mandar una tasa cuando no hace falta no la guarda: convertir de una
+      // moneda a ella misma sería ruido que después nadie sabe leer.
+      exchangeRate: "40",
+      clientRequestId: uuidv7(),
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.amount).toBe("150.00");
+
+    const [fila] = await sql`select * from transactions where id = ${r.id}`;
+    expect(fila.exchange_rate).toBeNull();
+    expect(fila.base_currency).toBeNull();
+  });
+
+  it("no se pueden mezclar precios de dos monedas en una venta", async () => {
+    // El monitor está en USD y el cable en VES: harían falta dos tasas, y el
+    // total no sería de ninguna de las dos monedas.
+    const r = await registerTransaction(ctx, {
+      ...base,
+      type: "ingreso",
+      kind: "venta",
+      categoryId: catIngreso,
+      paymentMethodId: payVes,
+      items: [
+        { itemType: "product", refId: monitor, qty: "1" },
+        { itemType: "product", refId: productoEnBs, qty: "1" },
+      ],
+      exchangeRate: "40",
+      clientRequestId: uuidv7(),
+    });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toMatch(/mezclar/i);
+  });
+
+  it("la tasa queda congelada: cambiar el catálogo no revalúa la venta", async () => {
+    const r = await registerTransaction(ctx, {
+      ...base,
+      type: "ingreso",
+      kind: "venta",
+      categoryId: catIngreso,
+      paymentMethodId: payVes,
+      items: [{ itemType: "product", refId: monitor, qty: "1" }],
+      exchangeRate: "40",
+      clientRequestId: uuidv7(),
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+
+    await sql`update products set price = '200.00' where id = ${monitor}`;
+    try {
+      // Solo se corrige el concepto. Ni el precio ni la tasa cambiaron, así
+      // que el monto tiene que quedar igual: una venta de enero no cambia de
+      // significado porque hoy el catálogo diga otra cosa.
+      const e = await editTransaction(ctx, {
+        id: r.id,
+        concept: "Venta corregida",
+        occurredOn: "2026-09-11",
+        categoryId: catIngreso,
+        paymentMethodId: payVes,
+        items: [{ itemType: "product", refId: monitor, qty: "1" }],
+      });
+      expect(e.ok).toBe(true);
+      if (!e.ok) return;
+      expect(e.amount).toBe("6000.00");
+    } finally {
+      await sql`update products set price = '150.00' where id = ${monitor}`;
+    }
+  });
+
+  it("corregir la tasa recalcula el monto", async () => {
+    const r = await registerTransaction(ctx, {
+      ...base,
+      type: "ingreso",
+      kind: "venta",
+      categoryId: catIngreso,
+      paymentMethodId: payVes,
+      items: [{ itemType: "product", refId: monitor, qty: "1" }],
+      exchangeRate: "40",
+      clientRequestId: uuidv7(),
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.amount).toBe("6000.00");
+
+    // Era 42, no 40.
+    const e = await editTransaction(ctx, {
+      id: r.id,
+      concept: "Prueba",
+      occurredOn: "2026-09-11",
+      categoryId: catIngreso,
+      paymentMethodId: payVes,
+      items: [{ itemType: "product", refId: monitor, qty: "1" }],
+      exchangeRate: "42",
+    });
+    expect(e.ok).toBe(true);
+    if (!e.ok) return;
+    expect(e.amount).toBe("6300.00");
+
+    const [fila] = await sql`select * from transactions where id = ${r.id}`;
+    expect(fila.exchange_rate).toBe("42.000000");
+
+    const [evento] = await sql`select * from audit_log
+      where entity_id = ${r.id} and action = 'update' order by at desc limit 1`;
+    expect(evento.diff.exchangeRate).toEqual({
+      from: "40.000000",
+      to: "42.000000",
+    });
+  });
+
+  it("corregir una venta convertida sin mandar tasa conserva la que tenía", async () => {
+    const r = await registerTransaction(ctx, {
+      ...base,
+      type: "ingreso",
+      kind: "venta",
+      categoryId: catIngreso,
+      paymentMethodId: payVes,
+      items: [{ itemType: "product", refId: monitor, qty: "1" }],
+      exchangeRate: "40",
+      clientRequestId: uuidv7(),
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+
+    // Solo cambia la cantidad. Sin tasa en la entrada, se queda la de la
+    // operación: si no, corregir un dato suelto la borraría y el monto saldría
+    // en la moneda equivocada.
+    const e = await editTransaction(ctx, {
+      id: r.id,
+      concept: "Prueba",
+      occurredOn: "2026-09-11",
+      categoryId: catIngreso,
+      paymentMethodId: payVes,
+      items: [{ itemType: "product", refId: monitor, qty: "3" }],
+    });
+    expect(e.ok).toBe(true);
+    if (!e.ok) return;
+    expect(e.amount).toBe("18000.00");
+  });
+
+  it("pasar la venta a un método en la moneda de los precios quita la tasa", async () => {
+    const r = await registerTransaction(ctx, {
+      ...base,
+      type: "ingreso",
+      kind: "venta",
+      categoryId: catIngreso,
+      paymentMethodId: payVes,
+      items: [{ itemType: "product", refId: monitor, qty: "1" }],
+      exchangeRate: "40",
+      clientRequestId: uuidv7(),
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+
+    // Se cobró en efectivo USD, no por pago móvil. Ya no hay nada que
+    // convertir: la tasa deja de aplicar y el monto vuelve al precio de lista.
+    const e = await editTransaction(ctx, {
+      id: r.id,
+      concept: "Prueba",
+      occurredOn: "2026-09-11",
+      categoryId: catIngreso,
+      paymentMethodId: payUsd,
+      items: [{ itemType: "product", refId: monitor, qty: "1" }],
+    });
+    expect(e.ok).toBe(true);
+    if (!e.ok) return;
+    expect(e.amount).toBe("150.00");
+    expect(e.currency).toBe("USD");
+
+    const [fila] = await sql`select * from transactions where id = ${r.id}`;
+    expect(fila.exchange_rate).toBeNull();
+    expect(fila.base_currency).toBeNull();
+  });
+
+  it("anular una venta convertida repone el inventario completo", async () => {
+    const antes = await getStock(tenant, monitor);
+
+    const r = await registerTransaction(ctx, {
+      ...base,
+      type: "ingreso",
+      kind: "venta",
+      categoryId: catIngreso,
+      paymentMethodId: payVes,
+      items: [{ itemType: "product", refId: monitor, qty: "4" }],
+      exchangeRate: "40",
+      clientRequestId: uuidv7(),
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(Number(await getStock(tenant, monitor))).toBe(Number(antes) - 4);
+
+    // El inventario no sabe de monedas: una venta convertida se anula igual.
+    expect((await revertTransaction(ctx, { id: r.id })).ok).toBe(true);
+    expect(Number(await getStock(tenant, monitor))).toBe(Number(antes));
+  });
+
+  it("los totales siguen separados por moneda, sin convertir entre sí", async () => {
+    const enUsd = await totalsByCurrency(tenant, { currency: "USD" });
+    const enVes = await totalsByCurrency(tenant, { currency: "VES" });
+
+    // Lo que la tasa NO hace: no existe un total único. Cada moneda sigue
+    // dando su propia fila, y nada se suma entre ellas.
+    expect(enUsd.every((t) => t.currency === "USD")).toBe(true);
+    expect(enVes.every((t) => t.currency === "VES")).toBe(true);
   });
 });

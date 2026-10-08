@@ -72,7 +72,14 @@ is superseded but remains the reference for infrastructure (Supabase pitfalls, R
   stored in a `custom jsonb` column keyed by the field's **immutable slug**.
 - Catalogs (categories, payment methods) are ordinary relational rows in one
   polymorphic `catalog_items` table, not dynamic schema.
-- **Totals are kept separate per currency. There is no rate conversion.**
+- **Totals are kept separate per currency and are never summed across them.**
+  The one conversion that exists is per operation: when catalog prices are in a
+  different currency than the payment method, the user types the rate, it is
+  stored on the transaction (`exchange_rate` + `base_currency`), and the line
+  items are stored already converted. There is no rate table and no external
+  rate lookup — re-reading a January sale must always give the same number.
+  All items in one operation must share a single currency; two would need two
+  rates and the total would belong to neither.
 - Money is `numeric` in Postgres and `string` in TypeScript. Never a JS `number`,
   never `z.coerce.number()`. All arithmetic goes through `lib/money.ts`, which works
   on scaled `BigInt`s; its rounding is verified to match Postgres `round(x, 2)` so the

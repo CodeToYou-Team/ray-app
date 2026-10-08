@@ -62,6 +62,8 @@ export interface ViewRow {
   paymentMethodId: string;
   notes: string | null;
   items: EditingItem[];
+  exchangeRate: string | null;
+  baseCurrency: string | null;
 }
 
 export interface ViewTotal {
@@ -382,6 +384,16 @@ export function TransactionsView({
                         )}
                         {formatMoney(r.amount, r.currency)}
                       </span>
+                      {/*
+                        Si hubo conversión, la tasa se ve aquí. Un monto en Bs
+                        sin decir a qué tasa salió no se puede verificar contra
+                        nada después.
+                      */}
+                      {r.exchangeRate && r.baseCurrency && (
+                        <span className="block font-mono text-[10px] text-muted-foreground">
+                          1 {r.baseCurrency} = {trimRate(r.exchangeRate)} {r.currency}
+                        </span>
+                      )}
                     </TableCell>
                     {(canEdit || canVoid) && (
                       <TableCell className="text-right">
@@ -557,6 +569,14 @@ function Filtros({
   );
 }
 
+/**
+ * "40.000000" -> "40". Los ceros de relleno son del tipo numeric, no del dato:
+ * la tasa se guarda con 6 decimales porque alguna los necesita, no todas.
+ */
+function trimRate(rate: string): string {
+  return rate.includes(".") ? rate.replace(/0+$/, "").replace(/\.$/, "") : rate;
+}
+
 /** La fila de la tabla, en la forma que espera el formulario. */
 function toEditing(row: ViewRow): EditingTransaction {
   return {
@@ -569,6 +589,8 @@ function toEditing(row: ViewRow): EditingTransaction {
     amount: row.amount,
     notes: row.notes,
     items: row.items,
+    exchangeRate: row.exchangeRate,
+    baseCurrency: row.baseCurrency,
   };
 }
 

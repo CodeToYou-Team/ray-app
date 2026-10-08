@@ -31,6 +31,9 @@ export interface TransactionRow {
   /** Los ids, no solo las etiquetas: el formulario de correccion los precarga. */
   categoryId: string;
   paymentMethodId: string;
+  /** La tasa con la que se convirtieron los precios, si hubo conversión. */
+  exchangeRate: string | null;
+  baseCurrency: string | null;
   notes: string | null;
   createdAt: Date;
 }
@@ -135,6 +138,8 @@ export async function listTransactions(
         createdAt: transactions.createdAt,
         categoryId: transactions.categoryId,
         paymentMethodId: transactions.paymentMethodId,
+        exchangeRate: transactions.exchangeRate,
+        baseCurrency: transactions.baseCurrency,
         categoryLabel: categoria.label,
         paymentMethodLabel: metodo.label,
       })

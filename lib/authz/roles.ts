@@ -30,6 +30,8 @@ export const CAPABILITIES = [
   "report:read",
   // Usuarios del cliente
   "member:manage",
+  // Configuracion del negocio (moneda por defecto)
+  "tenant:manage",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

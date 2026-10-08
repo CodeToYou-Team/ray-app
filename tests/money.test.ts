@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  convertMoney,
+  isRate,
+  normalizeRate,
   lineSubtotal,
   sumMoney,
   sumQuantity,
@@ -102,5 +105,56 @@ describe("aritmetica de dinero", () => {
     expect(() => normalizeMoney("10.999")).toThrow(/decimales/);
     expect(() => normalizeQuantity("1.2345")).toThrow(/decimales/);
     expect(() => normalizeMoney("no-es-un-numero")).toThrow(/invalido/);
+  });
+});
+
+describe("tasa de cambio", () => {
+  it("valida tasas", () => {
+    expect(isRate("40")).toBe(true);
+    expect(isRate("36.712345")).toBe(true);
+    expect(isRate("0.002577")).toBe(true);
+    // Cero o negativa no es una tasa: daria un monto cero o negativo.
+    expect(isRate("0")).toBe(false);
+    expect(isRate("0.000000")).toBe(false);
+    expect(isRate("-40")).toBe(false);
+    expect(isRate("")).toBe(false);
+    expect(isRate("abc")).toBe(false);
+    expect(isRate("1.2345678")).toBe(false); // siete decimales
+  });
+
+  it("normaliza a seis decimales", () => {
+    expect(normalizeRate("40")).toBe("40.000000");
+    expect(normalizeRate("36.71")).toBe("36.710000");
+  });
+
+  it("convierte exacto", () => {
+    expect(convertMoney("150.00", "40")).toBe("6000.00");
+    expect(convertMoney("12.37", "36.712345")).toBe("454.13");
+    expect(convertMoney("0.01", "40")).toBe("0.40");
+    expect(convertMoney("1000.00", "0.002577")).toBe("2.58");
+  });
+
+  it("redondea half-up, igual que round() de Postgres", () => {
+    // Los mismos casos frontera que lineSubtotal. Comprobado ademas contra la
+    // base: 400 pares (monto, tasa) al azar dan identico a round(x*r, 2) de
+    // Postgres, asi que la vista previa y lo guardado nunca difieren.
+    expect(convertMoney("1.00", "1.005")).toBe("1.01");
+    expect(convertMoney("0.01", "1.5")).toBe("0.02");
+    expect(convertMoney("0.01", "2.5")).toBe("0.03");
+  });
+
+  it("no acumula error de punto flotante", () => {
+    // Con numbers de JS, 0.07 * 36.5 = 2.5549999999999997
+    expect(convertMoney("0.07", "36.5")).toBe("2.56");
+    // Cien conversiones de 19.99 a tasa 40, sumadas, dan exacto.
+    const convertidos = Array.from({ length: 100 }, () =>
+      convertMoney("19.99", "40"),
+    );
+    expect(sumMoney(convertidos)).toBe("79960.00");
+  });
+
+  it("una tasa invalida revienta en vez de devolver cualquier cosa", () => {
+    expect(() => convertMoney("10.00", "0")).toThrow(/invalida/i);
+    expect(() => convertMoney("10.00", "-1")).toThrow(/invalida/i);
   });
 });

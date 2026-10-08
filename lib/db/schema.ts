@@ -423,6 +423,22 @@ export const transactions = pgTable(
      * sabe por que.
      */
     currency: varchar("currency", { length: 10 }).notNull(),
+
+    /**
+     * Tasa con la que se convirtieron los precios de catalogo, si hubo que
+     * convertirlos. NULL cuando los renglones ya estaban en la moneda del pago.
+     *
+     * Vive en la operacion y no en una tabla de tasas a proposito: es la tasa
+     * que regia cuando se vendio, igual que `transaction_items.unit_price` es
+     * el precio que regia. Releer una venta de enero tiene que dar siempre el
+     * mismo numero, aunque la tasa de hoy sea otra.
+     *
+     * Dice cuantas unidades de `currency` equivale 1 de `baseCurrency`.
+     */
+    exchangeRate: numeric("exchange_rate", { precision: 18, scale: 6 }),
+    /** La moneda en la que estaban los precios antes de convertir. */
+    baseCurrency: varchar("base_currency", { length: 10 }),
+
     notes: text("notes"),
 
     /**

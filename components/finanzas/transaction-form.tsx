@@ -8,6 +8,7 @@ import {
   IconTrash,
   IconPackage,
   IconTool,
+  IconArrowsExchange,
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +33,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createTransaction, updateTransaction } from "@/lib/finanzas/actions";
-import { lineSubtotal, sumMoney, isMoney, isQuantity } from "@/lib/money";
+import {
+  convertMoney,
+  lineSubtotal,
+  sumMoney,
+  isMoney,
+  isQuantity,
+  isRate,
+} from "@/lib/money";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -72,6 +80,9 @@ export interface EditingTransaction {
   amount: string;
   notes: string | null;
   items: EditingItem[];
+  /** La tasa con la que se registró, si hubo conversión. */
+  exchangeRate: string | null;
+  baseCurrency: string | null;
 }
 
 interface Props {
@@ -152,6 +163,7 @@ export function TransactionForm({
     editing && editing.kind === "operacion" ? editing.amount : "",
   );
   const [notes, setNotes] = useState(editing?.notes ?? "");
+  const [rate, setRate] = useState(editing?.exchangeRate ?? "");
   const [lineas, setLineas] = useState<Linea[]>(() =>
     (editing?.items ?? []).map((i) => ({
       key: crypto.randomUUID(),
@@ -172,26 +184,52 @@ export function TransactionForm({
   const conRenglones = kind !== "operacion";
 
   /**
-   * Que se puede elegir como renglon.
+   * Qué se puede elegir como renglón.
    *
-   * En una VENTA, solo items con precio en la moneda del pago: sumar un
-   * producto en USD dentro de una venta cobrada en Bs daria un total sin
-   * significado, porque no se convierte nada entre monedas.
+   * Una compra solo lleva productos; una venta, cualquier cosa del catálogo.
    *
-   * En una COMPRA, cualquier producto. El precio se teclea en la moneda del
-   * pago y el del catalogo ni se lee, asi que que un producto se venda en Bs no
-   * impide pagarselo al proveedor en USD. Servicios no: una compra de insumos
-   * solo lleva productos.
+   * Ya NO se filtra por moneda: antes solo aparecía lo que tuviera precio en la
+   * moneda del pago, que es justo lo que hacía imposible vender en bolívares un
+   * catálogo en dólares. Ahora se eligen igual y, si las monedas no coinciden,
+   * se pide la tasa. Lo que sí sigue sin poder mezclarse es un producto en USD
+   * con otro en VES en la misma operación: harían falta dos tasas y el total no
+   * sería de ninguna de las dos monedas.
    */
-  const disponibles = useMemo(() => {
-    if (kind === "compra") return sellables.filter((s) => s.kind === "product");
-    return sellables.filter((s) => !currency || s.currency === currency);
-  }, [sellables, currency, kind]);
-
   const porId = useMemo(
     () => new Map(sellables.map((s) => [s.id, s])),
     [sellables],
   );
+
+  /**
+   * En qué moneda están los precios de catálogo de lo que se eligió.
+   *
+   * `null` si no hay renglones todavía; si hay más de una, el servidor lo
+   * rechaza (haría falta una tasa por moneda y el total no sería de ninguna).
+   */
+  const monedaPrecios = useMemo(() => {
+    const monedas = new Set(
+      lineas
+        .map((l) => porId.get(l.refId)?.currency)
+        .filter((c): c is string => Boolean(c)),
+    );
+    return monedas.size === 1 ? [...monedas][0] : null;
+  }, [lineas, porId]);
+
+  /**
+   * Una compra no convierte nada: el costo se teclea ya en la moneda del pago.
+   * En una venta, los precios salen del catálogo y hay que traerlos a la moneda
+   * en que se cobra.
+   */
+  const necesitaTasa =
+    kind === "venta" && Boolean(currency && monedaPrecios && monedaPrecios !== currency);
+  const tasaOk = !necesitaTasa || isRate(rate);
+
+  const disponibles = useMemo(() => {
+    const base = kind === "compra" ? sellables.filter((s) => s.kind === "product") : sellables;
+    // Elegida una moneda de precios, el resto se oculta en vez de dejar armar
+    // una operación que el servidor va a rechazar al guardar.
+    return monedaPrecios ? base.filter((s) => s.currency === monedaPrecios) : base;
+  }, [sellables, kind, monedaPrecios]);
 
   /**
    * El precio CONGELADO de los renglones que ya estaban.
@@ -216,7 +254,18 @@ export function TransactionForm({
    */
   function precioDe(linea: Linea): string | null {
     if (kind === "compra") return isMoney(linea.unitPrice) ? linea.unitPrice : null;
-    return precioOriginal.get(linea.refId) ?? porId.get(linea.refId)?.price ?? null;
+
+    const base = precioOriginal.get(linea.refId) ?? porId.get(linea.refId)?.price;
+    if (!base) return null;
+    // Si hay conversión, lo que se cobra es el precio ya convertido: la vista
+    // previa tiene que mostrar el número que se va a guardar, no el de lista.
+    if (!necesitaTasa) return base;
+    if (!isRate(rate)) return null;
+    try {
+      return convertMoney(base, rate);
+    } catch {
+      return null;
+    }
   }
 
   const subtotales = lineas.map((l) => {
@@ -238,6 +287,7 @@ export function TransactionForm({
     setPaymentMethodId("");
     setAmount("");
     setNotes("");
+    setRate("");
     setLineas([]);
     setError(null);
     setRequestId(crypto.randomUUID());
@@ -268,6 +318,7 @@ export function TransactionForm({
           }))
         : undefined,
       notes: notes || undefined,
+      exchangeRate: necesitaTasa ? rate : undefined,
     };
 
     start(async () => {
@@ -303,7 +354,8 @@ export function TransactionForm({
             isQuantity(l.qty) &&
             // Una compra sin precio no se puede enviar: no hay de donde sacarlo.
             (kind !== "compra" || isMoney(l.unitPrice)),
-        )
+        ) &&
+        tasaOk
       : isMoney(amount));
 
   const opciones = kindsFor(type);
@@ -469,6 +521,15 @@ export function TransactionForm({
             />
           )}
 
+          {necesitaTasa && currency && monedaPrecios && (
+            <TasaDeCambio
+              rate={rate}
+              setRate={setRate}
+              base={monedaPrecios}
+              currency={currency}
+            />
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="notes">Notas (opcional)</Label>
             <Textarea
@@ -500,6 +561,64 @@ export function TransactionForm({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Tasa de cambio de la operación.
+ *
+ * Se teclea y se guarda con la operación: es la que regía cuando se vendió,
+ * igual que el precio congelado del renglón. No se consulta a ningún servicio
+ * ni se guarda un histórico de tasas — releer una venta de enero tiene que dar
+ * siempre el mismo número.
+ */
+function TasaDeCambio({
+  rate,
+  setRate,
+  base,
+  currency,
+}: {
+  rate: string;
+  setRate: (v: string) => void;
+  base: string;
+  currency: string;
+}) {
+  const valida = isRate(rate);
+
+  return (
+    <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+      <div className="flex items-center gap-2">
+        <IconArrowsExchange className="size-4 text-primary" />
+        <Label htmlFor="tasa" className="text-sm">
+          Tasa de cambio
+        </Label>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        Los precios están en {base} y estás cobrando en {currency}. Escribe la
+        tasa que aplicaste: queda guardada con esta operación, no se vuelve a
+        tocar.
+      </p>
+
+      <div className="flex items-center gap-2">
+        <span className="font-mono text-xs text-muted-foreground">1 {base} =</span>
+        <Input
+          id="tasa"
+          inputMode="decimal"
+          value={rate}
+          onChange={(e) => setRate(e.target.value)}
+          placeholder="0.000000"
+          className="w-36 font-mono"
+        />
+        <span className="font-mono text-xs text-muted-foreground">{currency}</span>
+      </div>
+
+      {rate && !valida && (
+        <p className="text-xs text-destructive">
+          Usa un número mayor que cero, con hasta 6 decimales.
+        </p>
+      )}
+    </div>
   );
 }
 
