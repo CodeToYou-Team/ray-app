@@ -15,6 +15,7 @@ import {
   boolean,
   date,
   foreignKey,
+  customType,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -321,6 +322,13 @@ export const products = pgTable(
   ],
 );
 
+/**
+ * Como se cobra un servicio reservable. NULL en `services.bookingUnit` = el
+ * servicio no se reserva y se vende como siempre, como renglon de una venta.
+ */
+export const bookingUnit = pgEnum("booking_unit", ["noche", "hora"]);
+export type BookingUnit = (typeof bookingUnit.enumValues)[number];
+
 export const services = pgTable(
   "services",
   {
@@ -341,6 +349,11 @@ export const services = pgTable(
     price: numeric("price", { precision: 14, scale: 2 }).notNull().default("0"),
     currency: varchar("currency", { length: 10 }).notNull(),
     isActive: boolean("is_active").notNull().default(true),
+    /**
+     * Presente = el servicio se reserva (una habitacion por noche, una cancha
+     * por hora). Ausente = se vende como renglon, como una "Instalacion".
+     */
+    bookingUnit: bookingUnit("booking_unit"),
     custom: jsonb("custom")
       .$type<Record<string, unknown>>()
       .notNull()
@@ -832,3 +845,104 @@ export const invitations = pgTable(
 );
 
 export type Invitation = typeof invitations.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Reservas
+// ---------------------------------------------------------------------------
+// Diseño en docs/plan_arquitectura_v2.md, seccion "Reservas". El EXCLUDE que
+// impide la doble reserva, las politicas RLS y los CHECK de `period` viven en
+// drizzle/0016_bookings.sql: Drizzle no sabe expresarlos.
+
+/**
+ * `tstzrange` de Postgres, como texto.
+ *
+ * Nunca se arma en JavaScript: los bordes se calculan en SQL con
+ * `fecha::timestamp AT TIME ZONE tz`, porque Node corre en UTC y "la noche del
+ * 10" en Caracas empieza a las 04:00 UTC. Ver lib/reservas/periodo.ts.
+ */
+const tstzrange = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return "tstzrange";
+  },
+});
+
+export const bookingStatus = pgEnum("booking_status", [
+  "reservada",
+  "en_curso",
+  "finalizada",
+  "cancelada",
+  "no_show",
+]);
+export type BookingStatus = (typeof bookingStatus.enumValues)[number];
+
+/** La habitacion fisica, la cancha, el equipo. Pertenece a un servicio. */
+export const resources = pgTable(
+  "resources",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    serviceId: uuid("service_id").notNull(),
+    name: text("name").notNull(),
+    notes: text("notes"),
+    /** Se archivan, nunca se borran: una reserva vieja dice en que habitacion fue. */
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("resources_tenant_service_id_key").on(
+      table.tenantId,
+      table.serviceId,
+      table.id,
+    ),
+    foreignKey({
+      columns: [table.tenantId, table.serviceId],
+      foreignColumns: [services.tenantId, services.id],
+      name: "resources_service_fk",
+    }),
+  ],
+);
+
+export const bookings = pgTable(
+  "bookings",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    serviceId: uuid("service_id").notNull(),
+    resourceId: uuid("resource_id").notNull(),
+    /** Semiabierto [entrada, salida). Solo se escribe con SQL; ver `tstzrange`. */
+    period: tstzrange("period").notNull(),
+    status: bookingStatus("status").notNull().default("reservada"),
+    /** SNAPSHOT del servicio al reservar: si sube la tarifa, esta no cambia. */
+    unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 10 }).notNull(),
+    holderName: text("holder_name").notNull(),
+    holderDocument: text("holder_document"),
+    holderPhone: text("holder_phone"),
+    notes: text("notes"),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelReason: text("cancel_reason"),
+    createdBy: uuid("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.serviceId, table.resourceId],
+      foreignColumns: [resources.tenantId, resources.serviceId, resources.id],
+      name: "bookings_resource_fk",
+    }),
+  ],
+);

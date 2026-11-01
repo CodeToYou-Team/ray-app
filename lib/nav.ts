@@ -8,6 +8,7 @@ import {
   IconPackage,
   IconBuildingWarehouse,
   IconSettings,
+  IconCalendarEvent,
 } from "@tabler/icons-react";
 
 /**
@@ -57,6 +58,17 @@ export const ROUTES: RouteDef[] = [
     title: "Alertas de Inventario",
     description: "Notificaciones de stock",
     navLabel: "Alertas",
+  },
+
+  {
+    pattern: "/reservas",
+    title: "Reservas",
+    description: "Disponibilidad y reservas de habitaciones, canchas o equipos",
+  },
+  {
+    pattern: "/reservas/recursos",
+    title: "Recursos",
+    description: "Qué se reserva y con qué habitaciones, canchas o equipos",
   },
 
   { pattern: "/ajustes", title: "Ajustes", description: "Configuración del negocio" },
@@ -151,6 +163,8 @@ const ROUTE_CAPABILITY: Record<string, Capability> = {
   "/ajustes/columnas": "field:manage",
   "/ajustes/usuarios": "member:manage",
   "/ajustes/negocio": "tenant:manage",
+  "/reservas": "booking:read",
+  "/reservas/recursos": "resource:manage",
 };
 
 export function routeCapability(pathname: string): Capability | undefined {
@@ -180,6 +194,14 @@ const NAV_STRUCTURE: NavGroup[] = [
     ],
   },
   { href: "/productos", icon: IconPackage },
+  {
+    href: "/reservas",
+    icon: IconCalendarEvent,
+    children: [
+      { href: "/reservas", name: "Disponibilidad" },
+      "/reservas/recursos",
+    ],
+  },
   {
     href: "/inventario",
     icon: IconBuildingWarehouse,

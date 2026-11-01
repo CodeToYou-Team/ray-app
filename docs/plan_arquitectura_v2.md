@@ -413,40 +413,81 @@ cookie firmada de admin.
 
 ---
 
-## El hotel y las reservas: el punto de extensión
+## Reservas: recurso + rango de tiempo
 
-Dijiste que no estás seguro de cómo hacer genérico el control de disponibilidad de habitaciones
-por día u hora. La recomendación honesta es: **no lo hagas genérico.** Un motor de campos no
-puede expresar "este recurso está ocupado de las 14:00 del martes a las 11:00 del miércoles y
-nadie más puede tomarlo". Ahí es donde estos proyectos se mueren.
+> Esta sección reemplaza al borrador original ("el punto de extensión"). Las decisiones
+> de abajo se tomaron en octubre-noviembre de 2026, antes de empezar la fase 1.
 
-Va como **módulo propio con tablas reales**, más adelante, reutilizando los mismos catálogos y
-el mismo mecanismo de campos personalizados. Y Postgres tiene exactamente la herramienta:
+Lo genérico no es "habitación": es **un recurso que se ocupa en exclusiva durante un rango
+de tiempo**. Lo mismo sirve para habitaciones, canchas, salas, consultorios, equipos en
+alquiler y citas con una persona (la persona es el recurso).
+
+**No se resuelve con columnas personalizadas.** Un campo "fecha de entrada" se puede
+guardar, pero no puede impedir que la habitación 101 se reserve dos veces la misma noche.
+
+### El modelo
+
+| Concepto | En el hotel | Tabla |
+|---|---|---|
+| Servicio | "Habitación doble, 40 USD/noche" | `services` + `booking_unit` |
+| Recurso | La habitación física 101 | `resources` (nueva) |
+| Reserva | La 101, del 10 al 12, a nombre de Pérez | `bookings` (nueva) |
+| Cobro | 2 noches × 40 USD, en Bs a la tasa del día | `transactions` (fase 2) |
+
+- **Un servicio es reservable si tiene `booking_unit`** (`noche` u `hora`). Sin ella se
+  vende como siempre, como renglón de una venta. Es opcional por servicio.
+- **Cada recurso pertenece a un servicio.** La 101 es una "Doble".
+- **La reserva guarda `service_id` y `resource_id`**, atados por una FK compuesta a
+  `resources (tenant_id, service_id, id)`. Hoy es redundante; existe para que pasar a
+  "un recurso, varios servicios" (la misma cancha por hora o por día) no obligue a tocar
+  `bookings`.
+- **La reserva no es una venta.** Se puede reservar sin pagar. El cobro llega en la fase 2
+  como transacciones ligadas, y al salir se genera la venta con `qty = noches`,
+  reutilizando precio congelado, tasa de cambio y reportes.
+- **La reserva congela precio y moneda del servicio** al crearse, igual que un renglón de
+  venta: si mañana sube la tarifa, una reserva hecha hoy no cambia.
+
+### La garantía
 
 ```sql
-CREATE EXTENSION IF NOT EXISTS btree_gist;
-
-CREATE TABLE bookings (
-  id          uuid PRIMARY KEY,
-  tenant_id   uuid NOT NULL,
-  resource_id uuid NOT NULL,          -- la habitación, la cancha, la sala, el equipo
-  period      tstzrange NOT NULL,
-  status      text NOT NULL,
-  custom      jsonb NOT NULL DEFAULT '{}'::jsonb,
-  -- dos reservas activas del mismo recurso no pueden solaparse. Jamás.
-  EXCLUDE USING gist (tenant_id WITH =, resource_id WITH =, period WITH &&)
-    WHERE (status <> 'cancelada')
-);
+EXCLUDE USING gist (tenant_id WITH =, resource_id WITH =, period WITH &&)
+  WHERE (status NOT IN ('cancelada', 'no_show'))
 ```
 
-Ese `EXCLUDE` son cinco líneas y hacen la doble reserva **imposible a nivel de motor**, no
-"validada en la aplicación". Ninguna condición de carrera, ningún doble click, ningún bug de
-lógica lo puede saltar.
+Dos reservas activas del mismo recurso no pueden solaparse. La impide Postgres, no la app:
+ni un doble clic ni dos recepcionistas a la vez se lo pueden saltar.
 
-Y lo genérico que buscabas está en el nombre: no es "habitaciones", es **recurso reservable +
-rango de tiempo**. Eso mismo sirve para canchas, salas de reunión, equipos en alquiler, citas y
-turnos. Es un módulo que sirve a muchos clientes, no un parche para uno. Fuera de alcance ahora,
-pero escrito para que cuando entre no haya que rediseñar nada.
+### Tiempo
+
+- **`period` es un `tstzrange` semiabierto `[entrada, salida)`**, para que salir el 12 y
+  entrar el 12 no choquen.
+- **Por noche, los bordes son la medianoche LOCAL del cliente** (`tenants.timezone`), no
+  la hora real de check-in. La disponibilidad es por noche; la hora a la que llega el
+  huésped es un dato operativo que se registra al hacer check-in (fase 2). Así no hace
+  falta configurar horarios para saber qué está libre.
+- **La conversión a timestamp se hace en SQL** (`fecha::timestamp AT TIME ZONE tz`), no
+  en JavaScript. "La noche del 10" en Caracas empieza a las 04:00 UTC; calcularlo en el
+  servidor de Node, que corre en UTC, corre las reservas de día sin que nadie lo note.
+- **Por hora, en tramos de 30 minutos.** Cubre canchas de hora y media sin abrir la puerta
+  a duraciones de 17 minutos que nadie cobra.
+
+### Lo que la fase 1 NO cubre (a propósito)
+
+- **Cupos** (clase de 15 personas, tour de 40 plazas, "una doble cualquiera"). Ahí sí pueden
+  coincidir varias reservas y la que sobra no. No se expresa con `EXCLUDE`: hace falta
+  contar con bloqueo. Para capacidades chicas sirve modelar "Plaza 1..15" como recursos.
+- **Dos recursos por reserva** (masaje: terapeuta y cabina).
+- **Reservas recurrentes** (la cancha todos los martes).
+- **Tarifas por temporada o por persona.**
+
+### Fases
+
+1. **Recursos, reservas y disponibilidad.** Qué servicios se reservan, sus recursos, crear
+   y cancelar reservas, y la cuadrícula recursos × días.
+2. **Check-in / check-out y cobro.** Estados `en_curso` y `finalizada`, anticipos y saldo
+   pendiente, venta generada al salir.
+3. **Columnas personalizadas en la reserva**, con el mismo mecanismo que productos y
+   servicios.
 
 ---
 

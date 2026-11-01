@@ -47,6 +47,16 @@
   enforces the capability first. The split exists so the money logic is testable
   without faking a Supabase session — never call `register.ts` from a route.
 - `/lib/inventario/stock.ts` - Stock is `SUM(delta)`, never a stored column.
+- `/lib/reservas` - Bookings: a resource occupied exclusively over a `tstzrange`.
+  Same `register.ts` / `actions.ts` split as finanzas. Double-booking is prevented
+  by an `EXCLUDE USING gist` constraint in `drizzle/0016_bookings.sql`, not by app
+  code — `createBooking` inserts directly and translates `23P01`; never add a
+  "check availability, then insert" step, it reintroduces the race the constraint
+  closes. **Range bounds are computed in SQL** (`date::timestamp AT TIME ZONE tz`
+  in `periodo.ts`), never with `new Date()`: Node runs in UTC and every booking
+  would shift by the tenant's offset. `rango.ts` holds the timezone-free
+  arithmetic and is the only part the client may import. Design and phase plan
+  in `docs/plan_arquitectura_v2.md`, section "Reservas".
 - `/lib/money.ts`, `/lib/currencies.ts` - Exact decimal arithmetic and the closed
   currency list. Currency columns are `varchar(10)`: stablecoin tickers (USDT, USDC)
   are 4 characters, not 3.

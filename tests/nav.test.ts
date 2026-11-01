@@ -44,6 +44,15 @@ describe("menu segun el rol", () => {
     expect(hrefs).toContain("/inventario");
   });
 
+  it("la recepcion reserva, pero no decide que habitaciones existen", () => {
+    const hrefs = hrefsVisibles("staff");
+    expect(hrefs).toContain("/reservas");
+    expect(hrefs).not.toContain("/reservas/recursos");
+
+    // El encargado si administra los recursos.
+    expect(hrefsVisibles("manager")).toContain("/reservas/recursos");
+  });
+
   it("un grupo sin hijos accesibles no se muestra vacio", () => {
     for (const role of ["owner", "manager", "staff"] as MembershipRole[]) {
       for (const item of [...navTreeFor(role), ...navBottomFor(role)]) {

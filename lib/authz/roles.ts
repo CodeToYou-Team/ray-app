@@ -32,6 +32,11 @@ export const CAPABILITIES = [
   "member:manage",
   // Configuracion del negocio (moneda por defecto)
   "tenant:manage",
+  // Reservas: verlas, crearlas y cancelarlas
+  "booking:read",
+  "booking:manage",
+  // Que servicios se reservan y con que recursos (habitaciones, canchas)
+  "resource:manage",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -52,6 +57,9 @@ const ROLE_CAPABILITIES = {
     "catalog:read",
     "catalog:manage",
     "report:read",
+    "booking:read",
+    "booking:manage",
+    "resource:manage",
   ],
 
   /**
@@ -64,6 +72,9 @@ const ROLE_CAPABILITIES = {
     "product:read",
     "stock:read",
     "catalog:read",
+    // La recepción reserva y cancela; no decide qué habitaciones existen.
+    "booking:read",
+    "booking:manage",
   ],
 } as const satisfies Record<MembershipRole, readonly Capability[]>;
 
