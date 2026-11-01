@@ -1,0 +1,117 @@
+# 7. Limitaciones conocidas y trabajo en curso
+
+Cosas detectadas al revisar el código para escribir estos documentos. No son decisiones de
+diseño documentadas: son huecos entre lo que la app dice o pretende y lo que hace hoy. Están
+ordenadas por impacto aproximado.
+
+## Comportamiento que puede confundir o filtrar información
+
+### El rol Personal ve todas las operaciones y sus totales
+
+Existen los permisos `transaction:read_own` (personal) y `transaction:read_all` (dueño y
+encargado), pero **ninguna consulta los aplica**. Hoy el personal ve en Ingresos, Gastos,
+Movimientos e Inicio **todas** las operaciones del negocio, con sus totales por moneda, el
+balance de Movimientos y las tarjetas "Este mes".
+
+La pantalla de Equipo describe al rol Personal como "ve solo las suyas. No ve los totales", y
+eso solo se cumple en Reportes e Historial.
+
+- Dónde: `loadTransactionsPage` ([`lib/finanzas/page-data.ts`](../../lib/finanzas/page-data.ts)) y
+  `loadDashboard` ([`lib/finanzas/dashboard.ts`](../../lib/finanzas/dashboard.ts)) no filtran por
+  `created_by` ni ocultan totales según el rol.
+
+### Fecha por defecto del formulario en UTC
+
+El formulario de operaciones propone la fecha con `new Date().toISOString().slice(0, 10)`, que
+es la fecha **UTC**. En Venezuela (UTC−4), a partir de las 20:00 propone el **día siguiente**. Si
+nadie la corrige, la operación queda con fecha de mañana.
+
+Relacionado: "este mes" en Inicio y los periodos de Reportes se calculan con el reloj del
+servidor, no con la zona horaria del negocio (`tenants.timezone`, que existe pero hoy no se usa
+para esto).
+
+### Anular y archivar no piden confirmación
+
+**Anular** una operación (menú ⋮) y **archivar** un producto o servicio se ejecutan al primer clic.
+Ambas acciones son reversibles en la base de datos (archivar tiene "Restaurar"), pero **anular no
+tiene botón para deshacer** desde la interfaz.
+
+## Funciones a medio conectar
+
+### Columnas de tipo "Catálogo" sin opciones en el formulario de productos
+
+Se puede crear una columna personalizada de tipo **Catálogo**, pero el formulario de productos
+no le pasa las opciones del catálogo: el selector aparece **vacío** y no se puede rellenar. En el
+listado, si tuviera valor, se mostraría el identificador en vez del nombre.
+
+- Dónde: [`components/productos/catalog-view.tsx`](../../components/productos/catalog-view.tsx)
+  usa `<FieldInput>` y `formatFieldValue` sin `catalogOptions` / `catalogLabels`.
+
+### Ajustes de columnas fijas sin efecto en Productos
+
+En Ajustes › Columnas se pueden renombrar, ocultar o sacar del listado las columnas del sistema
+(Nombre, SKU, Precio…), y el cambio se guarda. Pero la pantalla de Productos tiene esas columnas
+escritas a mano, así que **los cambios no se ven**: los títulos, el formulario y la tabla siguen
+igual. Solo las columnas personalizadas responden a la configuración.
+
+### Acceso rápido "Producto" del Inicio lleva a una página que no existe
+
+El botón **Producto** de "Acciones rápidas" enlaza a `/productos/nuevo`, una ruta que se eliminó
+cuando crear y editar pasaron a diálogos. Hoy da 404.
+
+### Cabecera con elementos decorativos
+
+El campo **Buscar…** y la campana con el contador **3** de la cabecera no hacen nada: no hay
+búsqueda global ni notificaciones.
+
+### Lógica sin pantalla
+
+Estas funciones existen en el servidor pero ninguna pantalla las usa:
+
+- Reordenar elementos de un catálogo y columnas personalizadas (`reorderCatalog`,
+  `reorderFields`). Los elementos nuevos se agregan al final.
+- Historial de movimientos de stock de un producto (`listMovements`), que es la respuesta a "¿por
+  qué dice 14 si hay 12?".
+- Consulta de la auditoría (`audit_log` se escribe, pero no se lee en ningún sitio).
+
+## Textos desactualizados
+
+Tras añadir la conversión de moneda en ventas, quedaron mensajes que ya no son ciertos:
+
+| Dónde | Texto | Lo que pasa ahora |
+|---|---|---|
+| Diálogo de producto/servicio | "Solo se puede vender en una operación cobrada en esa misma moneda: los montos no se convierten." | Se puede vender en otra moneda indicando la tasa |
+| Formulario de venta sin método de pago | "…solo se pueden agregar productos con precio en esa misma moneda." | Se puede agregar cualquiera; se pide tasa si difiere |
+| Venta sin ítems disponibles | "No hay productos ni servicios con precio en {moneda}…" | El filtro no es por la moneda del pago |
+| Menú del usuario | "Rol: owner" | Muestra el código interno, no "Dueño" |
+| Equipo › rol Personal | "Registra operaciones y ve solo las suyas. No ve los totales." | Ver primer punto |
+
+## Reglas de negocio no implementadas
+
+- **Se puede vender sin stock**: una venta con más unidades de las disponibles se registra y el
+  stock queda negativo.
+- **Un usuario, un negocio**: no se puede pertenecer a varios negocios a la vez.
+- **Alta de negocios solo por script** (`pnpm seed:tenant`), no desde la app.
+- **La pantalla de login no enlaza al registro**: se llega con el enlace que da el dueño.
+- **No hay recuperación de contraseña** desde la app.
+
+## Trabajo en curso: Reservas
+
+En el árbol de trabajo hay cambios **sin commit** para un módulo de **reservas** (habitaciones,
+canchas, salas, equipos). No forma parte del estado descrito en estos documentos; lo que se ve
+hasta ahora:
+
+- Diseño en la sección "Reservas: recurso + rango de tiempo" de
+  [`../plan_arquitectura_v2.md`](../plan_arquitectura_v2.md): un servicio es reservable si tiene
+  unidad (`noche` u `hora`), cada recurso físico pertenece a un servicio, y Postgres impide dos
+  reservas solapadas del mismo recurso con una restricción `EXCLUDE`.
+- Nueva migración `drizzle/0016_bookings.sql` y tablas en el esquema.
+- Permisos nuevos: `booking:read` y `booking:manage` (los tres roles) y `resource:manage` (dueño
+  y encargado).
+- Rutas registradas en el menú: **Reservas › Disponibilidad** (`/reservas`) y **Recursos**
+  (`/reservas/recursos`), con sus páginas en construcción.
+- Fase 1 prevista: recursos, crear y cancelar reservas, y cuadrícula de disponibilidad. El cobro,
+  check-in/check-out y columnas personalizadas en reservas van en fases posteriores.
+
+Cuando se haga commit, conviene añadir un documento `08-reservas.md` y actualizar el mapa de
+pantallas del [índice](README.md).

@@ -1,0 +1,186 @@
+# 6. Arquitectura técnica
+
+Resumen técnico de cómo está construida la app hoy. Las decisiones y su justificación completa
+están en [`../plan_arquitectura_v2.md`](../plan_arquitectura_v2.md); la configuración de
+Supabase, en [`../setup.md`](../setup.md).
+
+## Stack
+
+| Pieza | Versión / detalle |
+|---|---|
+| Framework | Next.js 16.3 (App Router), React 19.2, TypeScript estricto |
+| Estilos | Tailwind CSS 4 (tokens en `app/globals.css`), componentes shadcn/ui en `components/ui` |
+| Base de datos | Postgres en Supabase, accedido con Drizzle ORM + `postgres` (postgres.js) |
+| Autenticación | Supabase Auth (solo autenticación, vía `@supabase/ssr`) |
+| Validación | Zod 4 |
+| Gráficos | Recharts |
+| Tema | `next-themes` (claro/oscuro) |
+| Fuentes | Plus Jakarta Sans + IBM Plex Mono |
+| Tests | Vitest |
+| Gestor de paquetes | pnpm |
+
+## Organización del código
+
+```
+app/
+  (auth)/          login, registro, sin-acceso — sin barra lateral
+  (app)/           todas las pantallas internas, bajo un único layout (barra lateral + cabecera)
+    layout.tsx     resuelve sesión y negocio; redirige a /login o /sin-acceso
+    error.tsx      pantalla "Algo salió mal" con el código (digest) del error
+components/        UI por módulo (finanzas, productos, inventario, ajustes, catalogs, fields…)
+lib/
+  authz/           sesión, roles/permisos, miembros e invitaciones
+  db/              esquema Drizzle, conexión, withTenant / withUser
+  finanzas/        registro de operaciones, consultas, reportes, dashboard
+  productos/       alta/edición de productos y servicios, ajustes de stock
+  inventario/      cálculo de stock
+  catalogs/        registro de catálogos y sus acciones
+  fields/          columnas personalizadas: tipos, resolución, validación
+  tenant/          moneda por defecto y tasas vigentes
+  money.ts         aritmética exacta de dinero
+  currencies.ts    lista cerrada de monedas
+  nav.ts           registro único de rutas (cabecera + barra lateral + permisos por ruta)
+drizzle/           migraciones (las de RLS, triggers y roles, escritas a mano)
+scripts/           alta de clientes y utilidades de base de datos
+tests/             Vitest
+proxy.ts           refresco de sesión (antes "middleware")
+```
+
+## Flujo de una petición
+
+- **Lecturas**: las páginas son Server Components que consultan Postgres directamente (con
+  `withTenant`) y pasan los datos ya calculados a componentes cliente. Nunca se traen todas las
+  filas para filtrar en el navegador: la paginación, búsqueda y totales se resuelven en SQL.
+- **Escrituras**: Server Actions (`"use server"`). Cada una:
+  1. llama a `requireCapability(permiso)`, que resuelve sesión, negocio y rol, y falla si falta
+     el permiso;
+  2. delega en la lógica de negocio;
+  3. invalida las rutas afectadas con `revalidatePath`.
+- **Separación `actions.ts` / `register.ts`**: en finanzas, productos, campos y miembros, la
+  lógica vive en un archivo que recibe `{ tenantId, userId }` explícitos y no sabe de sesiones;
+  `actions.ts` es solo la envoltura con el permiso. Así la lógica de dinero e inventario se
+  prueba sin simular Supabase. Las rutas no deben llamar `register.ts` directamente.
+- **Errores**: las acciones devuelven `{ ok: false, error }` con mensajes en español; los errores
+  de Postgres (únicos, FK, CHECK) se traducen a algo legible.
+
+## Aislamiento entre clientes
+
+Varias capas, de la más externa a la más interna:
+
+1. **`proxy.ts`** solo refresca la sesión. No autoriza (una autorización en middleware se puede
+   saltar; ver CVE-2025-29927).
+2. **`requireTenant` / `requireCapability`** deducen el negocio de la membresía del usuario
+   autenticado (`supabase.auth.getUser()`, que valida el token contra el servidor). El negocio
+   no viaja en la URL.
+3. **Cada consulta filtra por `tenant_id`** explícitamente.
+4. **RLS en Postgres**: `withTenant(tenantId, fn)` abre una transacción y fija
+   `app.current_tenant_id` con `set_config(..., true)` (local a la transacción, seguro con el
+   pooler en modo transacción). Todas las políticas comparan `tenant_id` con ese valor.
+5. **Rol `app_user` sin BYPASSRLS**: la app se conecta con un rol que no puede saltarse RLS.
+   `postgres` y `service_role` sí pueden, por eso no se usan. `assertRlsEnforced()` lo verifica.
+6. **Data API (PostgREST) desactivada**: `supabase-js` solo se usa para auth y su cliente está
+   tipado como `{ auth }`, así que leer datos por ahí no compila.
+7. **"Automatic RLS" de Supabase** activo: una tabla nueva sin políticas queda cerrada.
+
+**Arranque de sesión.** Para saber el negocio hay que leer `memberships`, que está protegida por
+negocio. `withUser(userId, fn)` fija `app.current_user_id` y habilita solo políticas de lectura
+sobre las propias membresías, los negocios a los que se pertenece, la propia fila de usuario y
+las invitaciones dirigidas al propio correo.
+
+## Modelo de datos
+
+| Tabla | Para qué | Notas |
+|---|---|---|
+| `tenants` | Negocios | `slug`, `timezone` (por defecto America/Caracas), `primary_currency` |
+| `users` | Espejo de `auth.users` | Lo mantiene un trigger sobre `auth.users` |
+| `memberships` | Usuario ↔ negocio + rol | Único por (usuario, negocio). Rol: owner/manager/staff |
+| `invitations` | Correos invitados con rol | Correo en minúsculas; una pendiente por correo y negocio |
+| `catalog_items` | Todos los catálogos (polimórfica por `catalog_key`) | `code` inmutable (trigger); `currency` solo en métodos de pago (CHECK) |
+| `products` | Productos | `custom` jsonb; SKU único entre no archivados; `deleted_at` = archivado |
+| `services` | Servicios | Igual que productos, sin SKU ni stock |
+| `transactions` | Ingresos y gastos | `type` ingreso/gasto, `kind` operacion/venta/compra, `currency` copiada, `exchange_rate` + `base_currency`, `client_request_id` (idempotencia), `deleted_at` = anulada |
+| `transaction_items` | Renglones de ventas y compras | Precio congelado; CHECK `subtotal = round(qty*unit_price, 2)` |
+| `stock_movements` | Entradas y salidas de stock | Append-only (trigger bloquea UPDATE; RLS no permite DELETE) |
+| `exchange_rates` | Tasa vigente por par | Solo sugerencia; único por (negocio, base, destino) |
+| `field_config` | Configuración de columnas | `key` y `type` inmutables (trigger) |
+| `audit_log` | Auditoría | Append-only; sin FK al usuario para sobrevivir a su baja |
+
+Integridad que impone la base (no solo la app):
+
+- **FK compuestas** `(tenant_id, catalog_key, id)`: una categoría de gasto no puede usarse en un
+  ingreso, ni una de servicio en un producto.
+- `kind` coherente con `type`: venta solo en ingresos, compra solo en gastos.
+- Un renglón apunta a un producto **o** a un servicio, nunca a ambos.
+- Trigger: una operación suelta no puede tener renglones; una compra no puede llevar servicios.
+- Montos y precios no negativos; cantidades de renglón > 0; movimientos de stock ≠ 0.
+- `updated_at` se mantiene por trigger.
+
+Los ids son **UUIDv7** (ordenados por tiempo), generados en la app.
+
+## Dinero
+
+- En Postgres es `numeric`; en TypeScript, **siempre `string`**. Nunca `number`.
+- Toda la aritmética pasa por [`lib/money.ts`](../../lib/money.ts), que trabaja con `BigInt`
+  escalados: montos con 2 decimales, cantidades con 3, tasas con 6.
+- El redondeo (half-up) coincide con `round(x, 2)` de Postgres, para que el CHECK del subtotal
+  nunca rechace un renglón calculado por la app.
+- Por usar `BigInt`, `tsconfig` apunta a ES2022.
+
+## Auditoría
+
+Cada escritura relevante inserta una fila en `audit_log` **en la misma transacción**: entidad,
+id, acción (`create`/`update`/`delete`/`restore`), quién y un `diff` con lo que cambió
+(`{ campo: { from, to } }`). Cubre operaciones (alta, corrección, anulación), productos,
+servicios, ajustes de stock, catálogos, columnas, invitaciones y membresías. Hoy no hay pantalla
+para consultarla.
+
+## Migraciones
+
+En `drizzle/`, aplicadas con `pnpm db:migrate`:
+
+| Archivo | Contenido |
+|---|---|
+| `0000_tenancy` | tenants, users, memberships, audit_log |
+| `0001_rls_and_app_role` | `current_tenant_id()`, rol `app_user`, RLS base |
+| `0002_auth_mirror` | trigger espejo `auth.users` → `users` |
+| `0003_catalogs` / `0004_catalogs_rls` | catálogos, `code` inmutable, `updated_at` |
+| `0005_transactions_inventory` / `0006_transactions_rls` | productos, servicios, operaciones, renglones, stock y sus reglas |
+| `0007_user_bootstrap_rls` | políticas de `withUser` |
+| `0008_widen_currency` | monedas a `varchar(10)` (USDT, USDC) |
+| `0009_category_required` | categoría obligatoria en productos y servicios |
+| `0010_field_config` / `0011_field_config_rules` | columnas personalizadas |
+| `0012_invitations` / `0013_invitations_rls` | invitaciones |
+| `0014_exchange_rate` | tasa por operación |
+| `0015_exchange_rate_settings` | tasas vigentes por par |
+
+## Scripts
+
+| Comando | Qué hace |
+|---|---|
+| `pnpm dev` / `build` / `start` | Servidor de desarrollo, build y producción |
+| `pnpm lint` / `typecheck` | ESLint (debe quedar limpio) y `tsc --noEmit` |
+| `pnpm db:generate` / `db:migrate` / `db:studio` | drizzle-kit |
+| `pnpm db:bootstrap` | Habilita la contraseña de `app_user` y escribe `DATABASE_URL` en `.env.local` |
+| `pnpm db:check` | Diagnóstico de conexión |
+| `pnpm seed:tenant --name … --slug … --email …` | Da de alta un negocio, su dueño (que debe estar registrado antes) y los catálogos iniciales. Idempotente |
+| `pnpm test` | Vitest |
+
+**No hay pantalla para crear negocios**: el alta de un cliente nuevo se hace con
+`seed:tenant`.
+
+## Variables de entorno
+
+Definidas y documentadas en [`lib/env.ts`](../../lib/env.ts) (no hay `.env.example` a propósito):
+
+| Variable | Uso |
+|---|---|
+| `DATABASE_URL` | Conexión de la app: transaction pooler (6543) con el usuario `app_user.<project_ref>` |
+| `DIRECT_URL` | Migraciones |
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Solo autenticación |
+
+## Tests
+
+En `tests/` (Vitest): dinero, navegación, catálogos, campos, productos, registro y corrección de
+operaciones, consultas de finanzas, reportes, tasas, miembros y aislamiento entre clientes. Los
+tests de base de datos **se saltan sin `TEST_DATABASE_URL`** (un verde sin esa variable no prueba
+nada) y corren contra un Postgres remoto, con timeout de 30 s por latencia de red.
