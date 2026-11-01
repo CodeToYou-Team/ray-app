@@ -41,7 +41,7 @@ import {
   isQuantity,
   isRate,
 } from "@/lib/money";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export interface FormOption {
@@ -59,6 +59,13 @@ export interface FormSellable {
 }
 
 type Kind = "operacion" | "venta" | "compra";
+
+/** La tasa que el formulario propone para un par, y de dónde salió. */
+export interface RateHint {
+  rate: string;
+  occurredOn: string;
+  source: "configurada" | "ultima";
+}
 
 /** Un renglon tal como quedo guardado. */
 export interface EditingItem {
@@ -97,6 +104,11 @@ interface Props {
    * una sugerencia, no un valor fijo.
    */
   ultimoCosto?: Record<string, string>;
+  /**
+   * La última tasa usada para cada par de monedas, por clave "USD>VES".
+   * Precarga el campo; es una sugerencia con fecha, no un valor fijo.
+   */
+  ultimaTasa?: Record<string, RateHint>;
   /**
    * Presente = corregir esa operacion en vez de registrar una nueva.
    *
@@ -144,6 +156,7 @@ export function TransactionForm({
   paymentMethods,
   sellables,
   ultimoCosto = {},
+  ultimaTasa = {},
   editing,
 }: Props) {
   const router = useRouter();
@@ -222,6 +235,27 @@ export function TransactionForm({
    */
   const necesitaTasa =
     kind === "venta" && Boolean(currency && monedaPrecios && monedaPrecios !== currency);
+
+  /** El par que aplica ahora mismo, o "" si no hace falta convertir. */
+  const par = necesitaTasa && monedaPrecios && currency ? `${monedaPrecios}>${currency}` : "";
+  const sugerida = par ? ultimaTasa[par] : undefined;
+
+  /**
+   * El campo arranca con la última tasa que se usó para este par.
+   *
+   * Quien vende todo el día a la misma tasa no debería teclearla en cada
+   * venta. Se ajusta durante el render y no en un efecto: React lo resuelve
+   * antes de pintar, en vez de pintar vacío y volver a renderizar.
+   *
+   * Se dispara solo cuando CAMBIA el par, así que no pisa lo que la persona ya
+   * escribió, y al corregir una operación respeta la tasa que tenía.
+   */
+  const [ultimoPar, setUltimoPar] = useState(par);
+  if (par !== ultimoPar) {
+    setUltimoPar(par);
+    setRate(par ? (ultimaTasa[par]?.rate ?? "") : "");
+  }
+
   const tasaOk = !necesitaTasa || isRate(rate);
 
   const disponibles = useMemo(() => {
@@ -527,6 +561,7 @@ export function TransactionForm({
               setRate={setRate}
               base={monedaPrecios}
               currency={currency}
+              sugerida={sugerida}
             />
           )}
 
@@ -577,13 +612,18 @@ function TasaDeCambio({
   setRate,
   base,
   currency,
+  sugerida,
 }: {
   rate: string;
   setRate: (v: string) => void;
   base: string;
   currency: string;
+  sugerida?: RateHint;
 }) {
   const valida = isRate(rate);
+  // Si el campo trae la sugerencia tal cual, se dice de cuándo es. Una tasa de
+  // hace una semana no se acepta a ciegas solo porque ya estaba escrita.
+  const esLaSugerida = Boolean(sugerida && rate === sugerida.rate);
 
   return (
     <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
@@ -616,6 +656,22 @@ function TasaDeCambio({
       {rate && !valida && (
         <p className="text-xs text-destructive">
           Usa un número mayor que cero, con hasta 6 decimales.
+        </p>
+      )}
+
+      {esLaSugerida && sugerida && (
+        <p className="text-[11px] text-muted-foreground">
+          {sugerida.source === "configurada" ? (
+            <>
+              Es la que tienes fijada en Ajustes. Cámbiala aquí si hoy
+              aplicaste otra: solo afecta a esta operación.
+            </>
+          ) : (
+            <>
+              Es la que usaste el {formatDate(sugerida.occurredOn)}. Cámbiala si
+              hoy es otra.
+            </>
+          )}
         </p>
       )}
     </div>

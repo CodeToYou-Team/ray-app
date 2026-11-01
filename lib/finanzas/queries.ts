@@ -7,6 +7,7 @@ import {
   gte,
   ilike,
   inArray,
+  isNotNull,
   isNull,
   lte,
   sql,
@@ -204,6 +205,63 @@ export async function itemsForTransactions(
     });
   }
   return porTransaccion;
+}
+
+/** Una tasa que se puede proponer, con de donde salio. */
+export interface RateSuggestion {
+  rate: string;
+  /** Fecha de la operación de la que se tomó, en YYYY-MM-DD. */
+  occurredOn: string;
+}
+
+/** Clave de un par de monedas: "USD>VES". */
+export function ratePairKey(base: string, quote: string): string {
+  return `${base}>${quote}`;
+}
+
+/**
+ * La ultima tasa que se uso para cada par de monedas.
+ *
+ * Sirve para precargar el campo al registrar: quien vende todo el dia a la
+ * misma tasa no deberia teclearla en cada venta. Es una sugerencia y viaja con
+ * su fecha, para que la pantalla pueda decir de cuando es — una tasa de hace
+ * una semana no se acepta a ciegas.
+ *
+ * Se deriva de las operaciones y no de una tabla de tasas: el dato ya esta, y
+ * una tabla habria que mantenerla al dia a mano. Las anuladas no cuentan.
+ */
+export async function lastExchangeRates(
+  tenantId: string,
+): Promise<Record<string, RateSuggestion>> {
+  const rows = await withTenant(tenantId, (tx) =>
+    tx
+      .select({
+        rate: transactions.exchangeRate,
+        base: transactions.baseCurrency,
+        quote: transactions.currency,
+        occurredOn: transactions.occurredOn,
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.tenantId, tenantId),
+          isNotNull(transactions.exchangeRate),
+          isNull(transactions.deletedAt),
+        ),
+      )
+      // Ascendente: al recorrer, cada par queda con la operación más reciente.
+      .orderBy(transactions.occurredOn, transactions.id),
+  );
+
+  const ultima: Record<string, RateSuggestion> = {};
+  for (const r of rows) {
+    if (!r.rate || !r.base) continue;
+    ultima[ratePairKey(r.base, r.quote)] = {
+      rate: r.rate,
+      occurredOn: r.occurredOn,
+    };
+  }
+  return ultima;
 }
 
 /**

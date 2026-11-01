@@ -3,6 +3,8 @@ import postgres from "postgres";
 import { uuidv7 } from "uuidv7";
 import {
   balanceByCurrency,
+  lastExchangeRates,
+  ratePairKey,
   listTransactions,
   totalsByCurrency,
   usedCurrencies,
@@ -300,5 +302,100 @@ describe.skipIf(!hasDb)("buscador de transacciones", () => {
     expect(total).toBe(0);
     expect(rows).toHaveLength(0);
     expect(await totalsByCurrency(tBuscar, { q: "notengoidea" })).toEqual([]);
+  });
+});
+
+
+/**
+ * Sugerencia de tasa de cambio.
+ *
+ * Va en su propio tenant: las tasas se derivan de TODAS las operaciones del
+ * cliente, así que compartir fixtures con otra prueba la haría depender del
+ * orden en que corren.
+ */
+const tTasa = uuidv7();
+const uTasa = uuidv7();
+const catT = uuidv7();
+const payVesT = uuidv7();
+const payCopT = uuidv7();
+const payUsdT = uuidv7();
+
+describe.skipIf(!hasDb)("última tasa de cambio usada", () => {
+  let db: ReturnType<typeof postgres>;
+
+  const tx = (over: Record<string, unknown>) => ({
+    id: uuidv7(), tenant_id: tTasa, type: "ingreso", kind: "venta",
+    concept: "Venta", occurred_on: "2026-01-01", category_id: catT,
+    category_catalog_key: "income_category", payment_method_id: payVesT,
+    payment_catalog_key: "payment_method", amount: "100.00", currency: "VES",
+    created_by: uTasa, ...over,
+  });
+
+  beforeAll(async () => {
+    db = postgres(process.env.TEST_DIRECT_URL!, { max: 1, prepare: false });
+
+    await db`insert into tenants (id, name, slug) values (${tTasa}, 'T', ${"t-" + tTasa.slice(-12)})`;
+    await db`insert into users (id, email) values (${uTasa}, ${`t-${uTasa.slice(-12)}@test.local`})`;
+    await db`insert into catalog_items (id, tenant_id, catalog_key, code, label, currency) values
+      (${catT},     ${tTasa}, 'income_category', 'ventas', 'Ventas', null),
+      (${payVesT},  ${tTasa}, 'payment_method',  'pm',     'Pago móvil', 'VES'),
+      (${payCopT},  ${tTasa}, 'payment_method',  'cop',    'Transferencia COP', 'COP'),
+      (${payUsdT},  ${tTasa}, 'payment_method',  'efec',   'Efectivo', 'USD')`;
+
+    // USD>VES: la de marzo es la más reciente, aunque se cargue de primera.
+    await db`insert into transactions ${db(tx({ occurred_on: "2026-03-10", exchange_rate: "41.500000", base_currency: "USD" }))}`;
+    await db`insert into transactions ${db(tx({ occurred_on: "2026-01-10", exchange_rate: "38.000000", base_currency: "USD" }))}`;
+    // Otro par distinto, que no se puede confundir con el anterior.
+    await db`insert into transactions ${db(tx({ occurred_on: "2026-02-10", currency: "COP", payment_method_id: payCopT, exchange_rate: "4100.000000", base_currency: "USD" }))}`;
+    // Sin conversión: no aporta ninguna tasa.
+    await db`insert into transactions ${db(tx({ occurred_on: "2026-04-10", currency: "USD", payment_method_id: payUsdT }))}`;
+  });
+
+  afterAll(async () => {
+    if (!db) return;
+    await db`delete from tenants where id = ${tTasa}`;
+    await db`delete from users where id = ${uTasa}`;
+    await db.end();
+  });
+
+  it("devuelve la más reciente por par, no la última cargada", async () => {
+    const tasas = await lastExchangeRates(tTasa);
+    const usdVes = tasas[ratePairKey("USD", "VES")];
+    expect(usdVes.rate).toBe("41.500000");
+    expect(usdVes.occurredOn).toBe("2026-03-10");
+  });
+
+  it("cada par va por su lado", async () => {
+    const tasas = await lastExchangeRates(tTasa);
+    // Que exista USD>VES no puede contaminar USD>COP: son monedas distintas y
+    // proponer 41.5 pesos por dólar sería un disparate.
+    expect(tasas[ratePairKey("USD", "COP")].rate).toBe("4100.000000");
+    expect(tasas[ratePairKey("VES", "USD")]).toBeUndefined();
+  });
+
+  it("una operación sin conversión no aporta tasa", async () => {
+    const tasas = await lastExchangeRates(tTasa);
+    expect(tasas[ratePairKey("USD", "USD")]).toBeUndefined();
+    expect(Object.keys(tasas).sort()).toEqual(["USD>COP", "USD>VES"]);
+  });
+
+  it("una operación anulada deja de ser la referencia", async () => {
+    const anulada = uuidv7();
+    await db`insert into transactions ${db(tx({ id: anulada, occurred_on: "2026-06-01", exchange_rate: "99.000000", base_currency: "USD" }))}`;
+    expect((await lastExchangeRates(tTasa))[ratePairKey("USD", "VES")].rate).toBe(
+      "99.000000",
+    );
+
+    await db`update transactions set deleted_at = now() where id = ${anulada}`;
+
+    // Si no, una tasa tecleada mal y anulada seguiría precargando la siguiente
+    // venta, que es justo lo contrario de corregirla.
+    expect((await lastExchangeRates(tTasa))[ratePairKey("USD", "VES")].rate).toBe(
+      "41.500000",
+    );
+  });
+
+  it("un cliente sin conversiones no tiene sugerencias", async () => {
+    expect(await lastExchangeRates(otro)).toEqual({});
   });
 });

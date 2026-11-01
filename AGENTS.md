@@ -55,6 +55,11 @@
 - `/tests` - Vitest. DB tests skip silently without `TEST_DATABASE_URL`, so a green
   run proves nothing on its own — check the skip count. They run against a REMOTE
   Postgres, so `testTimeout` is 30s: that is network latency, not slow code.
+  That also makes the full run intermittently flaky: when the remote is slow the
+  whole suite stretches (seen: 776s against a usual ~330s) and a single DB test
+  trips the 30s timeout. Before chasing such a failure, re-run that file alone
+  and compare the suite's total duration — a pass in isolation means the clock,
+  not the code.
 
 ## Plan of record
 
@@ -80,6 +85,11 @@ is superseded but remains the reference for infrastructure (Supabase pitfalls, R
   rate lookup — re-reading a January sale must always give the same number.
   All items in one operation must share a single currency; two would need two
   rates and the total would belong to neither.
+  The `exchange_rates` table is a *suggestion* source only — the rate the owner
+  declares in Ajustes for a currency pair. It is never read when computing a
+  stored amount; it only pre-fills the form, and the derived "last rate used"
+  (`lastExchangeRates()`) fills in when no rate is configured. Changing or
+  deleting a row there must never move a figure that is already recorded.
 - Money is `numeric` in Postgres and `string` in TypeScript. Never a JS `number`,
   never `z.coerce.number()`. All arithmetic goes through `lib/money.ts`, which works
   on scaled `BigInt`s; its rounding is verified to match Postgres `round(x, 2)` so the

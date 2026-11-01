@@ -393,6 +393,40 @@ export const transactionKind = pgEnum("transaction_kind", [
   "compra",
 ]);
 
+/**
+ * Tasa VIGENTE por par de monedas: lo que el dueño declara que cobra hoy.
+ *
+ * No se confunde con `transactions.exchangeRate`, que es la tasa HISTORICA de
+ * una operacion concreta y no se vuelve a tocar. Esta solo alimenta la
+ * sugerencia del formulario: cambiarla no reescribe nada ya registrado.
+ */
+export const exchangeRates = pgTable(
+  "exchange_rates",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    baseCurrency: varchar("base_currency", { length: 10 }).notNull(),
+    quoteCurrency: varchar("quote_currency", { length: 10 }).notNull(),
+    rate: numeric("rate", { precision: 18, scale: 6 }).notNull(),
+    updatedBy: uuid("updated_by"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("exchange_rates_pair_unique").on(
+      table.tenantId,
+      table.baseCurrency,
+      table.quoteCurrency,
+    ),
+  ],
+);
+
 export const transactions = pgTable(
   "transactions",
   {

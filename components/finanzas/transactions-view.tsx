@@ -35,6 +35,7 @@ import {
   type EditingTransaction,
   type FormOption,
   type FormSellable,
+  type RateHint,
 } from "./transaction-form";
 import {
   DropdownMenu,
@@ -99,6 +100,8 @@ interface Props {
   sellables: FormSellable[];
   /** Lo último que se pagó por cada producto, para precargar la compra. */
   ultimoCosto: Record<string, string>;
+  /** Qué tasa proponer por par de monedas, con su origen. */
+  ultimaTasa: Record<string, RateHint>;
 }
 
 const KIND_BADGE: Record<string, { label: string; icon: typeof IconPackage }> = {
@@ -123,6 +126,7 @@ export function TransactionsView({
   paymentMethods,
   sellables,
   ultimoCosto,
+  ultimaTasa,
 }: Props) {
   // En Movimientos el formulario sirve para las dos clases, asi que cual abrir
   // se decide con el boton que se presiono.
@@ -462,6 +466,7 @@ export function TransactionsView({
         paymentMethods={paymentMethods}
         sellables={sellables}
         ultimoCosto={ultimoCosto}
+        ultimaTasa={ultimaTasa}
         editing={editing ? toEditing(editing) : undefined}
       />
     </div>

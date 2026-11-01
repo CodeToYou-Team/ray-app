@@ -60,15 +60,7 @@ export function BusinessSettings({ current }: { current: string }) {
   }
 
   return (
-    <div className="max-w-2xl space-y-4">
-      <div>
-        <h2 className="text-lg font-bold">Negocio</h2>
-        <p className="text-sm text-muted-foreground">
-          La configuración que afecta a todo lo que registras
-        </p>
-      </div>
-
-      <Card>
+    <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">Moneda por defecto</CardTitle>
         </CardHeader>
@@ -133,7 +125,6 @@ export function BusinessSettings({ current }: { current: string }) {
             )}
           </div>
         </CardContent>
-      </Card>
-    </div>
+    </Card>
   );
 }

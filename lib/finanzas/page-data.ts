@@ -7,10 +7,12 @@ import { listSellables } from "@/lib/productos/queries";
 import {
   listTransactions,
   itemsForTransactions,
+  lastExchangeRates,
   lastPurchasePrices,
   totalsByCurrency,
   balanceByCurrency,
 } from "./queries";
+import { rateSuggestions } from "@/lib/tenant/rates";
 import type { TransactionType } from "@/lib/db/schema";
 
 export const PER_PAGE = 20;
@@ -67,8 +69,15 @@ export async function loadTransactionsPage(
   // Quien no puede corregir no recibe los renglones: no los va a usar.
   const canEdit = roleHas(role, "transaction:update");
 
-  const [{ rows, total }, totals, balances, catalogs, sellables, ultimoCosto] =
-    await Promise.all([
+  const [
+    { rows, total },
+    totals,
+    balances,
+    catalogs,
+    sellables,
+    ultimoCosto,
+    ultimaTasa,
+  ] = await Promise.all([
       listTransactions(tenantId, { ...filters, type, page, perPage: PER_PAGE }),
       /**
        * Los totales llevan los MISMOS filtros que la lista.
@@ -88,6 +97,7 @@ export async function loadTransactionsPage(
       ]),
       listSellables(tenantId),
       lastPurchasePrices(tenantId),
+      lastExchangeRates(tenantId),
     ]);
 
   /**
@@ -103,6 +113,10 @@ export async function loadTransactionsPage(
         rows.filter((r) => r.kind !== "operacion").map((r) => r.id),
       )
     : {};
+
+  // La configurada pisa a la derivada: si alguien se tomó el trabajo de
+  // fijarla, proponerle la de la última venta sería ignorarla.
+  const tasas = await rateSuggestions(tenantId, ultimaTasa);
 
   const asOptions = (key: "income_category" | "expense_category") =>
     (catalogs[key] ?? []).map((c) => ({ id: c.id, label: c.label }));
@@ -143,5 +157,10 @@ export async function loadTransactionsPage(
     sellables,
     /** Sugerencia para el precio de compra, no un valor fijo. */
     ultimoCosto,
+    /**
+     * Qué tasa proponer para cada par: la fijada en Ajustes si existe, y si no
+     * la última que se usó. Viaja con su origen para que la pantalla lo diga.
+     */
+    ultimaTasa: tasas,
   };
 }
