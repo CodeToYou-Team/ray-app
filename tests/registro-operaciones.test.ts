@@ -67,9 +67,12 @@ describe.skipIf(!hasDb)("registro de operaciones", () => {
       (${productoEnBs},   ${tenant}, 'Cable',   ${catProd}, '90.00',  'VES')`;
     await sql`insert into services (id, tenant_id, name, category_id, price, currency) values
       (${instalacion}, ${tenant}, 'Instalación', ${catServ}, '40.00', 'USD')`;
-    // Stock inicial del monitor.
-    await sql`insert into stock_movements (id, tenant_id, product_id, delta, reason, occurred_at, created_by)
-              values (${uuidv7()}, ${tenant}, ${monitor}, 20, 'inicial', now(), ${user})`;
+    // Stock inicial. De sobra: desde drizzle/0023 no se vende lo que no hay, y
+    // estos tests prueban montos e inventario relativo, no el limite de stock.
+    await sql`insert into stock_movements (id, tenant_id, product_id, delta, reason, occurred_at, created_by) values
+      (${uuidv7()}, ${tenant}, ${monitor},      100, 'inicial', now(), ${user}),
+      (${uuidv7()}, ${tenant}, ${teclado},      100, 'inicial', now(), ${user}),
+      (${uuidv7()}, ${tenant}, ${productoEnBs}, 100, 'inicial', now(), ${user})`;
   });
 
   afterAll(async () => {
@@ -475,8 +478,10 @@ describe.skipIf(!hasDb)("registro de operaciones", () => {
 
     expect((await revertTransaction(ctx, { id: tx.id })).ok).toBe(true);
     const segunda = await revertTransaction(ctx, { id: tx.id });
-    expect(segunda.ok).toBe(false);
-    expect(segunda.error).toMatch(/ya está anulada/i);
+    expect(segunda).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/ya está anulada/i),
+    });
   });
 
   // -------------------------------------------------------------------------

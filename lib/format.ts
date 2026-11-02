@@ -94,6 +94,15 @@ export function formatDate(
   }).format(date);
 }
 
+/**
+ * Una cantidad sin los ceros de relleno: "7.000" -> "7", "1.500" -> "1.5".
+ * Solo recorta detras del punto, para que "10" no quede en "1".
+ */
+export function formatQuantity(value: string): string {
+  if (!value.includes(".")) return value;
+  return value.replace(/0+$/, "").replace(/\.$/, "");
+}
+
 /** Variacion porcentual redondeada. Devuelve 0 si no hay base con la que comparar. */
 export function getPercentChange(current: number, previous: number): number {
   if (previous === 0) return 0;

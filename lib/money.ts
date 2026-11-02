@@ -180,6 +180,13 @@ export function compareMoney(a: string, b: string): number {
   return x < y ? -1 : x > y ? 1 : 0;
 }
 
+/** Compara dos cantidades (3 decimales). Devuelve -1, 0 o 1. */
+export function compareQuantity(a: string, b: string): number {
+  const x = toScaled(a, 3);
+  const y = toScaled(b, 3);
+  return x < y ? -1 : x > y ? 1 : 0;
+}
+
 export function isZero(value: string, scale = 2): boolean {
   return toScaled(value, scale) === 0n;
 }

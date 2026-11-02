@@ -37,6 +37,8 @@ export interface TransactionRow {
   baseCurrency: string | null;
   notes: string | null;
   createdAt: Date;
+  /** Cuándo se anuló, o null si sigue vigente. */
+  voidedAt: Date | null;
 }
 
 /** Un renglon tal como quedo guardado, para precargar la correccion. */
@@ -56,6 +58,17 @@ export interface ListFilters {
   currency?: string;
   /** Texto a buscar en el concepto. ILIKE: ignora may\u00fasculas, no acentos. */
   q?: string;
+  /**
+   * Solo las que registró este usuario. Lo pone `alcanceDeLectura()` para los
+   * roles con `transaction:read_own`; no se arma a mano en cada pantalla.
+   */
+  createdBy?: string;
+  /**
+   * true = SOLO las anuladas, para poder restaurarlas. Nunca las dos juntas:
+   * una anulada no cuenta para ningún total, y mezclarlas en la misma lista
+   * haría que la suma de las filas no diera el total de arriba.
+   */
+  anuladas?: boolean;
   page?: number;
   perPage?: number;
 }
@@ -83,12 +96,15 @@ function baseWhere(tenantId: string, filters: ListFilters): SQL[] {
   const clauses: SQL[] = [
     eq(transactions.tenantId, tenantId),
     // Las anuladas no cuentan para nada, pero siguen en la tabla.
-    isNull(transactions.deletedAt),
+    filters.anuladas
+      ? isNotNull(transactions.deletedAt)
+      : isNull(transactions.deletedAt),
   ];
   if (filters.type) clauses.push(eq(transactions.type, filters.type));
   if (filters.from) clauses.push(gte(transactions.occurredOn, filters.from));
   if (filters.to) clauses.push(lte(transactions.occurredOn, filters.to));
   if (filters.currency) clauses.push(eq(transactions.currency, filters.currency));
+  if (filters.createdBy) clauses.push(eq(transactions.createdBy, filters.createdBy));
 
   /**
    * Busqueda por concepto.
@@ -137,6 +153,7 @@ export async function listTransactions(
         currency: transactions.currency,
         notes: transactions.notes,
         createdAt: transactions.createdAt,
+        voidedAt: transactions.deletedAt,
         categoryId: transactions.categoryId,
         paymentMethodId: transactions.paymentMethodId,
         exchangeRate: transactions.exchangeRate,
@@ -148,7 +165,13 @@ export async function listTransactions(
       .innerJoin(categoria, eq(categoria.id, transactions.categoryId))
       .innerJoin(metodo, eq(metodo.id, transactions.paymentMethodId))
       .where(where)
-      .orderBy(desc(transactions.occurredOn), desc(transactions.id))
+      // Entre las anuladas, la que se busca casi siempre es la que se acaba de
+      // anular por error: va primero la anulada mas recientemente.
+      .orderBy(
+        ...(filters.anuladas ? [desc(transactions.deletedAt)] : []),
+        desc(transactions.occurredOn),
+        desc(transactions.id),
+      )
       .limit(perPage)
       .offset(page * perPage);
 

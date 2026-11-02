@@ -14,6 +14,7 @@ import "server-only";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { z } from "zod";
+import type { Tx } from "@/lib/db";
 import { withTenant } from "@/lib/db/tenant";
 import {
   auditLog,
@@ -40,6 +41,8 @@ import {
   sumMoney,
   sumQuantity,
 } from "@/lib/money";
+import { faltaDeStock } from "@/lib/inventario/stock";
+import { formatQuantity } from "@/lib/format";
 
 export type TxResult =
   | { ok: true; id: string; amount: string; currency: string; duplicate?: true }
@@ -114,6 +117,33 @@ function pgCode(error: unknown): string | undefined {
     current = (current as { cause?: unknown }).cause;
   }
   return undefined;
+}
+
+/**
+ * Los movimientos de stock, ordenados por producto antes de insertarlos.
+ *
+ * El trigger de stock (drizzle/0023) bloquea la fila de cada producto en el
+ * orden en que llegan los movimientos. Dos ventas simultaneas de "A y B" y de
+ * "B y A" se bloquearian en cruz y Postgres abortaria una por deadlock. Con el
+ * mismo orden siempre, la segunda simplemente espera.
+ */
+function porProducto<T extends { productId: string }>(movimientos: T[]): T[] {
+  return [...movimientos].sort((a, b) => a.productId.localeCompare(b.productId));
+}
+
+/**
+ * El mensaje para un `ST001`, o null si el error es otro.
+ *
+ * `motivo` dice que se estaba intentando, porque "no hay stock" significa algo
+ * distinto al vender que al anular una compra de la que ya se vendio.
+ */
+async function mensajeSinStock(
+  tenantId: string,
+  error: unknown,
+  motivo: (producto: string, quedan: string) => string,
+): Promise<string | null> {
+  const falta = await faltaDeStock(tenantId, error);
+  return falta ? motivo(falta.name, formatQuantity(falta.stock)) : null;
 }
 
 type Vendible = { name: string; price: string; currency: string };
@@ -417,7 +447,9 @@ export async function registerTransaction(
             createdBy: userId,
           }));
 
-        if (movimientos.length) await tx.insert(stockMovements).values(movimientos);
+        if (movimientos.length) {
+          await tx.insert(stockMovements).values(porProducto(movimientos));
+        }
       }
 
       await tx.insert(auditLog).values({
@@ -464,17 +496,17 @@ export async function registerTransaction(
       if (existente) return { ok: true, ...existente, duplicate: true };
     }
 
+    const sinStock = await mensajeSinStock(
+      tenantId,
+      error,
+      (producto, quedan) => `No hay suficiente stock de "${producto}": quedan ${quedan}.`,
+    );
+    if (sinStock) return { ok: false, error: sinStock };
+
     return { ok: false, error: "No se pudo registrar la operación." };
   }
 }
 
-/**
- * Anula una transaccion.
- *
- * No borra: marca `deleted_at` e inserta los movimientos de stock
- * compensatorios. Los originales se quedan — es lo que deja rastro de que hubo
- * una correccion, y sin eso "por que dice 14 y hay 12" no tiene respuesta.
- */
 // ---------------------------------------------------------------------------
 // Edicion
 // ---------------------------------------------------------------------------
@@ -511,12 +543,16 @@ export async function editTransaction(
 
   try {
     return await withTenant(tenantId, async (tx) => {
+      // FOR UPDATE: corregir y anular a la vez compensarian el inventario dos
+      // veces sobre los mismos renglones. Con el bloqueo, la segunda espera y
+      // relee el estado que dejo la primera.
       const [actual] = await tx
         .select()
         .from(transactions)
         .where(
           and(eq(transactions.id, input.id), eq(transactions.tenantId, tenantId)),
-        );
+        )
+        .for("update");
 
       if (!actual) return { ok: false as const, error: "No se encontró esa operación." };
       if (actual.deletedAt) {
@@ -804,7 +840,9 @@ export async function editTransaction(
           );
         }
 
-        const compensaciones: (typeof stockMovements.$inferInsert)[] = [];
+        const compensaciones: ((typeof stockMovements.$inferInsert) & {
+          productId: string;
+        })[] = [];
         const todos = new Set([...antesPorProducto.keys(), ...despuesPorProducto.keys()]);
 
         for (const productId of todos) {
@@ -828,7 +866,7 @@ export async function editTransaction(
         }
 
         if (compensaciones.length) {
-          await tx.insert(stockMovements).values(compensaciones);
+          await tx.insert(stockMovements).values(porProducto(compensaciones));
         }
 
         // Los renglones se reemplazan. Los movimientos originales se quedan
@@ -907,26 +945,81 @@ export async function editTransaction(
 
       return { ok: true as const, id: input.id, amount, currency };
     });
-  } catch {
-    return { ok: false, error: "No se pudo guardar la corrección." };
+  } catch (error) {
+    const sinStock = await mensajeSinStock(
+      tenantId,
+      error,
+      (producto, quedan) =>
+        `No hay suficiente stock de "${producto}" para esa corrección: quedan ${quedan}.`,
+    );
+    return { ok: false, error: sinStock ?? "No se pudo guardar la corrección." };
   }
 }
 
+// ---------------------------------------------------------------------------
+// Anular y restaurar
+// ---------------------------------------------------------------------------
+
+export type VoidResult = { ok: true } | { ok: false; error: string };
+
+/** Lo que se lee de una operacion para anularla o restaurarla, bloqueada. */
+async function bloquearOperacion(
+  tx: Tx,
+  tenantId: string,
+  id: string,
+) {
+  // FOR UPDATE: dos anulaciones simultaneas leerian las dos "no esta anulada"
+  // y repondrian el inventario dos veces. Con el bloqueo, la segunda espera y
+  // ve la marca que dejo la primera.
+  const [row] = await tx
+    .select()
+    .from(transactions)
+    .where(and(eq(transactions.id, id), eq(transactions.tenantId, tenantId)))
+    .for("update");
+  return row;
+}
+
+/** Los renglones con producto de una operacion: los unicos que mueven stock. */
+async function renglonesConProducto(
+  tx: Tx,
+  tenantId: string,
+  transactionId: string,
+) {
+  const renglones = await tx
+    .select()
+    .from(transactionItems)
+    .where(
+      and(
+        eq(transactionItems.transactionId, transactionId),
+        eq(transactionItems.tenantId, tenantId),
+      ),
+    );
+  return renglones.flatMap((l) => (l.productId ? [{ ...l, productId: l.productId }] : []));
+}
+
+/**
+ * Anula una transaccion.
+ *
+ * No borra: marca `deleted_at` e inserta los movimientos de stock
+ * compensatorios. Los originales se quedan — es lo que deja rastro de que hubo
+ * una correccion, y sin eso "por que dice 14 y hay 12" no tiene respuesta.
+ *
+ * Por eso mismo se puede deshacer con `restoreTransaction`: no se perdio nada.
+ */
 export async function revertTransaction(
   { tenantId, userId }: ActorContext,
   input: { id: string; reason?: string },
-): Promise<{ ok: boolean; error?: string }> {
-  try {
-    const result = await withTenant(tenantId, async (tx) => {
-      const [row] = await tx
-        .select()
-        .from(transactions)
-        .where(
-          and(eq(transactions.id, input.id), eq(transactions.tenantId, tenantId)),
-        );
+): Promise<VoidResult> {
+  const motivo = input.reason?.trim().slice(0, 500) || undefined;
 
-      if (!row) return { ok: false, error: "No se encontró esa operación." };
-      if (row.deletedAt) return { ok: false, error: "Esa operación ya está anulada." };
+  try {
+    return await withTenant(tenantId, async (tx) => {
+      const row = await bloquearOperacion(tx, tenantId, input.id);
+
+      if (!row) return { ok: false as const, error: "No se encontró esa operación." };
+      if (row.deletedAt) {
+        return { ok: false as const, error: "Esa operación ya está anulada." };
+      }
 
       await tx
         .update(transactions)
@@ -935,33 +1028,23 @@ export async function revertTransaction(
           and(eq(transactions.id, input.id), eq(transactions.tenantId, tenantId)),
         );
 
-      const renglones = await tx
-        .select()
-        .from(transactionItems)
-        .where(
-          and(
-            eq(transactionItems.transactionId, input.id),
-            eq(transactionItems.tenantId, tenantId),
-          ),
-        );
-
-      const compensatorios = renglones
-        .filter((l) => l.productId)
-        .map((l) => ({
+      const compensatorios = (await renglonesConProducto(tx, tenantId, input.id)).map(
+        (l) => ({
           id: uuidv7(),
           tenantId,
-          productId: l.productId!,
+          productId: l.productId,
           // Al reves del original: una venta anulada repone, una compra saca.
           delta: row.kind === "venta" ? l.qty : negateQuantity(l.qty),
           reason: "anulacion" as const,
           transactionItemId: l.id,
-          note: input.reason || `Anulación de ${row.concept}`,
+          note: motivo || `Anulación de ${row.concept}`,
           occurredAt: new Date(),
           createdBy: userId,
-        }));
+        }),
+      );
 
       if (compensatorios.length) {
-        await tx.insert(stockMovements).values(compensatorios);
+        await tx.insert(stockMovements).values(porProducto(compensatorios));
       }
 
       await tx.insert(auditLog).values({
@@ -974,16 +1057,120 @@ export async function revertTransaction(
         diff: {
           amount: row.amount,
           currency: row.currency,
-          motivo: input.reason ?? null,
+          motivo: motivo ?? null,
           movimientosCompensatorios: compensatorios.length,
         },
       });
 
-      return { ok: true };
+      return { ok: true as const };
     });
+  } catch (error) {
+    // Anular una COMPRA saca del inventario lo que entro con ella. Si de eso
+    // ya se vendio una parte, el stock quedaria negativo.
+    const sinStock = await mensajeSinStock(
+      tenantId,
+      error,
+      (producto, quedan) =>
+        `No se puede anular esta compra: de "${producto}" ya se vendió parte y quedan ${quedan}. Anula primero esas ventas o ajusta el inventario.`,
+    );
+    return { ok: false, error: sinStock ?? "No se pudo anular la operación." };
+  }
+}
 
-    return result;
-  } catch {
-    return { ok: false, error: "No se pudo anular la operación." };
+/**
+ * Deshace una anulacion.
+ *
+ * Vuelve a aplicar el efecto original sobre el inventario con movimientos
+ * nuevos de motivo `restauracion`: los de la anulacion se quedan, igual que los
+ * originales. El historial del producto cuenta las tres cosas en orden — se
+ * vendio, se anulo, se restauro — en vez de fingir que la anulacion no paso.
+ *
+ * Restaurar una venta vuelve a sacar stock, asi que el trigger de stock puede
+ * rechazarla si entretanto se vendio lo que ella habia repuesto.
+ */
+export async function restoreTransaction(
+  { tenantId, userId }: ActorContext,
+  input: { id: string },
+): Promise<VoidResult> {
+  try {
+    return await withTenant(tenantId, async (tx) => {
+      const row = await bloquearOperacion(tx, tenantId, input.id);
+
+      if (!row) return { ok: false as const, error: "No se encontró esa operación." };
+      if (!row.deletedAt) {
+        return { ok: false as const, error: "Esa operación no está anulada." };
+      }
+
+      /**
+       * Un cobro de reserva no se restaura desde aqui.
+       *
+       * Anularlo lo saco del saldo de la reserva, y desde entonces pudo
+       * haberse cobrado de nuevo. Restaurarlo sin pasar por cargarReserva()
+       * — que bloquea la reserva y mide el saldo — podria cobrarla dos veces.
+       */
+      const [esCobro] = await tx
+        .select({ bookingId: bookingPayments.bookingId })
+        .from(bookingPayments)
+        .where(
+          and(
+            eq(bookingPayments.tenantId, tenantId),
+            eq(bookingPayments.transactionId, row.id),
+          ),
+        );
+      if (esCobro) {
+        return {
+          ok: false as const,
+          error:
+            "Este cobro pertenecía a una reserva. Si hay que volver a cobrarlo, regístralo desde la reserva.",
+        };
+      }
+
+      await tx
+        .update(transactions)
+        .set({ deletedAt: null })
+        .where(and(eq(transactions.id, row.id), eq(transactions.tenantId, tenantId)));
+
+      const movimientos = (await renglonesConProducto(tx, tenantId, row.id)).map((l) => ({
+        id: uuidv7(),
+        tenantId,
+        productId: l.productId,
+        // Igual que el original: la venta vuelve a sacar, la compra a meter.
+        delta: row.kind === "venta" ? negateQuantity(l.qty) : l.qty,
+        reason: "restauracion" as const,
+        transactionItemId: l.id,
+        note: `Restauración de ${row.concept}`,
+        occurredAt: new Date(),
+        createdBy: userId,
+      }));
+
+      if (movimientos.length) {
+        await tx.insert(stockMovements).values(porProducto(movimientos));
+      }
+
+      await tx.insert(auditLog).values({
+        id: uuidv7(),
+        tenantId,
+        entity: "transactions",
+        entityId: row.id,
+        action: "restore",
+        actorId: userId,
+        diff: {
+          amount: row.amount,
+          currency: row.currency,
+          anuladaEl: row.deletedAt.toISOString(),
+          movimientos: movimientos.length,
+        },
+      });
+
+      return { ok: true as const };
+    });
+  } catch (error) {
+    const sinStock = await mensajeSinStock(
+      tenantId,
+      error,
+      (producto, quedan) =>
+        `No se puede restaurar esta venta: de "${producto}" quedan ${quedan}, menos de lo que ella vendió.`,
+    );
+    return { ok: false, error: sinStock ?? "No se pudo restaurar la operación." };
   }
 }

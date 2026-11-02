@@ -42,6 +42,8 @@ interface Props {
   recientes: RecentRow[];
   alertas: AlertRow[];
   productosActivos: number;
+  /** El rol solo ve lo que registró: las cifras son suyas, no del negocio. */
+  soloPropias?: boolean;
 }
 
 function Change({ value }: { value: number | null }) {
@@ -76,6 +78,7 @@ export function DashboardContent({
   recientes,
   alertas,
   productosActivos,
+  soloPropias = false,
 }: Props) {
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
@@ -86,7 +89,11 @@ export function DashboardContent({
               <IconPlus className="size-5 text-muted-foreground" />
             </div>
             <div>
-              <p className="font-medium">Todavía no hay movimientos este mes</p>
+              <p className="font-medium">
+                {soloPropias
+                  ? "Todavía no registraste movimientos este mes"
+                  : "Todavía no hay movimientos este mes"}
+              </p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Registra tu primer ingreso o gasto y los números aparecen aquí.
               </p>
@@ -114,7 +121,7 @@ export function DashboardContent({
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center justify-between text-sm">
-                      <span>Este mes</span>
+                      <span>{soloPropias ? "Lo que registraste este mes" : "Este mes"}</span>
                       <Badge variant="outline" className="font-mono text-[10px]">
                         {m.currency}
                       </Badge>
@@ -173,7 +180,9 @@ export function DashboardContent({
       <div className="grid gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">
           <CardHeader className="flex-row items-center justify-between pb-3">
-            <CardTitle className="text-sm">Últimos movimientos</CardTitle>
+            <CardTitle className="text-sm">
+              {soloPropias ? "Tus últimos movimientos" : "Últimos movimientos"}
+            </CardTitle>
             <Button variant="ghost" size="sm" asChild>
               <Link href="/finanzas/movimientos">Ver todos</Link>
             </Button>

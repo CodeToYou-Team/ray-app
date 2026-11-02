@@ -5,10 +5,12 @@ import { requireCapability } from "@/lib/authz/session";
 import {
   editTransaction,
   registerTransaction,
+  restoreTransaction as restoreTransactionCore,
   revertTransaction,
   type CreateTransactionInput,
   type EditTransactionInput,
   type TxResult,
+  type VoidResult,
 } from "./register";
 
 /**
@@ -23,7 +25,7 @@ import {
  * que el permiso se exija aqui y no en el componente.
  */
 
-export type { CreateTransactionInput, EditTransactionInput, TxResult };
+export type { CreateTransactionInput, EditTransactionInput, TxResult, VoidResult };
 
 function revalidateFinanzas() {
   revalidatePath("/finanzas/ingresos");
@@ -65,10 +67,25 @@ export async function updateTransaction(
 export async function voidTransaction(input: {
   id: string;
   reason?: string;
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<VoidResult> {
   const { tenantId, user } = await requireCapability("transaction:delete");
   try {
     return await revertTransaction({ tenantId, userId: user.id }, input);
+  } finally {
+    revalidateFinanzas();
+  }
+}
+
+/**
+ * Deshace una anulacion.
+ *
+ * Exige el mismo permiso que anular: quien puede decir "esto no debio existir"
+ * es quien puede retractarse. Quien no anula, tampoco restaura.
+ */
+export async function restoreTransaction(id: string): Promise<VoidResult> {
+  const { tenantId, user } = await requireCapability("transaction:delete");
+  try {
+    return await restoreTransactionCore({ tenantId, userId: user.id }, { id });
   } finally {
     revalidateFinanzas();
   }

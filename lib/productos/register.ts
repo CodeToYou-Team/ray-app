@@ -17,6 +17,8 @@ import { validateCustomIn } from "@/lib/fields/queries";
 import type { Tx } from "@/lib/db";
 import type { FieldEntity } from "@/lib/db/schema";
 import { contarPendientes } from "@/lib/reservas/register";
+import { faltaDeStock } from "@/lib/inventario/stock";
+import { formatQuantity } from "@/lib/format";
 
 /**
  * Alta y edicion de productos y servicios, sin autorizacion.
@@ -351,6 +353,16 @@ export async function adjustStock(
       return { ok: true as const, id };
     });
   } catch (error) {
+    // El trigger de stock (drizzle/0023): una merma de 5 con 3 en bodega
+    // describe algo que no paso.
+    const falta = await faltaDeStock(tenantId, error);
+    if (falta) {
+      return {
+        ok: false,
+        error: `El ajuste dejaría el stock en negativo: quedan ${formatQuantity(falta.stock)}.`,
+        field: "delta",
+      };
+    }
     return { ok: false, error: describe(error) };
   }
 }

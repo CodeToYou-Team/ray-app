@@ -693,6 +693,8 @@ export const stockReason = pgEnum("stock_reason", [
   "ajuste",
   "merma",
   "anulacion",
+  /** Deshacer una anulación: vuelve a aplicar el efecto original. */
+  "restauracion",
 ]);
 
 /**
@@ -704,6 +706,9 @@ export const stockReason = pgEnum("stock_reason", [
  * 12" es una consulta y no una adivinanza.
  *
  * Anular una transaccion NO borra sus movimientos: inserta los compensatorios.
+ *
+ * La suma nunca puede quedar negativa: un trigger (`stock_movements_not_negative`,
+ * en drizzle/0023) rechaza con `ST001` el movimiento que saca mas de lo que hay.
  */
 export const stockMovements = pgTable(
   "stock_movements",

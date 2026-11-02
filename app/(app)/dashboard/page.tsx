@@ -3,7 +3,8 @@ import { DashboardContent } from "@/components/dashboard/dashboard-content";
 import { loadDashboard } from "@/lib/finanzas/dashboard";
 
 export default async function DashboardPage() {
-  const { monedas, recientes, alertas, productosActivos } = await loadDashboard();
+  const { monedas, recientes, alertas, productosActivos, soloPropias } =
+    await loadDashboard();
 
   return (
     <PageTransition>
@@ -12,6 +13,7 @@ export default async function DashboardPage() {
         recientes={recientes}
         alertas={alertas}
         productosActivos={productosActivos}
+        soloPropias={soloPropias}
       />
     </PageTransition>
   );

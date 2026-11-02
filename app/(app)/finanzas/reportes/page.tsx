@@ -11,18 +11,19 @@ import {
   topProducts,
   periodSummary,
 } from "@/lib/finanzas/reports";
+import { hoyEn, mesDe } from "@/lib/fechas";
 
-/** Rango de fechas a partir de la clave del selector. */
-function rangeFor(key: string): { from?: string; to?: string } {
+/**
+ * Rango de fechas a partir de la clave del selector.
+ *
+ * "Hoy" es el del negocio, no el del servidor: en UTC, el último día del mes a
+ * las 21:00 de Caracas ya es el mes siguiente, y los "últimos 6 meses" se
+ * correrían un mes entero.
+ */
+function rangeFor(key: string, hoy: string): { from?: string; to?: string } {
   if (key === "all") return {};
   const meses = key === "3m" ? 3 : key === "12m" ? 12 : 6;
-  const hoy = new Date();
-  const desde = new Date(hoy.getFullYear(), hoy.getMonth() - (meses - 1), 1);
-  const fmt = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-      d.getDate(),
-    ).padStart(2, "0")}`;
-  return { from: fmt(desde), to: fmt(hoy) };
+  return { from: mesDe(hoy, -(meses - 1)).from, to: hoy };
 }
 
 /**
@@ -36,7 +37,7 @@ export default async function ReportesPage({
 }: {
   searchParams: Promise<{ moneda?: string; periodo?: string }>;
 }) {
-  const { tenantId, primaryCurrency, role } = await requireTenant();
+  const { tenantId, primaryCurrency, role, timezone } = await requireTenant();
 
   if (!roleHas(role, "report:read")) {
     return <SinPermiso role={role} explicacion={"Los reportes muestran los totales del negocio. Tu rol registra operaciones, pero no ve los consolidados."} />;
@@ -54,7 +55,7 @@ export default async function ReportesPage({
   const periodKey = ["3m", "6m", "12m", "all"].includes(params.periodo ?? "")
     ? params.periodo!
     : "6m";
-  const range = rangeFor(periodKey);
+  const range = rangeFor(periodKey, hoyEn(timezone));
   const filters = { currency, ...range };
 
   const [summary, ingresos, gastos, metodos, serie, top] = await Promise.all([

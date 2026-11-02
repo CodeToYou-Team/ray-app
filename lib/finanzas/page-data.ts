@@ -13,6 +13,8 @@ import {
   balanceByCurrency,
 } from "./queries";
 import { rateSuggestions } from "@/lib/tenant/rates";
+import { alcanceDeLectura } from "./alcance";
+import { fechaEn } from "@/lib/fechas";
 import type { TransactionType } from "@/lib/db/schema";
 
 export const PER_PAGE = 20;
@@ -23,6 +25,8 @@ export interface TransactionsSearchParams {
   q?: string;
   desde?: string;
   hasta?: string;
+  /** "1" = ver las anuladas, para restaurarlas. */
+  anuladas?: string;
 }
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
@@ -59,15 +63,31 @@ export async function loadTransactionsPage(
   type: TransactionType | undefined,
   searchParams: TransactionsSearchParams,
 ) {
-  const { tenantId, role } = await requireTenant();
+  const ctx = await requireTenant();
+  const { tenantId, role, timezone } = ctx;
   const page = Math.max(0, Number(searchParams.page ?? 0) || 0);
-  const filters = parseFilters(searchParams);
+
+  const canVoid = roleHas(role, "transaction:delete");
+  /**
+   * Las anuladas solo las ve quien puede restaurarlas. Para el resto seria una
+   * lista de cosas que no cuentan y sobre las que no puede hacer nada.
+   */
+  const anuladas = canVoid && searchParams.anuladas === "1";
+
+  const filters = {
+    ...parseFilters(searchParams),
+    // Lista, totales y balance llevan el MISMO alcance: el Personal ve lo que
+    // registro y la suma de eso, no la del negocio.
+    ...alcanceDeLectura(ctx),
+    anuladas,
+  };
 
   // Sin `type` es la pantalla de Movimientos, la unica que muestra balance.
   const esMovimientos = type === undefined;
 
-  // Quien no puede corregir no recibe los renglones: no los va a usar.
-  const canEdit = roleHas(role, "transaction:update");
+  // Quien no puede corregir no recibe los renglones: no los va a usar. Una
+  // anulada tampoco se corrige: se restaura.
+  const canEdit = roleHas(role, "transaction:update") && !anuladas;
 
   const [
     { rows, total },
@@ -84,10 +104,13 @@ export async function loadTransactionsPage(
        *
        * Si no, buscar "alquiler" mostraria tres filas y arriba el total de todo
        * el año: el numero mas visible de la pantalla no estaria hablando de lo
-       * que se esta viendo.
+       * que se esta viendo. Las anuladas no suman, asi que sobre ellas no hay
+       * total que mostrar.
        */
-      totalsByCurrency(tenantId, { ...filters, type }),
-      esMovimientos
+      anuladas
+        ? Promise.resolve([])
+        : totalsByCurrency(tenantId, { ...filters, type }),
+      esMovimientos && !anuladas
         ? balanceByCurrency(tenantId, filters)
         : Promise.resolve(undefined),
       listCatalogs(tenantId, [
@@ -122,13 +145,22 @@ export async function loadTransactionsPage(
     (catalogs[key] ?? []).map((c) => ({ id: c.id, label: c.label }));
 
   return {
-    rows: rows.map((r) => ({ ...r, items: items[r.id] ?? [] })),
+    rows: rows.map((r) => ({
+      ...r,
+      items: items[r.id] ?? [],
+      // El dia se decide aqui, en la zona del negocio: formatear el instante
+      // en el componente daria un dia en el servidor (UTC) y otro en el
+      // navegador, y React se quejaria al hidratar.
+      voidedOn: r.voidedAt ? fechaEn(r.voidedAt, timezone) : null,
+    })),
     total,
     totals,
     balances,
     // El menu de anular solo se pinta si el rol puede; el Server Action lo
     // vuelve a exigir de todos modos, porque es un endpoint publico.
-    canVoid: roleHas(role, "transaction:delete"),
+    canVoid,
+    /** El formulario propone "hoy" en esta zona, no en la del servidor. */
+    timezone,
     canEdit,
     page,
     perPage: PER_PAGE,
@@ -137,6 +169,7 @@ export async function loadTransactionsPage(
       q: filters.q ?? "",
       desde: filters.from ?? "",
       hasta: filters.to ?? "",
+      anuladas,
     },
     /**
      * Las categorias de las DOS clases, no solo la de la pantalla.

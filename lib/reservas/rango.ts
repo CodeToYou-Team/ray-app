@@ -137,22 +137,9 @@ export function unidadLabel(unidad: Unidad): string {
   return unidad === "noche" ? "por noche" : "por hora";
 }
 
-/** Suma días a una fecha escrita, sin pasar por ninguna zona horaria. */
-export function sumarDias(fecha: string, dias: number): string {
-  const [y, m, d] = fecha.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + dias)).toISOString().slice(0, 10);
-}
-
-/** La fecha de hoy en la zona del negocio, no en la del servidor ni la del navegador. */
-export function hoyEn(timezone: string): string {
-  // en-CA formatea como YYYY-MM-DD.
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-}
+// Viven en lib/fechas.ts porque Finanzas también las necesita; se reexportan
+// para no mover todos los imports de Reservas.
+export { hoyEn, sumarDias } from "@/lib/fechas";
 
 /**
  * Si dos rangos LOCALES se cruzan, comparando texto.

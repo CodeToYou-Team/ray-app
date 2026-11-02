@@ -13,6 +13,12 @@ export interface SellableItem {
   price: string;
   currency: string;
   kind: "product" | "service";
+  /**
+   * Solo productos: cuanto queda ahora. Sirve para avisar en el formulario
+   * antes de enviar; quien decide es el trigger de stock al guardar, porque
+   * entre que se abre el formulario y se envia otra caja pudo vender.
+   */
+  stock?: string;
 }
 
 /**
@@ -30,8 +36,16 @@ export async function listSellables(tenantId: string): Promise<SellableItem[]> {
         name: products.name,
         price: products.price,
         currency: products.currency,
+        stock: sql<string>`coalesce(sum(${stockMovements.delta}), 0)::text`,
       })
       .from(products)
+      .leftJoin(
+        stockMovements,
+        and(
+          eq(stockMovements.productId, products.id),
+          eq(stockMovements.tenantId, products.tenantId),
+        ),
+      )
       .where(
         and(
           eq(products.tenantId, tenantId),
@@ -39,6 +53,7 @@ export async function listSellables(tenantId: string): Promise<SellableItem[]> {
           isNull(products.deletedAt),
         ),
       )
+      .groupBy(products.id, products.name, products.price, products.currency)
       .orderBy(asc(products.name)),
     await tx
       .select({
@@ -59,7 +74,11 @@ export async function listSellables(tenantId: string): Promise<SellableItem[]> {
   ]);
 
   return [
-    ...prods.map((p) => ({ ...p, kind: "product" as const })),
+    ...prods.map((p) => ({
+      ...p,
+      stock: normalizeQuantity(p.stock),
+      kind: "product" as const,
+    })),
     ...servs.map((s) => ({ ...s, kind: "service" as const })),
   ];
 }

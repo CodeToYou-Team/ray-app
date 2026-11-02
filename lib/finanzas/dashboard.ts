@@ -4,18 +4,8 @@ import { requireTenant } from "@/lib/authz/session";
 import { balanceByCurrency, listTransactions } from "./queries";
 import { listStock } from "@/lib/inventario/stock";
 import { subtractMoney } from "@/lib/money";
-
-/** Primer y ultimo dia de un mes, en formato YYYY-MM-DD. */
-function monthRange(offset = 0): { from: string; to: string } {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth() + offset, 1);
-  const end = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0);
-  const fmt = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-      d.getDate(),
-    ).padStart(2, "0")}`;
-  return { from: fmt(start), to: fmt(end) };
-}
+import { hoyEn, mesDe } from "@/lib/fechas";
+import { alcanceDeLectura } from "./alcance";
 
 export interface DashboardCurrency {
   currency: string;
@@ -41,14 +31,23 @@ function percentChange(actual: string, previo: string): number | null {
  * este proyecto decidio no hacer porque la tasa se mueve todos los dias.
  */
 export async function loadDashboard() {
-  const { tenantId, primaryCurrency } = await requireTenant();
-  const esteMes = monthRange(0);
-  const mesPasado = monthRange(-1);
+  const ctx = await requireTenant();
+  const { tenantId, primaryCurrency, timezone } = ctx;
+
+  // "Este mes" es el del negocio: el 31 a las 21:00 en Caracas todavia no es
+  // el mes siguiente, aunque en UTC ya lo sea.
+  const hoy = hoyEn(timezone);
+  const esteMes = mesDe(hoy, 0);
+  const mesPasado = mesDe(hoy, -1);
+
+  // El Personal ve sus propias cifras, no las del negocio: las tarjetas y las
+  // recientes llevan el mismo alcance que la lista de Finanzas.
+  const alcance = alcanceDeLectura(ctx);
 
   const [actual, previo, ultimas, stock] = await Promise.all([
-    balanceByCurrency(tenantId, esteMes),
-    balanceByCurrency(tenantId, mesPasado),
-    listTransactions(tenantId, { perPage: 8 }),
+    balanceByCurrency(tenantId, { ...esteMes, ...alcance }),
+    balanceByCurrency(tenantId, { ...mesPasado, ...alcance }),
+    listTransactions(tenantId, { perPage: 8, ...alcance }),
     listStock(tenantId),
   ]);
 
@@ -80,5 +79,7 @@ export async function loadDashboard() {
     alertas: stock.filter((s) => s.status !== "ok"),
     productosActivos: stock.length,
     periodo: esteMes,
+    /** true = las cifras son solo de quien mira, y la pantalla tiene que decirlo. */
+    soloPropias: alcance.createdBy !== undefined,
   };
 }

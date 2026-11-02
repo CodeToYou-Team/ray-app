@@ -96,6 +96,48 @@ export async function getStock(
   return normalizeQuantity(rows[0]?.stock ?? "0");
 }
 
+/**
+ * Si el error es el `ST001` del trigger de stock (drizzle/0023), qué producto
+ * no alcanzó y cuánto queda de verdad. `null` si es cualquier otro error.
+ *
+ * El stock se vuelve a leer en vez de sacarlo del mensaje: la transacción que
+ * falló ya se deshizo, y lo que le sirve a quien vende es lo confirmado, no la
+ * cuenta a medias que hizo el trigger.
+ */
+export async function faltaDeStock(
+  tenantId: string,
+  error: unknown,
+): Promise<{ productId: string; name: string; stock: string } | null> {
+  const pg = pgError(error);
+  if (pg?.code !== "ST001" || !pg.detail) return null;
+
+  const productId = pg.detail;
+  const [producto] = await withTenant(tenantId, (tx) =>
+    tx
+      .select({ name: products.name })
+      .from(products)
+      .where(and(eq(products.tenantId, tenantId), eq(products.id, productId))),
+  );
+  return {
+    productId,
+    name: producto?.name ?? "un producto",
+    stock: await getStock(tenantId, productId),
+  };
+}
+
+/** El error de Postgres debajo de los envoltorios de Drizzle. */
+function pgError(error: unknown): { code: string; detail?: string } | undefined {
+  let current: unknown = error;
+  while (current) {
+    const { code, detail } = current as { code?: unknown; detail?: unknown };
+    if (typeof code === "string") {
+      return { code, detail: typeof detail === "string" ? detail : undefined };
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return undefined;
+}
+
 export interface StockMovementRow {
   id: string;
   delta: string;

@@ -37,7 +37,11 @@
 - `/components/dashboard`, `/components/finanzas`, `/components/layout`
 - `/lib/nav.ts` - Single route registry. Feeds both the header title and the sidebar
   tree. Adding a route means adding an entry here, or the header warns in dev.
-- `/lib/format.ts` - `formatMoney` (currency-aware), `formatDate`, `getPercentChange`.
+- `/lib/format.ts` - `formatMoney` (currency-aware), `formatDate`, `formatQuantity`,
+  `getPercentChange`.
+- `/lib/fechas.ts` - "Today" is the **tenant's** today: `hoyEn(tenants.timezone)`,
+  never `new Date().toISOString()` (UTC; from 20:00 in Caracas it is already tomorrow).
+  `mesDe(fecha, offset)` gives a month's bounds by string arithmetic. Client-safe.
 - `/lib/db` - Drizzle schema, connection, and `withTenant()`. Server-only.
 - `/lib/authz` - `requireSession` / `requireTenant` / `requireCapability` /
   `requirePlatformAdmin`, plus the role-to-capability map. Every Server Action starts with
@@ -61,7 +65,18 @@
   explicit `{tenantId, userId}`; `actions.ts` is a thin `"use server"` wrapper that
   enforces the capability first. The split exists so the money logic is testable
   without faking a Supabase session — never call `register.ts` from a route.
-- `/lib/inventario/stock.ts` - Stock is `SUM(delta)`, never a stored column.
+  Read scope lives in `alcance.ts`: `alcanceDeLectura(ctx)` turns `transaction:read_all`
+  / `read_own` into a `createdBy` filter. Every listing AND total of transactions shown
+  to a tenant user (Finanzas lists, Inicio) must spread it, or staff see the whole
+  business again. Voiding takes `FOR UPDATE` on the transaction and can be undone
+  (`restoreTransaction`, stock reason `restauracion`); a booking payment is never
+  restored from Finanzas — it is re-charged from the booking.
+- `/lib/inventario/stock.ts` - Stock is `SUM(delta)`, never a stored column. It can't go
+  negative: the `stock_movements_not_negative` trigger (`drizzle/0023`) locks the product
+  row and rejects any outgoing movement that would, with SQLSTATE `ST001` and the product
+  id in DETAIL; `faltaDeStock()` translates it. Same rule as bookings: never add a
+  "check stock, then insert" step in app code. Insert movements sorted by product
+  (`porProducto()` in `register.ts`) so two multi-product sales can't deadlock.
 - `/lib/reservas` - Bookings: a resource occupied exclusively over a `tstzrange`.
   Same `register.ts` / `actions.ts` split as finanzas. Double-booking is prevented
   by an `EXCLUDE USING gist` constraint in `drizzle/0016_bookings.sql`, not by app

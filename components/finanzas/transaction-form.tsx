@@ -34,14 +34,17 @@ import {
 } from "@/components/ui/select";
 import { createTransaction, updateTransaction } from "@/lib/finanzas/actions";
 import {
+  compareQuantity,
   convertMoney,
   lineSubtotal,
   sumMoney,
+  sumQuantity,
   isMoney,
   isQuantity,
   isRate,
 } from "@/lib/money";
-import { formatMoney, formatDate } from "@/lib/format";
+import { formatMoney, formatDate, formatQuantity } from "@/lib/format";
+import { hoyEn } from "@/lib/fechas";
 import { cn } from "@/lib/utils";
 
 export interface FormOption {
@@ -56,6 +59,8 @@ export interface FormSellable {
   price: string;
   currency: string;
   kind: "product" | "service";
+  /** Solo productos: cuánto queda. Para avisar; el servidor decide al guardar. */
+  stock?: string;
 }
 
 type Kind = "operacion" | "venta" | "compra";
@@ -99,6 +104,11 @@ interface Props {
   categories: FormOption[];
   paymentMethods: FormOption[];
   sellables: FormSellable[];
+  /**
+   * La zona del negocio. "Hoy" se calcula en ella: `toISOString()` da la fecha
+   * UTC, que en Caracas ya es mañana a partir de las 20:00.
+   */
+  timezone: string;
   /**
    * Lo ultimo que se pago por cada producto. Precarga el precio de compra; es
    * una sugerencia, no un valor fijo.
@@ -155,6 +165,7 @@ export function TransactionForm({
   categories,
   paymentMethods,
   sellables,
+  timezone,
   ultimoCosto = {},
   ultimaTasa = {},
   editing,
@@ -166,8 +177,21 @@ export function TransactionForm({
   const [kind, setKind] = useState<Kind>(editing?.kind ?? "operacion");
   const [concept, setConcept] = useState(editing?.concept ?? "");
   const [occurredOn, setOccurredOn] = useState(
-    () => editing?.occurredOn ?? new Date().toISOString().slice(0, 10),
+    () => editing?.occurredOn ?? hoyEn(timezone),
   );
+
+  /**
+   * Al abrir para registrar, la fecha vuelve a ser hoy.
+   *
+   * El formulario queda montado mientras la pantalla está abierta, así que la
+   * fecha del montaje se quedaría vieja si alguien deja la caja abierta de un
+   * día para otro. Se ajusta durante el render, igual que la tasa.
+   */
+  const [abierto, setAbierto] = useState(open);
+  if (open !== abierto) {
+    setAbierto(open);
+    if (open && !editing) setOccurredOn(hoyEn(timezone));
+  }
   const [categoryId, setCategoryId] = useState(editing?.categoryId ?? "");
   const [paymentMethodId, setPaymentMethodId] = useState(
     editing?.paymentMethodId ?? "",
@@ -316,7 +340,7 @@ export function TransactionForm({
   function reset() {
     setKind("operacion");
     setConcept("");
-    setOccurredOn(new Date().toISOString().slice(0, 10));
+    setOccurredOn(hoyEn(timezone));
     setCategoryId("");
     setPaymentMethodId("");
     setAmount("");
@@ -375,6 +399,37 @@ export function TransactionForm({
       }
     });
   }
+
+  /**
+   * Productos de una venta que piden más de lo que queda.
+   *
+   * Al corregir, lo que esta misma venta ya había sacado cuenta como
+   * disponible: pasar de 2 a 3 unidades solo necesita 1 más. Es un aviso con
+   * el stock de cuando se abrió la pantalla; la última palabra la tiene el
+   * trigger de stock al guardar, porque otra caja pudo vender entretanto.
+   */
+  const faltantes = useMemo(() => {
+    const quedan = new Map<string, string>();
+    if (kind !== "venta") return quedan;
+
+    const pedido = new Map<string, string>();
+    for (const l of lineas) {
+      if (porId.get(l.refId)?.kind !== "product" || !isQuantity(l.qty)) continue;
+      pedido.set(l.refId, sumQuantity([pedido.get(l.refId) ?? "0", l.qty]));
+    }
+    const yaSacado = new Map<string, string>();
+    for (const i of editing?.items ?? []) {
+      if (i.itemType !== "product") continue;
+      yaSacado.set(i.refId, sumQuantity([yaSacado.get(i.refId) ?? "0", i.qty]));
+    }
+    for (const [id, qty] of pedido) {
+      const stock = porId.get(id)?.stock;
+      if (stock === undefined) continue;
+      const disponible = sumQuantity([stock, yaSacado.get(id) ?? "0"]);
+      if (compareQuantity(qty, disponible) > 0) quedan.set(id, disponible);
+    }
+    return quedan;
+  }, [kind, lineas, porId, editing]);
 
   const puedeEnviar =
     concept.trim() &&
@@ -552,6 +607,7 @@ export function TransactionForm({
               total={totalRenglones}
               currency={currency}
               kind={kind}
+              faltantes={faltantes}
             />
           )}
 
@@ -689,6 +745,7 @@ function LineItemsEditor({
   total,
   currency,
   kind,
+  faltantes,
 }: {
   lineas: Linea[];
   setLineas: (l: Linea[]) => void;
@@ -700,6 +757,8 @@ function LineItemsEditor({
   total: string;
   currency: string | null;
   kind: Kind;
+  /** Producto -> cuánto queda, solo para los que piden más de eso. */
+  faltantes: Map<string, string>;
 }) {
   const productos = disponibles.filter((d) => d.kind === "product");
   const servicios = disponibles.filter((d) => d.kind === "service");
@@ -785,6 +844,19 @@ function LineItemsEditor({
                           <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">
                             {p.price}
                           </span>
+                          {/* Al vender importa cuánto queda; al comprar, no. */}
+                          {!esCompra && p.stock !== undefined && (
+                            <span
+                              className={cn(
+                                "ml-1.5 text-[10px]",
+                                compareQuantity(p.stock, "0") <= 0
+                                  ? "text-destructive"
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              · quedan {formatQuantity(p.stock)}
+                            </span>
+                          )}
                         </SelectItem>
                       ))}
                     </SelectGroup>
@@ -824,6 +896,12 @@ function LineItemsEditor({
                       </span>
                     </>
                   )}
+                </p>
+              )}
+              {faltantes.has(l.refId) && (
+                <p role="alert" className="mt-1 text-[11px] text-destructive">
+                  Solo quedan {formatQuantity(faltantes.get(l.refId)!)}. No se puede
+                  vender más de lo que hay en inventario.
                 </p>
               )}
             </div>

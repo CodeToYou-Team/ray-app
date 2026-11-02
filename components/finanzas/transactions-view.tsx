@@ -15,6 +15,9 @@ import {
   IconPencil,
   IconSearch,
   IconX,
+  IconArrowBackUp,
+  IconAlertCircle,
+  IconTrashOff,
 } from "@tabler/icons-react";
 import {
   Table,
@@ -28,6 +31,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   TransactionForm,
@@ -44,7 +56,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { voidTransaction } from "@/lib/finanzas/actions";
+import { restoreTransaction, voidTransaction } from "@/lib/finanzas/actions";
 import { formatMoney, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -65,6 +77,8 @@ export interface ViewRow {
   items: EditingItem[];
   exchangeRate: string | null;
   baseCurrency: string | null;
+  /** El día en que se anuló, en la zona del negocio. null = vigente. */
+  voidedOn: string | null;
 }
 
 export interface ViewTotal {
@@ -91,7 +105,9 @@ interface Props {
   canVoid?: boolean;
   canEdit?: boolean;
   /** Los filtros aplicados, tal como quedaron tras sanear la URL. */
-  filtros: { q: string; desde: string; hasta: string };
+  filtros: { q: string; desde: string; hasta: string; anuladas: boolean };
+  /** La zona del negocio: el formulario propone "hoy" en ella. */
+  timezone: string;
   total: number;
   page: number;
   perPage: number;
@@ -119,6 +135,7 @@ export function TransactionsView({
   canVoid = false,
   canEdit = false,
   filtros,
+  timezone,
   total,
   page,
   perPage,
@@ -139,6 +156,15 @@ export function TransactionsView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const pages = Math.max(1, Math.ceil(total / perPage));
+
+  /**
+   * La última operación que se anuló desde esta pantalla, para ofrecer
+   * deshacerlo ahí mismo. Anular la saca de la lista, así que sin esto quien
+   * se equivocó de fila tendría que ir a buscarla entre las anuladas.
+   */
+  const [anulada, setAnulada] = useState<{ id: string; concept: string } | null>(
+    null,
+  );
 
   /**
    * Todo el estado de la consulta vive en la URL, no en estado local.
@@ -175,9 +201,19 @@ export function TransactionsView({
   );
 
   const hayFiltros = Boolean(filtros.q || filtros.desde || filtros.hasta);
+  const enAnuladas = filtros.anuladas;
+  const conAcciones = canEdit || canVoid;
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
+      {anulada && (
+        <AvisoAnulada
+          key={anulada.id}
+          anulada={anulada}
+          onCerrar={() => setAnulada(null)}
+        />
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold">{title}</h2>
@@ -291,11 +327,47 @@ export function TransactionsView({
             onFiltrar={filtrar}
             navegando={navigating}
           />
-          <CardTitle className="text-sm font-normal text-muted-foreground">
-            <span className="font-semibold text-foreground">{total}</span>{" "}
-            {total === 1 ? "operación" : "operaciones"}
-            {hayFiltros && " que coinciden"}
-          </CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="text-sm font-normal text-muted-foreground">
+              <span className="font-semibold text-foreground">{total}</span>{" "}
+              {enAnuladas
+                ? total === 1
+                  ? "operación anulada"
+                  : "operaciones anuladas"
+                : total === 1
+                  ? "operación"
+                  : "operaciones"}
+              {hayFiltros && " que coinciden"}
+            </CardTitle>
+            {/* Solo quien anula ve las anuladas: es quien puede restaurarlas. */}
+            {canVoid && (
+              <Button
+                variant={enAnuladas ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                disabled={navigating}
+                onClick={() => filtrar({ anuladas: enAnuladas ? undefined : "1" })}
+              >
+                {enAnuladas ? (
+                  <>
+                    <IconX className="size-3.5" />
+                    Volver a las vigentes
+                  </>
+                ) : (
+                  <>
+                    <IconTrashOff className="size-3.5" />
+                    Ver anuladas
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+          {enAnuladas && (
+            <p className="text-xs text-muted-foreground">
+              Las anuladas no cuentan en ningún total. Restaurar una la vuelve a
+              sumar y aplica otra vez su efecto en el inventario.
+            </p>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -306,14 +378,16 @@ export function TransactionsView({
                 <TableHead>Categoría</TableHead>
                 <TableHead>Método</TableHead>
                 <TableHead className="text-right">Monto</TableHead>
-                {(canEdit || canVoid) && <TableHead className="w-12" />}
+                {conAcciones && (
+                  <TableHead className={enAnuladas ? "w-28" : "w-12"} />
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={canEdit || canVoid ? 6 : 5}
+                    colSpan={conAcciones ? 6 : 5}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
                     {hayFiltros ? (
@@ -335,6 +409,8 @@ export function TransactionsView({
                           Quitar los filtros
                         </Button>
                       </span>
+                    ) : enAnuladas ? (
+                      <>No hay operaciones anuladas.</>
                     ) : (
                       <>
                         Todavía no hay{" "}
@@ -356,6 +432,11 @@ export function TransactionsView({
                   <TableRow key={r.id}>
                     <TableCell className="text-xs text-muted-foreground">
                       {formatDate(r.occurredOn)}
+                      {r.voidedOn && (
+                        <span className="block text-[10px] text-destructive">
+                          anulada el {formatDate(r.voidedOn)}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="font-medium">
                       <span className="flex items-center gap-2">
@@ -399,18 +480,23 @@ export function TransactionsView({
                         </span>
                       )}
                     </TableCell>
-                    {(canEdit || canVoid) && (
+                    {conAcciones && (
                       <TableCell className="text-right">
-                        <RowMenu
-                          row={r}
-                          canEdit={canEdit}
-                          canVoid={canVoid}
-                          onEdit={() => {
-                            setEditing(r);
-                            setFormType(r.type);
-                            setDialogOpen(true);
-                          }}
-                        />
+                        {r.voidedOn ? (
+                          canVoid && <RestaurarBoton row={r} />
+                        ) : (
+                          <RowMenu
+                            row={r}
+                            canEdit={canEdit}
+                            canVoid={canVoid}
+                            onEdit={() => {
+                              setEditing(r);
+                              setFormType(r.type);
+                              setDialogOpen(true);
+                            }}
+                            onVoided={() => setAnulada({ id: r.id, concept: r.concept })}
+                          />
+                        )}
                       </TableCell>
                     )}
                   </TableRow>
@@ -465,6 +551,7 @@ export function TransactionsView({
         categories={categoriesByType[formType]}
         paymentMethods={paymentMethods}
         sellables={sellables}
+        timezone={timezone}
         ultimoCosto={ultimoCosto}
         ultimaTasa={ultimaTasa}
         editing={editing ? toEditing(editing) : undefined}
@@ -599,6 +686,13 @@ function toEditing(row: ViewRow): EditingTransaction {
   };
 }
 
+/** Qué le pasa al inventario al anular, dicho según la clase de operación. */
+function efectoDeAnular(kind: string): string {
+  if (kind === "venta") return "Sale de los totales y lo vendido vuelve al inventario.";
+  if (kind === "compra") return "Sale de los totales y lo comprado se descuenta del inventario.";
+  return "Sale de los totales.";
+}
+
 /**
  * Acciones de una operacion: corregirla o anularla.
  *
@@ -606,6 +700,10 @@ function toEditing(row: ViewRow): EditingTransaction {
  * tecleado y deja el registro en su sitio; anular dice que la operacion no
  * debio existir. Ninguna de las dos borra: la correccion compensa el inventario
  * con un movimiento de ajuste, la anulacion con uno de anulacion.
+ *
+ * Anular pide confirmacion: mueve totales e inventario, y antes bastaba un
+ * clic de mas en el menu. Igual se puede deshacer, desde el aviso que aparece
+ * o desde "Ver anuladas".
  *
  * Cada opcion aparece solo si el rol la tiene, y el Server Action vuelve a
  * exigir el permiso igual, porque es un endpoint publico.
@@ -615,15 +713,31 @@ function RowMenu({
   canEdit,
   canVoid,
   onEdit,
+  onVoided,
 }: {
   row: ViewRow;
   canEdit: boolean;
   canVoid: boolean;
   onEdit: () => void;
+  onVoided: () => void;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [confirmando, setConfirmando] = useState(false);
+  const [motivo, setMotivo] = useState("");
+
+  function anular() {
+    setError(null);
+    start(async () => {
+      const result = await voidTransaction({ id: row.id, reason: motivo || undefined });
+      if (result.ok) {
+        setConfirmando(false);
+        onVoided();
+        router.refresh();
+      } else setError(result.error);
+    });
+  }
 
   return (
     <>
@@ -643,28 +757,165 @@ function RowMenu({
           )}
           {canEdit && canVoid && <DropdownMenuSeparator />}
           {canVoid && (
-          <DropdownMenuItem
-            className="text-destructive focus:text-destructive"
-            onSelect={(event) => {
-              // Sin esto el menu se desmonta antes de que arranque la
-              // transicion y la accion no llega a ejecutarse.
-              event.preventDefault();
-              setError(null);
-              start(async () => {
-                const result = await voidTransaction({ id: row.id });
-                if (result.ok) router.refresh();
-                else setError(result.error ?? "No se pudo anular.");
-              });
-            }}
-          >
-            <IconBan className="mr-2 size-4" />
-            {pending ? "Anulando…" : "Anular"}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onSelect={() => {
+                setError(null);
+                setMotivo("");
+                setConfirmando(true);
+              }}
+            >
+              <IconBan className="mr-2 size-4" />
+              Anular
+            </DropdownMenuItem>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {confirmando && (
+        <Dialog open onOpenChange={(o) => !o && !pending && setConfirmando(false)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-base">Anular «{row.concept}»</DialogTitle>
+              <DialogDescription className="text-xs">
+                {formatMoney(row.amount, row.currency)} del {formatDate(row.occurredOn)}.{" "}
+                {efectoDeAnular(row.kind)} No se borra: queda entre las anuladas y se
+                puede restaurar.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2 text-left">
+              <Label htmlFor={`motivo-${row.id}`}>Motivo (opcional)</Label>
+              <Textarea
+                id={`motivo-${row.id}`}
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+                rows={2}
+                maxLength={500}
+                placeholder="Se registró dos veces"
+              />
+            </div>
+
+            {error && (
+              <p
+                role="alert"
+                className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-left text-sm text-destructive"
+              >
+                <IconAlertCircle className="mt-px size-4 shrink-0" />
+                {error}
+              </p>
+            )}
+
+            <DialogFooter>
+              <Button
+                variant="ghost"
+                onClick={() => setConfirmando(false)}
+                disabled={pending}
+              >
+                Cancelar
+              </Button>
+              <Button variant="destructive" disabled={pending} onClick={anular}>
+                {pending ? "Anulando…" : "Anular"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
+}
+
+/**
+ * "Se anuló tal cosa — Deshacer", justo después de anular.
+ *
+ * Es el arreglo inmediato del clic equivocado. Si se cierra, la operación
+ * sigue restaurable desde "Ver anuladas"; esto solo ahorra ir a buscarla.
+ */
+function AvisoAnulada({
+  anulada,
+  onCerrar,
+}: {
+  anulada: { id: string; concept: string };
+  onCerrar: () => void;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div
+      role="status"
+      className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-muted/50 px-3 py-2 text-sm"
+    >
+      <span className="flex-1">
+        Se anuló <span className="font-medium">«{anulada.concept}»</span>.
+      </span>
       {error && (
-        <p role="alert" className="mt-1 text-[11px] text-destructive">
+        <span role="alert" className="basis-full text-xs text-destructive sm:order-last">
+          {error}
+        </span>
+      )}
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 gap-1.5"
+        disabled={pending}
+        onClick={() => {
+          setError(null);
+          start(async () => {
+            const result = await restoreTransaction(anulada.id);
+            if (result.ok) {
+              onCerrar();
+              router.refresh();
+            } else setError(result.error);
+          });
+        }}
+      >
+        <IconArrowBackUp className="size-3.5" />
+        {pending ? "Deshaciendo…" : "Deshacer"}
+      </Button>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="size-7"
+        disabled={pending}
+        onClick={onCerrar}
+      >
+        <IconX className="size-3.5" />
+        <span className="sr-only">Cerrar aviso</span>
+      </Button>
+    </div>
+  );
+}
+
+/** Restaurar una anulada, desde la lista de anuladas. */
+function RestaurarBoton({ row }: { row: ViewRow }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 gap-1.5"
+        disabled={pending}
+        onClick={() => {
+          setError(null);
+          start(async () => {
+            const result = await restoreTransaction(row.id);
+            if (result.ok) router.refresh();
+            else setError(result.error);
+          });
+        }}
+      >
+        <IconArrowBackUp className="size-3.5" />
+        {pending ? "Restaurando…" : "Restaurar"}
+        <span className="sr-only"> {row.concept}</span>
+      </Button>
+      {error && (
+        <p role="alert" className="mt-1 text-left text-[11px] text-destructive">
           {error}
         </p>
       )}
