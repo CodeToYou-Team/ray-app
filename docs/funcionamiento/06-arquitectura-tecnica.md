@@ -104,7 +104,7 @@ las invitaciones dirigidas al propio correo.
 | `stock_movements` | Entradas y salidas de stock | Append-only (trigger bloquea UPDATE; RLS no permite DELETE) |
 | `exchange_rates` | Tasa vigente por par | Solo sugerencia; único por (negocio, base, destino) |
 | `resources` | Lo que se reserva (habitación, cancha…) | Pertenece a un servicio; `capacity`; nombre único entre los activos; `archived_at` |
-| `bookings` | Reservas | `period` (`tstzrange` semiabierto), `status`, `party_size`; precio, moneda, `shared` y `per_person` copiados del servicio; horas de llegada y salida |
+| `bookings` | Reservas | `period` (`tstzrange` semiabierto), `status`, `party_size`; precio, moneda, `shared` y `per_person` copiados del servicio; horas de llegada y salida; `custom` jsonb |
 | `service_schedules` | Turnos de un servicio por hora | Día ISO (1 = lunes), hora de inicio y fin; un `EXCLUDE` impide dos turnos solapados el mismo día. Nada los referencia: se borran sin perder historia |
 | `booking_payments` | Cobro ↔ reserva | Liga una transacción de ingreso con la reserva y guarda lo abonado **en la moneda de la reserva**. Append-only |
 | `field_config` | Configuración de columnas | `key` y `type` inmutables (trigger) |
@@ -171,6 +171,7 @@ En `drizzle/`, aplicadas con `pnpm db:migrate`:
 | `0017_booking_checkin_payments` | check-in/check-out, cobros de reservas y el trigger que protege su dinero |
 | `0018_booking_capacity` | capacidad, recursos compartidos, cobro por persona y el trigger de cupos |
 | `0019_service_schedules` | horarios fijos (turnos) de los servicios por hora |
+| `0020_booking_custom_fields` | columnas personalizadas en la reserva (`field_entity` + `bookings.custom`) |
 
 ## Scripts
 

@@ -53,7 +53,10 @@ import {
 } from "@/lib/reservas/rango";
 import { compareMoney } from "@/lib/money";
 import { formatDate, formatMoney } from "@/lib/format";
-import type { BoardBooking, BoardService } from "./types";
+import { FieldInput, formatFieldValue } from "@/components/fields/field-input";
+import { toFormValues } from "@/lib/fields/validate";
+import type { ResolvedField } from "@/lib/fields/resolve";
+import type { BoardBooking, BoardService, BookingFields } from "./types";
 import { PaymentForm, type CobroConfig } from "./booking-payment";
 
 /** Con qué abre el formulario: lo que se tocó en la cuadrícula. */
@@ -65,6 +68,12 @@ export interface Inicial {
   /** Si se tocó un turno en la cuadrícula: sus horas, "HH:MM". */
   inicio?: string;
   fin?: string;
+}
+
+/** Un valor personalizado guardado, listo para mostrar ("—" si está vacío). */
+export function valorCampo(campos: BookingFields, field: ResolvedField, value: unknown): string {
+  const labels = field.catalogKey ? campos.catalogos[field.catalogKey]?.labels : undefined;
+  return formatFieldValue(field, value, labels ? new Map(Object.entries(labels)) : undefined);
 }
 
 function ErrorBox({ children }: { children: React.ReactNode }) {
@@ -101,12 +110,15 @@ export function BookingForm({
   reservas,
   inicial,
   editing,
+  campos,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   servicios: BoardService[];
   reservas: BoardBooking[];
   inicial: Inicial;
+  /** Las columnas personalizadas que configuró el dueño en Ajustes › Columnas. */
+  campos: BookingFields;
   /**
    * Presente = modificar esa reserva en vez de crear una. El estado se siembra
    * de aquí una sola vez; el padre lo monta con `key`.
@@ -139,6 +151,12 @@ export function BookingForm({
   const [holderDocument, setHolderDocument] = useState(editing?.holderDocument ?? "");
   const [holderPhone, setHolderPhone] = useState(editing?.holderPhone ?? "");
   const [notes, setNotes] = useState(editing?.notes ?? "");
+  /**
+   * `toFormValues` no valida a propósito: un valor que hoy sería inválido (una
+   * opción archivada, un campo que ahora es obligatorio) se muestra igual,
+   * porque era válido cuando se escribió. Quien valida es el servidor.
+   */
+  const [custom, setCustom] = useState(() => toFormValues(campos.fields, editing?.custom));
 
   /** En curso: ya llegó, así que la entrada quedó registrada y no se mueve. */
   const entradaFija = editing?.status === "en_curso";
@@ -261,6 +279,7 @@ export function BookingForm({
       holderDocument: holderDocument || undefined,
       holderPhone: holderPhone || undefined,
       notes: notes || undefined,
+      custom,
     };
     start(async () => {
       const r = editing
@@ -551,6 +570,20 @@ export function BookingForm({
             </div>
           </div>
 
+          {campos.fields.length > 0 && (
+            <div className="space-y-4">
+              {campos.fields.map((f) => (
+                <FieldInput
+                  key={f.key}
+                  field={f}
+                  value={custom[f.key]}
+                  onChange={(v) => setCustom({ ...custom, [f.key]: v })}
+                  catalogOptions={f.catalogKey ? campos.catalogos[f.catalogKey]?.options : undefined}
+                />
+              ))}
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="notas">Notas (opcional)</Label>
             <Textarea
@@ -610,6 +643,7 @@ export function BookingDetail({
   hoy,
   canManage,
   cobro,
+  campos,
   onClose,
   onModificar,
 }: {
@@ -619,6 +653,7 @@ export function BookingDetail({
   canManage: boolean;
   /** null = el rol no puede cobrar. */
   cobro: CobroConfig | null;
+  campos: BookingFields;
   onClose: () => void;
   onModificar: () => void;
 }) {
@@ -630,6 +665,10 @@ export function BookingDetail({
 
   const estado = ESTADO[reserva.status];
   const debe = compareMoney(reserva.saldo, "0") > 0;
+  // Solo las que tienen algo: una lista de "—" no dice nada.
+  const personalizados = campos.fields
+    .map((f) => ({ field: f, texto: valorCampo(campos, f, reserva.custom[f.key]) }))
+    .filter((c) => c.texto !== "—");
 
   // Lo mismo que verifica el servidor, para decidir qué botones mostrar.
   const llegada = reserva.inicio.slice(0, 10);
@@ -746,7 +785,10 @@ export function BookingDetail({
           </div>
         )}
 
-        {(reserva.holderDocument || reserva.holderPhone || reserva.notes) && (
+        {(reserva.holderDocument ||
+          reserva.holderPhone ||
+          reserva.notes ||
+          personalizados.length > 0) && (
           <dl className="space-y-2 text-sm">
             {reserva.holderDocument && (
               <div className="flex justify-between gap-4">
@@ -763,6 +805,21 @@ export function BookingDetail({
                   </a>
                 </dd>
               </div>
+            )}
+            {personalizados.map(({ field, texto }) =>
+              field.type === "textarea" ? (
+                <div key={field.key} className="space-y-1">
+                  <dt className="text-muted-foreground">{field.label}</dt>
+                  <dd className="whitespace-pre-wrap rounded-md bg-muted/50 p-2 text-xs">
+                    {texto}
+                  </dd>
+                </div>
+              ) : (
+                <div key={field.key} className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">{field.label}</dt>
+                  <dd className="text-right">{texto}</dd>
+                </div>
+              ),
             )}
             {reserva.notes && (
               <div className="space-y-1">

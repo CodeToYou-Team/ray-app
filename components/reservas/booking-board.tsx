@@ -28,7 +28,7 @@ import {
   type Inicial,
 } from "./booking-dialogs";
 import type { CobroConfig } from "./booking-payment";
-import type { BoardBooking, BoardService } from "./types";
+import type { BoardBooking, BoardService, BookingFields } from "./types";
 
 interface Props {
   servicios: BoardService[];
@@ -42,6 +42,7 @@ interface Props {
   canSetup: boolean;
   /** null = el rol no puede cobrar. */
   cobro: CobroConfig | null;
+  campos: BookingFields;
 }
 
 /**
@@ -90,6 +91,7 @@ export function BookingBoard({
   canManage,
   canSetup,
   cobro,
+  campos,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -298,6 +300,7 @@ export function BookingBoard({
           servicios={reservables}
           reservas={reservas}
           inicial={inicial}
+          campos={campos}
         />
       )}
 
@@ -326,6 +329,7 @@ export function BookingBoard({
           hoy={hoy}
           canManage={canManage}
           cobro={cobro}
+          campos={campos}
           onClose={() => setDetalleId(null)}
           onModificar={() => {
             setDetalleId(null);
@@ -352,6 +356,7 @@ export function BookingBoard({
             fecha: editando.inicio.slice(0, 10),
           }}
           editing={editando}
+          campos={campos}
         />
       )}
     </div>

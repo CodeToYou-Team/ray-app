@@ -36,6 +36,8 @@ import {
   subtractMoney,
   sumMoney,
 } from "@/lib/money";
+import { validateCustomIn } from "@/lib/fields/queries";
+import type { CustomValues } from "@/lib/fields/validate";
 import { bordesLocalesSql, periodoSql } from "./periodo";
 import {
   bordesLocales,
@@ -206,6 +208,12 @@ const bookingSchema = z.object({
   holderDocument: z.string().trim().max(50).optional(),
   holderPhone: z.string().trim().max(50).optional(),
   notes: z.string().trim().max(1000).optional(),
+  /**
+   * Columnas personalizadas de la reserva, por la clave inmutable del campo.
+   * Se validan contra `field_config` (entity = 'booking'), no contra un
+   * esquema fijo.
+   */
+  custom: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type CreateBookingInput = z.infer<typeof bookingSchema>;
@@ -317,6 +325,9 @@ export async function createBooking(
         if (!turno.ok) return { ok: false as const, error: turno.error };
       }
 
+      const custom = await validateCustomIn(tx, tenantId, "booking", input.custom);
+      if (!custom.ok) return { ok: false as const, error: custom.error };
+
       // La zona del negocio sale de la base, no de la sesión ni del servidor:
       // es la única fuente que no puede estar desactualizada.
       const [{ timezone }] = await tx
@@ -345,6 +356,7 @@ export async function createBooking(
         holderDocument: input.holderDocument || null,
         holderPhone: input.holderPhone || null,
         notes: input.notes || null,
+        custom: custom.values,
         createdBy: userId,
       });
 
@@ -360,6 +372,7 @@ export async function createBooking(
           rango: input.rango,
           titular: input.holderName,
           personas,
+          ...(Object.keys(custom.values).length > 0 ? { custom: custom.values } : {}),
         },
       });
 
@@ -715,6 +728,7 @@ interface ReservaCargada {
   holderDocument: string | null;
   holderPhone: string | null;
   notes: string | null;
+  custom: CustomValues;
   resourceName: string;
   /** Hora LOCAL del negocio. */
   inicio: string;
@@ -765,6 +779,7 @@ async function cargarReserva(
       holderDocument: bookings.holderDocument,
       holderPhone: bookings.holderPhone,
       notes: bookings.notes,
+      custom: bookings.custom,
       inicio: bordes.inicio,
       fin: bordes.fin,
       // La comparación de días se hace en la zona del negocio: a las 22:00 en
@@ -841,6 +856,7 @@ async function cargarReserva(
     holderDocument: b.holderDocument,
     holderPhone: b.holderPhone,
     notes: b.notes,
+    custom: b.custom ?? {},
     resourceName: extra?.resourceName ?? "",
     inicio: b.inicio,
     fin: b.fin,
@@ -1373,6 +1389,14 @@ export function picoDeOcupacion(
 // Modificar una reserva
 // ---------------------------------------------------------------------------
 
+/**
+ * Igualdad de dos valores personalizados. Son escalares o listas ya ordenadas
+ * por `validateCustomValues`, así que comparar su JSON basta.
+ */
+function mismoValor(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
+
 const updateSchema = z.object({
   id: z.uuid(),
   resourceId: z.uuid("Elige el recurso"),
@@ -1386,6 +1410,12 @@ const updateSchema = z.object({
   holderDocument: z.string().trim().max(50).optional(),
   holderPhone: z.string().trim().max(50).optional(),
   notes: z.string().trim().max(1000).optional(),
+  /**
+   * Ausente = no se tocan. Presente = reemplaza el conjunto entero, igual que
+   * en productos: mezclar dejaría para siempre las claves de campos
+   * archivados. Los ocultos conservan su valor (ver `validateCustomIn`).
+   */
+  custom: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type UpdateBookingInput = z.infer<typeof updateSchema>;
@@ -1395,7 +1425,8 @@ export type UpdateBookingResult =
   | { ok: false; error: string };
 
 /**
- * Modifica una reserva: recurso, fechas, personas y datos del titular.
+ * Modifica una reserva: recurso, fechas, personas, datos del titular y
+ * columnas personalizadas.
  *
  * Solo una reservada o en curso. Una en curso no puede mover su entrada: el
  * huésped ya llegó, y esa hora quedó registrada. Sí puede extender o acortar
@@ -1532,6 +1563,18 @@ export async function updateBooking(
       }
       if (holderPhone !== r.holderPhone) diff.telefono = { from: r.holderPhone, to: holderPhone };
       if (notes !== r.notes) diff.notas = { from: r.notes, to: notes };
+
+      let custom = r.custom;
+      if (input.custom !== undefined) {
+        const validado = await validateCustomIn(tx, tenantId, "booking", input.custom, r.custom);
+        if (!validado.ok) return { ok: false as const, error: validado.error };
+        custom = validado.values;
+        for (const key of new Set([...Object.keys(r.custom), ...Object.keys(custom)])) {
+          if (!mismoValor(r.custom[key], custom[key])) {
+            diff[`custom.${key}`] = { from: r.custom[key] ?? null, to: custom[key] ?? null };
+          }
+        }
+      }
       if (total !== r.total) diff.total = { from: r.total, to: total };
 
       if (Object.keys(diff).length === 0) {
@@ -1548,6 +1591,7 @@ export async function updateBooking(
           holderDocument,
           holderPhone,
           notes,
+          custom,
         })
         .where(and(eq(bookings.id, r.id), eq(bookings.tenantId, tenantId)));
 

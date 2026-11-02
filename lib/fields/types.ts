@@ -104,6 +104,21 @@ export interface FieldOption {
 }
 
 /**
+ * Opciones de los catalogos que usan los campos `catalog`, por `catalogKey`.
+ *
+ * Objetos planos y no `Map`: cruzan de un Server Component a uno de cliente.
+ */
+export type CatalogChoices = Record<
+  string,
+  {
+    /** Activos: lo que se ofrece al elegir. */
+    options: { code: string; label: string }[];
+    /** code -> label, incluidos los archivados, para mostrar lo ya guardado. */
+    labels: Record<string, string>;
+  }
+>;
+
+/**
  * Convierte una etiqueta en la clave inmutable que se guarda.
  *
  * Se genera UNA vez, al crear. Se quitan los acentos para que el JSONB sea

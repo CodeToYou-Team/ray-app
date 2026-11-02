@@ -58,6 +58,7 @@ interface Props {
   /** Incluye archivadas y ocultas: esta es la pantalla que las administra. */
   productFields: (ResolvedField & { id?: string })[];
   serviceFields: (ResolvedField & { id?: string })[];
+  bookingFields: (ResolvedField & { id?: string })[];
   catalogKeys: { key: string; label: string }[];
 }
 
@@ -68,6 +69,7 @@ type Editing =
 export function FieldManager({
   productFields,
   serviceFields,
+  bookingFields,
   catalogKeys,
 }: Props) {
   const [tab, setTab] = useState<FieldEntity>("product");
@@ -76,6 +78,7 @@ export function FieldManager({
   const listas: Record<FieldEntity, (ResolvedField & { id?: string })[]> = {
     product: productFields,
     service: serviceFields,
+    booking: bookingFields,
   };
 
   return (
@@ -84,8 +87,9 @@ export function FieldManager({
         <div>
           <h2 className="text-lg font-bold">Columnas</h2>
           <p className="text-sm text-muted-foreground">
-            Qué información guardas de cada producto y servicio. Las del sistema
-            se pueden renombrar y ocultar; las que crees tú, además archivar.
+            Qué información guardas de cada producto, servicio y reserva. Las
+            del sistema se pueden renombrar y ocultar; las que crees tú, además
+            archivar.
           </p>
         </div>
         <Button
@@ -106,10 +110,21 @@ export function FieldManager({
           <TabsTrigger value="service" className="text-xs">
             Servicios
           </TabsTrigger>
+          <TabsTrigger value="booking" className="text-xs">
+            Reservas
+          </TabsTrigger>
         </TabsList>
 
-        {(["product", "service"] as FieldEntity[]).map((entity) => (
-          <TabsContent key={entity} value={entity} className="mt-4">
+        {(["product", "service", "booking"] as FieldEntity[]).map((entity) => (
+          <TabsContent key={entity} value={entity} className="mt-4 space-y-3">
+            {entity === "booking" && (
+              <p className="text-xs text-muted-foreground">
+                Nombre, documento, teléfono y notas siempre están en la reserva.
+                Aquí agregas lo que tu negocio necesita además: la placa del
+                vehículo, el motivo del viaje, cómo se enteró de ti. Valen para
+                todas las reservas, de cualquier servicio.
+              </p>
+            )}
             <Card>
               <CardContent className="p-0">
                 <Table>
@@ -123,6 +138,16 @@ export function FieldManager({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
+                    {listas[entity].length === 0 && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={5}
+                          className="py-8 text-center text-sm text-muted-foreground"
+                        >
+                          Todavía no hay columnas. Crea una con “Nueva columna”.
+                        </TableCell>
+                      </TableRow>
+                    )}
                     {listas[entity].map((f) => (
                       <TableRow
                         key={f.key}
@@ -330,7 +355,7 @@ function FieldDialog({
             {esFija
               ? "Es una columna del sistema: puedes renombrarla y decidir dónde aparece, pero su tipo y su obligatoriedad son fijos porque de ellos depende el inventario."
               : existente
-                ? "El identificador y el tipo no cambian nunca: son lo que tienen guardado los productos. Para cambiar el tipo, crea una columna nueva y archiva esta."
+                ? "El identificador y el tipo no cambian nunca: son lo que tienen guardado los registros. Para cambiar el tipo, crea una columna nueva y archiva esta."
                 : "El identificador se genera del nombre y queda fijo para siempre. Renombrar después cambia solo lo que se ve."}
           </DialogDescription>
         </DialogHeader>
@@ -528,8 +553,8 @@ function OptionsEditor({
       ))}
 
       <p className="text-xs text-muted-foreground">
-        Quitar una opción no la borra: se archiva. Los productos que ya la tenían
-        la siguen mostrando, pero deja de ofrecerse al crear.
+        Quitar una opción no la borra: se archiva. Los registros que ya la
+        tenían la siguen mostrando, pero deja de ofrecerse al crear.
       </p>
 
       {archivadas.length > 0 && (

@@ -32,9 +32,10 @@ import {
 import { formatDate, formatMoney } from "@/lib/format";
 import { compareMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
-import { BookingDetail, BookingForm, ESTADO } from "./booking-dialogs";
+import { tableFields } from "@/lib/fields/resolve";
+import { BookingDetail, BookingForm, ESTADO, valorCampo } from "./booking-dialogs";
 import type { CobroConfig } from "./booking-payment";
-import type { BoardBooking, BoardService } from "./types";
+import type { BoardBooking, BoardService, BookingFields } from "./types";
 
 interface Filtros {
   q: string;
@@ -57,6 +58,7 @@ interface Props {
   hoy: string;
   canManage: boolean;
   cobro: CobroConfig | null;
+  campos: BookingFields;
 }
 
 const TODOS = "todos";
@@ -106,6 +108,7 @@ export function BookingListView({
   hoy,
   canManage,
   cobro,
+  campos,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -120,6 +123,8 @@ export function BookingListView({
   const [aperturas, setAperturas] = useState(0);
 
   const pages = Math.max(1, Math.ceil(total / perPage));
+  /** Las personalizadas marcadas "Mostrar como columna en el listado". */
+  const columnas = tableFields(campos.fields);
   const hayFiltros = Boolean(
     filtros.q || filtros.estado || filtros.servicio || filtros.desde || filtros.hasta || filtros.saldo,
   );
@@ -210,6 +215,9 @@ export function BookingListView({
                   <TableHead>Fechas</TableHead>
                   <TableHead>Titular</TableHead>
                   <TableHead>Qué</TableHead>
+                  {columnas.map((f) => (
+                    <TableHead key={f.key}>{f.label}</TableHead>
+                  ))}
                   <TableHead className="text-center">Pers.</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Total</TableHead>
@@ -220,7 +228,7 @@ export function BookingListView({
               <TableBody>
                 {rows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={8 + columnas.length} className="py-10 text-center text-sm text-muted-foreground">
                       {hayFiltros ? (
                         <span className="space-y-2">
                           <span className="block">Ninguna reserva coincide con lo que buscaste.</span>
@@ -269,6 +277,11 @@ export function BookingListView({
                         {b.serviceName} ·{" "}
                         <span className="font-mono text-foreground">{b.resourceName}</span>
                       </TableCell>
+                      {columnas.map((f) => (
+                        <TableCell key={f.key} className="max-w-48 truncate text-sm">
+                          {valorCampo(campos, f, b.custom[f.key])}
+                        </TableCell>
+                      ))}
                       <TableCell className="text-center font-mono text-sm">{b.partySize}</TableCell>
                       <TableCell>
                         <span
@@ -350,6 +363,7 @@ export function BookingListView({
           hoy={hoy}
           canManage={canManage}
           cobro={cobro}
+          campos={campos}
           onClose={() => setDetalleId(null)}
           onModificar={() => {
             setDetalleId(null);
@@ -377,6 +391,7 @@ export function BookingListView({
             fecha: editando.inicio.slice(0, 10),
           }}
           editing={editando}
+          campos={campos}
         />
       )}
     </div>
@@ -423,7 +438,7 @@ function BarraFiltros({
     <div className="flex flex-wrap items-end gap-3">
       <div className="min-w-[200px] flex-1 space-y-1.5">
         <Label htmlFor="buscar-reserva" className="text-xs text-muted-foreground">
-          Buscar por titular, documento o teléfono
+          Buscar por titular, documento, teléfono o columna personalizada
         </Label>
         <div className="relative">
           <IconSearch className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

@@ -35,7 +35,7 @@ Estimado nuevo: **~3½–4 semanas.**
 | Multi-tenant, Supabase, RLS | Se mantiene igual que en v1 |
 | Estructura visual actual | Se mantiene (con las salvedades de la sección de monedas) |
 | Catálogos en la DB | Una tabla polimórfica `catalog_items` |
-| Campos personalizados | Solo en productos y servicios |
+| Campos personalizados | En productos y servicios; después, también en reservas (sección "Reservas", fase 5) |
 | Monedas | **Totales separados por moneda, sin conversión** |
 | Tipo de operación en ingresos/gastos | Nuevo: operación suelta · venta de productos · compra de insumos |
 
@@ -541,7 +541,15 @@ reserva guardó cómo se calculó la suya).
    - **El día de la semana sale de la fecha local escrita**, no del instante: el turno de las
      21:00 del martes en Caracas ya es miércoles en UTC.
 5. **Columnas personalizadas en la reserva**, con el mismo mecanismo que productos y
-   servicios.
+   servicios: `field_config` con `entity = 'booking'` y un `custom jsonb` en `bookings`.
+   - **Sin columnas fijas configurables.** Titular, documento, teléfono y notas son del
+     formulario escrito a mano; ofrecer renombrarlos desde Ajustes repetiría el hueco que ya
+     tienen productos (el cambio se guarda y no se ve).
+   - **Un oculto conserva su valor** y no se exige (`validateCustomIn`). Si se validara, un
+     oculto obligatorio bloquearía cada guardado; si se reemplazara, ocultarlo lo borraría.
+   - **Modificar sin mandar `custom` no lo toca**: corregir el teléfono no borra la placa.
+   - **Valen para todas las reservas.** Columnas por servicio (la placa solo en el
+     estacionamiento) quedan para cuando alguien las pida.
 
 ---
 

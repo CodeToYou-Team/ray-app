@@ -86,7 +86,7 @@ export const ROUTES: RouteDef[] = [
   {
     pattern: "/ajustes/columnas",
     title: "Columnas",
-    description: "Qué información guardas de productos y servicios",
+    description: "Qué información guardas de productos, servicios y reservas",
   },
   {
     pattern: "/ajustes/usuarios",

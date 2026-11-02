@@ -141,6 +141,13 @@
       "when": 1791312598589,
       "tag": "0019_service_schedules",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791312599589,
+      "tag": "0020_booking_custom_fields",
+      "breakpoints": true
     }
   ]
 }

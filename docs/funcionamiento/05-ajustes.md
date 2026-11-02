@@ -95,8 +95,14 @@ Los crea el script de alta (`pnpm seed:tenant`) y son totalmente editables:
 
 ## Columnas
 
-Define **qué información se guarda** de cada producto y de cada servicio. Dos pestañas:
-Productos y Servicios. La tabla muestra Columna · Tipo · Identificador · En tabla · Acciones.
+Define **qué información se guarda** de cada producto, servicio y reserva. Tres pestañas:
+Productos, Servicios y Reservas. La tabla muestra Columna · Tipo · Identificador · En tabla ·
+Acciones.
+
+**Reservas** no tiene columnas del sistema: titular, documento, teléfono y notas siempre están en
+el formulario de reserva y no se renombran desde aquí. Solo se agregan columnas personalizadas
+(placa, motivo del viaje…). Cómo se usan: [Reservas › Columnas
+personalizadas](08-reservas.md#columnas-personalizadas).
 
 ### Columnas del sistema (fijas)
 
@@ -132,9 +138,9 @@ hoy esos cambios sobre columnas fijas no se reflejan en la pantalla de Productos
   | Catálogo | Apunta a uno de los catálogos de Ajustes › Catálogos |
 
 - **Opciones** (en las listas): se agregan y renombran libremente. **Quitar una opción la
-  archiva**: los productos que ya la tenían la siguen mostrando, pero deja de ofrecerse.
+  archiva**: los registros que ya la tenían la siguen mostrando, pero deja de ofrecerse.
 - **Obligatorio al guardar**.
-- **Mostrar como columna en el listado** de Productos.
+- **Mostrar como columna en el listado** de Productos o de Reservas.
 - **Ocultar del formulario** (al editar una existente).
 
 Reglas:

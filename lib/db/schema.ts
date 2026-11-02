@@ -694,7 +694,7 @@ export type StockReason = (typeof stockReason.enumValues)[number];
 // Configuracion de columnas (campos personalizados)
 // ---------------------------------------------------------------------------
 
-export const fieldEntity = pgEnum("field_entity", ["product", "service"]);
+export const fieldEntity = pgEnum("field_entity", ["product", "service", "booking"]);
 
 /**
  * De donde sale un campo.
@@ -703,7 +703,8 @@ export const fieldEntity = pgEnum("field_entity", ["product", "service"]);
  *             puede renombrarla, ocultarla y reordenarla, pero no cambiar su
  *             tipo ni archivarla: son las que cargan la logica de inventario,
  *             los renglones de venta y las alertas.
- *   custom -> una clave dentro de `products.custom` / `services.custom`.
+ *   custom -> una clave dentro de `products.custom` / `services.custom` /
+ *             `bookings.custom`.
  */
 export const fieldSource = pgEnum("field_source", ["fixed", "custom"]);
 
@@ -722,7 +723,7 @@ export const fieldType = pgEnum("field_type", [
 ]);
 
 /**
- * Configuracion de las columnas de productos y servicios.
+ * Configuracion de las columnas de productos, servicios y reservas.
  *
  * Una sola tabla para las columnas fijas y las personalizadas, porque la
  * pantalla que las administra y el codigo que las renderiza son los mismos. Lo
@@ -950,6 +951,15 @@ export const bookings = pgTable(
     holderDocument: text("holder_document"),
     holderPhone: text("holder_phone"),
     notes: text("notes"),
+    /**
+     * Columnas personalizadas de la reserva (placa, motivo del viaje), por la
+     * clave inmutable del campo. Mismo mecanismo que `products.custom`; la
+     * definición está en `field_config` con entity = 'booking'.
+     */
+    custom: jsonb("custom")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
     cancelReason: text("cancel_reason"),
     /** Cuándo llegó de verdad. Presente si y solo si está en curso o finalizada. */

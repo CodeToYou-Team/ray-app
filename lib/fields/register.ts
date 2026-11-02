@@ -4,8 +4,13 @@ import { and, eq, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { z } from "zod";
 import { withTenant } from "@/lib/db/tenant";
-import { auditLog, fieldConfig } from "@/lib/db/schema";
-import type { FieldEntity, FieldType } from "@/lib/db/schema";
+import {
+  auditLog,
+  fieldConfig,
+  fieldEntity,
+  type FieldEntity,
+  type FieldType,
+} from "@/lib/db/schema";
 import { FIELD_TYPES, slugifyKey, type FieldOption } from "./types";
 import { fixedField } from "./fixed";
 import { loadFieldConfigIn } from "./queries";
@@ -39,7 +44,7 @@ const optionSchema = z.object({
 });
 
 const createSchema = z.object({
-  entity: z.enum(["product", "service"]),
+  entity: z.enum(fieldEntity.enumValues),
   label: z.string().trim().min(1, "Escribe un nombre").max(80),
   type: z.enum(Object.keys(FIELD_TYPES) as [FieldType, ...FieldType[]]),
   required: z.boolean().optional(),

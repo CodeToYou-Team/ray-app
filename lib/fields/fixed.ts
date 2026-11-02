@@ -80,6 +80,12 @@ export const FIXED_FIELDS: Record<FieldEntity, FixedFieldDef[]> = {
       required: false,
     },
   ],
+  /**
+   * Sin columnas fijas configurables: nombre, documento, teléfono y notas son
+   * del formulario de reserva, escrito a mano, y renombrarlos desde Ajustes no
+   * tendría efecto. En reservas solo se agregan columnas propias.
+   */
+  booking: [],
 };
 
 const BY_ENTITY_KEY = new Map(

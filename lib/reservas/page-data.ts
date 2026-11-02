@@ -5,7 +5,10 @@ import { roleHas } from "@/lib/authz/roles";
 import { listCatalogs } from "@/lib/catalogs/queries";
 import { lastExchangeRates } from "@/lib/finanzas/queries";
 import { rateSuggestions } from "@/lib/tenant/rates";
+import { catalogOptionsFor, getFields } from "@/lib/fields/queries";
+import { customFields } from "@/lib/fields/resolve";
 import type { CobroConfig } from "@/components/reservas/booking-payment";
+import type { BookingFields } from "@/components/reservas/types";
 
 /**
  * Lo que hace falta para cobrar una reserva: métodos de pago, categorías de
@@ -40,4 +43,14 @@ export async function loadCobroConfig(
     })),
     tasas,
   };
+}
+
+/**
+ * Las columnas personalizadas de la reserva: las mismas para el formulario,
+ * el detalle y el listado, que es lo que impide que una pantalla muestre un
+ * campo que la otra no deja escribir.
+ */
+export async function loadBookingFields(tenantId: string): Promise<BookingFields> {
+  const fields = customFields(await getFields(tenantId, "booking"));
+  return { fields, catalogos: await catalogOptionsFor(tenantId, fields) };
 }

@@ -134,9 +134,8 @@ cobrarlo en la nueva.
   una hora que se pisa con un turno pero no coincide con él, cuenta para los cupos de ese turno
   (la base suma bien) pero en la cuadrícula aparece en una ficha aparte, no dentro del turno.
 
-## Trabajo en curso
-
-- **Columnas personalizadas en la reserva**, con el mismo mecanismo que productos y servicios.
+- **Columnas personalizadas iguales para todos los servicios**: la placa del vehículo aparece
+  también en las reservas del hotel. No hay columnas por servicio.
 
 El plan completo está en la sección "Reservas" de
 [`../plan_arquitectura_v2.md`](../plan_arquitectura_v2.md).

@@ -6,6 +6,7 @@ import { SinPermiso } from "@/components/layout/sin-permiso";
 import { loadFieldConfig } from "@/lib/fields/queries";
 import { resolveFields } from "@/lib/fields/resolve";
 import { CATALOGS, CATALOG_KEYS } from "@/lib/catalogs/keys";
+import type { FieldEntity } from "@/lib/db/schema";
 
 /**
  * Administracion de columnas.
@@ -18,7 +19,7 @@ export default async function ColumnasPage() {
   const { tenantId, role } = await requireTenant();
 
   if (!roleHas(role, "field:manage")) {
-    return <SinPermiso role={role} explicacion={"Solo el dueño puede cambiar qué información se guarda de productos y servicios."} />;
+    return <SinPermiso role={role} explicacion={"Solo el dueño puede cambiar qué información se guarda de productos, servicios y reservas."} />;
   }
 
   const config = await loadFieldConfig(tenantId);
@@ -26,7 +27,7 @@ export default async function ColumnasPage() {
   // Con archivadas y ocultas: esta es justamente la pantalla que las administra.
   const opciones = { includeArchived: true, includeHidden: true };
 
-  const conId = (entity: "product" | "service") =>
+  const conId = (entity: FieldEntity) =>
     resolveFields(entity, config, opciones).map((f) => ({
       ...f,
       id: config.find((c) => c.entity === entity && c.key === f.key)?.id,
@@ -37,6 +38,7 @@ export default async function ColumnasPage() {
       <FieldManager
         productFields={conId("product")}
         serviceFields={conId("service")}
+        bookingFields={conId("booking")}
         catalogKeys={CATALOG_KEYS.map((key) => ({
           key,
           label: CATALOGS[key].label,

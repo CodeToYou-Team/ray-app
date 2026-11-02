@@ -5,7 +5,7 @@ import { roleHas } from "@/lib/authz/roles";
 import { SinPermiso } from "@/components/layout/sin-permiso";
 import { bookingsInWindow, listBookableServices } from "@/lib/reservas/queries";
 import { fechaValida, hoyEn, sumarDias } from "@/lib/reservas/rango";
-import { loadCobroConfig } from "@/lib/reservas/page-data";
+import { loadBookingFields, loadCobroConfig } from "@/lib/reservas/page-data";
 
 /** Cuántos días muestra la cuadrícula de una vez. Dos semanas. */
 const DIAS = 14;
@@ -41,10 +41,11 @@ export default async function ReservasPage({
   const desde = params.desde && fechaValida(params.desde) ? params.desde : hoy;
   const hasta = sumarDias(desde, DIAS);
 
-  const [servicios, reservas, cobro] = await Promise.all([
+  const [servicios, reservas, cobro, campos] = await Promise.all([
     listBookableServices(tenantId),
     bookingsInWindow(tenantId, timezone, { desde, hasta }),
     loadCobroConfig(tenantId, role),
+    loadBookingFields(tenantId),
   ]);
 
   return (
@@ -58,6 +59,7 @@ export default async function ReservasPage({
         canManage={roleHas(role, "booking:manage")}
         canSetup={roleHas(role, "resource:manage")}
         cobro={cobro}
+        campos={campos}
       />
     </PageTransition>
   );

@@ -11,7 +11,7 @@ import {
   type FiltroEstado,
 } from "@/lib/reservas/queries";
 import { fechaValida, hoyEn } from "@/lib/reservas/rango";
-import { loadCobroConfig } from "@/lib/reservas/page-data";
+import { loadBookingFields, loadCobroConfig } from "@/lib/reservas/page-data";
 
 const ESTADOS: FiltroEstado[] = [
   "pendientes",
@@ -78,10 +78,11 @@ export default async function ListadoReservasPage({
 
   const filtros = parseFilters(await searchParams);
 
-  const [{ rows, total, saldos }, servicios, cobro] = await Promise.all([
+  const [{ rows, total, saldos }, servicios, cobro, campos] = await Promise.all([
     listBookings(tenantId, timezone, filtros),
     listBookableServices(tenantId),
     loadCobroConfig(tenantId, role),
+    loadBookingFields(tenantId),
   ]);
 
   return (
@@ -104,6 +105,7 @@ export default async function ListadoReservasPage({
         hoy={hoyEn(timezone)}
         canManage={roleHas(role, "booking:manage")}
         cobro={cobro}
+        campos={campos}
       />
     </PageTransition>
   );

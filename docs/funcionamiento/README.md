@@ -27,7 +27,7 @@ o personal) que decide qué puede ver y hacer.
 | 5 | [Ajustes](05-ajustes.md) | Negocio (moneda y tasas), catálogos, columnas personalizadas, equipo |
 | 6 | [Arquitectura técnica](06-arquitectura-tecnica.md) | Stack, capas, aislamiento entre clientes, modelo de datos, dinero, auditoría |
 | 7 | [Limitaciones conocidas y trabajo en curso](07-limitaciones-y-pendientes.md) | Huecos detectados al revisar el código y lo que está en desarrollo |
-| 8 | [Reservas](08-reservas.md) | Servicios reservables, recursos y capacidad, disponibilidad, check-in/check-out y cobros |
+| 8 | [Reservas](08-reservas.md) | Servicios reservables, recursos y capacidad, disponibilidad, check-in/check-out, cobros y columnas personalizadas |
 
 ## Mapa de pantallas
 

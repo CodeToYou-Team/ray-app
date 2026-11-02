@@ -198,6 +198,7 @@ Botón **Nueva reserva** arriba, o tocando una celda libre.
 | Personas / Cupos | Por defecto 1. No puede pasar de la capacidad (exclusivo) ni de lo que queda libre (compartido) |
 | A nombre de | Obligatorio |
 | Cédula o documento, Teléfono, Notas | Opcionales |
+| Columnas personalizadas | Las que el dueño creó en Ajustes › Columnas › Reservas (ver abajo) |
 
 Debajo se ve el **total**: `2 noches × USD 40,00 = USD 80,00`, o
 `1 hora × 3 personas × USD 10,00 = USD 30,00` si cobra por persona.
@@ -220,6 +221,23 @@ Reglas de tiempo:
 - **Por hora**, los tramos que se tocan no chocan (de 18:00 a 19:00 y de 19:00 a 20:00 sí se
   pueden); los que se pisan, sí.
 - Una reserva por noche no puede pasar de 365 noches.
+
+### Columnas personalizadas
+
+Además de titular, documento, teléfono y notas, el dueño puede definir en **Ajustes › Columnas ›
+Reservas** lo que su negocio necesita saber de cada reserva: la placa del vehículo, el motivo del
+viaje, el número de vuelo, cómo se enteró. Es el mismo mecanismo y los mismos tipos que en
+productos y servicios ([Ajustes › Columnas](05-ajustes.md#columnas)).
+
+- Aparecen en el formulario de reserva (entre el teléfono y las notas), en el detalle si tienen
+  valor, y como columna en el **listado** si están marcadas "Mostrar como columna en el listado".
+- Se validan en el servidor al guardar, en la misma transacción que la reserva: una opción que ya
+  no existe o un campo obligatorio vacío la rechazan, y no se crea nada.
+- Un campo de tipo **Catálogo** se valida contra el catálogo: el elemento tiene que existir y no
+  estar archivado.
+- Un campo **oculto** no se pide ni se exige, y la reserva conserva el valor que ya tenía.
+- Valen para **todas** las reservas, de cualquier servicio: no hay columnas solo para el hotel y
+  otras solo para el estacionamiento.
 
 ### Recursos compartidos: cómo se cuentan los cupos
 
@@ -244,7 +262,7 @@ reserva de alguien sin saber cuándo es, y las que quedaron debiendo.
 
 | Filtro | Notas |
 |---|---|
-| **Buscar** | Por titular, documento o teléfono, en cualquier parte del texto y sin distinguir mayúsculas (sí acentos). Espera ~350 ms después de la última tecla |
+| **Buscar** | Por titular, documento, teléfono o el valor de una columna personalizada (una placa, un número de vuelo), en cualquier parte del texto y sin distinguir mayúsculas (sí acentos). Espera ~350 ms después de la última tecla |
 | **Estado** | Todos · Pendientes (reservadas y en curso) · Reservadas · En curso · Finalizadas · Canceladas · No se presentó |
 | **Servicio** | Aparece si hay más de un servicio reservable |
 | **Desde / Hasta** | Reservas que **tocan** ese periodo, en días del negocio. La salida es borde abierto: una reserva que sale el 12 no aparece al filtrar por el 12. Si se ponen al revés, se intercambian |
@@ -258,7 +276,8 @@ filtro vuelve a la primera página, y **Limpiar** los quita todos.
 - Arriba, **"Por cobrar"** por moneda: cuánto se debe en total entre las reservas filtradas, y en
   cuántas. Una tarjeta por moneda, nunca un total que mezcle bolívares con dólares.
 - La tabla: **Fechas · Titular** (con documento y teléfono) **· Qué** (servicio y recurso)
-  **· Personas · Estado · Total · Saldo**, más un enlace que lleva a la semana de esa reserva en la
+  **·** las columnas personalizadas marcadas para el listado **· Personas · Estado · Total ·
+  Saldo**, más un enlace que lleva a la semana de esa reserva en la
   cuadrícula.
 - **20 reservas por página**, de la más reciente o próxima a la más antigua.
 - Tocar una fila abre **el mismo detalle que en la cuadrícula**: cobrar, modificar, registrar
@@ -282,7 +301,8 @@ recurso, y:
 - **Pagado** y **Saldo** (en rojo si debe algo, en verde si está saldada).
 - **Cobros**: cada uno con fecha, método de pago y monto. Si se cobró en otra moneda, debajo se ve
   lo que abonó en la moneda de la reserva. Los cobros **anulados** aparecen tachados y no cuentan.
-- Documento, teléfono (se puede tocar para llamar) y notas, si los hay.
+- Documento, teléfono (se puede tocar para llamar), las columnas personalizadas y notas, si los
+  hay.
 
 ### Estados y qué se puede hacer en cada uno
 
@@ -335,6 +355,7 @@ Botón **Modificar** en el detalle. Abre el mismo formulario de reserva, precarg
 | Salida | ✔ | ✔ (extender o acortar la estadía) |
 | Personas o cupos | ✔ | ✔ |
 | Titular, documento, teléfono, notas | ✔ | ✔ |
+| Columnas personalizadas | ✔ | ✔ |
 
 Reglas:
 
@@ -349,7 +370,9 @@ Reglas:
   más, eso es una devolución: se anula un cobro en Finanzas y se vuelve a cobrar lo que
   corresponda. El formulario lo avisa antes de guardar.
 - Finalizadas, canceladas y no presentadas no se modifican.
-- Se registra en la auditoría, con solo lo que cambió.
+- **Las columnas personalizadas se reemplazan enteras**, como en productos: el valor de una
+  columna archivada se pierde al guardar. Las ocultas conservan el suyo.
+- Se registra en la auditoría, con solo lo que cambió (cada columna personalizada por separado).
 
 Esto también resuelve la **salida anticipada** cuando el cliente no pagó de más: se acorta la
 salida y las noches que no usó quedan libres.
@@ -423,7 +446,8 @@ Ver también [limitaciones](07-limitaciones-y-pendientes.md#reservas).
 - **Cambiar de servicio** en una reserva (de Doble a Suite): hay que cancelarla y crear otra.
 - **Salida anticipada con devolución automática**: si el cliente ya pagó de más, acortar la
   reserva exige anular un cobro a mano antes.
-- **Columnas personalizadas en la reserva** (por ejemplo, placa del vehículo o motivo del viaje).
+- **Columnas personalizadas por servicio**: las de la reserva valen para todas, sea hotel o
+  estacionamiento.
 - **"Una doble cualquiera"**: reservar el tipo de habitación y asignar el número al llegar.
 - **Dos recursos en una reserva** (un masaje que necesita terapeuta y cabina).
 - **Reservas recurrentes** (la cancha todos los martes).

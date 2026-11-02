@@ -75,6 +75,10 @@
   hours change, so editing an old booking whose slot was removed still works.
   The weekday comes from the local date string (`diaSemanaIso`), never from the
   stored instant.
+  Custom fields: `field_config` rows with `entity = 'booking'`, values in
+  `bookings.custom`, validated by `validateCustomIn()` (`lib/fields/queries.ts`)
+  inside the write transaction. A hidden field keeps its stored value and is not
+  required; `updateBooking` without `custom` leaves the values untouched.
 - `/lib/money.ts`, `/lib/currencies.ts` - Exact decimal arithmetic and the closed
   currency list. Currency columns are `varchar(10)`: stablecoin tickers (USDT, USDC)
   are 4 characters, not 3.

@@ -296,6 +296,8 @@ export interface BookingRow {
   holderDocument: string | null;
   holderPhone: string | null;
   notes: string | null;
+  /** Columnas personalizadas, por clave. Se leen sin validar. */
+  custom: Record<string, unknown>;
 }
 
 /** Los estados que ocupan el recurso. Coincide con el predicado del EXCLUDE. */
@@ -364,6 +366,7 @@ async function consultarReservas(
         holderDocument: bookings.holderDocument,
         holderPhone: bookings.holderPhone,
         notes: bookings.notes,
+        custom: bookings.custom,
       })
       .from(bookings)
       .innerJoin(
@@ -431,7 +434,7 @@ export const LISTADO_POR_PAGINA = 20;
 export type FiltroEstado = "pendientes" | BookingStatus;
 
 export interface BookingFilters {
-  /** Texto en el titular, el documento o el teléfono. */
+  /** Texto en el titular, el documento, el teléfono o una columna personalizada. */
   q?: string;
   estado?: FiltroEstado;
   serviceId?: string;
@@ -494,6 +497,9 @@ function condiciones(timezone: string, f: BookingFilters): (SQL | undefined)[] {
           ilike(bookings.holderName, patron),
           ilike(bookings.holderDocument, patron),
           ilike(bookings.holderPhone, patron),
+          // Los VALORES de las columnas personalizadas (la placa, el número de
+          // vuelo), no sus claves: buscar "placa" no debe traer todas.
+          sql`exists (select 1 from jsonb_each_text(${bookings.custom}) c where c.value ilike ${patron})`,
         )
       : undefined,
     f.estado === "pendientes"
