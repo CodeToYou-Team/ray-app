@@ -99,16 +99,6 @@ Tras añadir la conversión de moneda en ventas, quedaron mensajes que ya no son
 
 El módulo está descrito en [Reservas](08-reservas.md). Lo que hoy no hace o hace a medias:
 
-### Un servicio "no disponible" se sigue pudiendo reservar
-
-El interruptor **Disponible para vender** de un servicio lo saca de las ventas, pero **la cuadrícula
-y el formulario de reservas no lo miran**: si el servicio es reservable, sigue apareciendo y
-aceptando reservas. Un servicio **archivado**, en cambio, sí desaparece.
-
-- Dónde: `listBookableServices` ([`lib/reservas/queries.ts`](../../lib/reservas/queries.ts)) y
-  `createBooking` ([`lib/reservas/register.ts`](../../lib/reservas/register.ts)) no filtran por
-  `is_active`.
-
 ### Una reserva no se puede modificar
 
 No hay forma de cambiar las fechas, el recurso o la cantidad de personas de una reserva hecha. Hay

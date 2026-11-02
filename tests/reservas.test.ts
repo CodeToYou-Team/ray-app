@@ -4,12 +4,13 @@ import { uuidv7 } from "uuidv7";
 import {
   archiveResource,
   cancelBooking,
+  checkIn,
   createBooking,
   createResource,
   configureServiceBooking,
 } from "@/lib/reservas/register";
 import { bookingsInWindow, listBookableServices } from "@/lib/reservas/queries";
-import { cantidad, seCruzan, sumarDias } from "@/lib/reservas/rango";
+import { cantidad, hoyEn, seCruzan, sumarDias } from "@/lib/reservas/rango";
 
 /**
  * Reservas, fase 1.
@@ -477,5 +478,73 @@ describe.skipIf(!hasDb)("reservas", () => {
       { serviceId: doble, resourceId: h101, rango: noches("2028-01-01", "2028-01-02"), holderName: "X" },
     );
     expect(r.ok).toBe(false);
+  });
+
+  // -------------------------------------------------------------------------
+  // Servicio "no disponible para vender"
+  // -------------------------------------------------------------------------
+
+  it("un servicio no disponible no acepta reservas nuevas, pero conserva las que tiene", async () => {
+    const suite = uuidv7();
+    const s501 = uuidv7();
+    await sql`insert into services (id, tenant_id, name, category_id, price, currency, booking_unit) values
+      (${suite}, ${tenant}, 'Suite', ${catServ}, '90.00', 'USD', 'noche')`;
+    await sql`insert into resources (id, tenant_id, service_id, name) values
+      (${s501}, ${tenant}, ${suite}, '501')`;
+
+    // Una reserva que empieza hoy, hecha mientras el servicio se vendía.
+    const hoy = hoyEn("America/Caracas");
+    const previa = await createBooking(ctx, {
+      serviceId: suite,
+      resourceId: s501,
+      rango: noches(hoy, sumarDias(hoy, 2)),
+      holderName: "Ya reservó",
+    });
+    expect(previa.ok).toBe(true);
+    if (!previa.ok) return;
+
+    // Se apaga "Disponible para vender".
+    await sql`update services set is_active = false where id = ${suite}`;
+
+    // 1. No acepta reservas nuevas, como en las ventas.
+    const nueva = await createBooking(ctx, {
+      serviceId: suite,
+      resourceId: s501,
+      rango: noches(sumarDias(hoy, 10), sumarDias(hoy, 11)),
+      holderName: "Llega tarde",
+    });
+    expect(nueva.ok).toBe(false);
+    if (nueva.ok) return;
+    expect(nueva.error).toMatch(/no está disponible para vender/i);
+
+    // 2. Pero sigue en la lista, marcado: si desapareciera, su reserva
+    //    también, y el huésped que llega hoy no tendría dónde registrarse.
+    const servicios = await listBookableServices(tenant);
+    expect(servicios.find((x) => x.id === suite)).toMatchObject({ active: false });
+
+    const reservas = await bookingsInWindow(tenant, "America/Caracas", {
+      desde: hoy,
+      hasta: sumarDias(hoy, 2),
+    });
+    expect(reservas.some((r) => r.id === previa.id)).toBe(true);
+
+    // 3. Y la reserva ya hecha se sigue manejando.
+    expect((await checkIn(ctx, { id: previa.id })).ok).toBe(true);
+
+    // Volver a activarlo reabre la puerta.
+    await sql`update services set is_active = true where id = ${suite}`;
+    expect(
+      (await createBooking(ctx, {
+        serviceId: suite,
+        resourceId: s501,
+        rango: noches(sumarDias(hoy, 10), sumarDias(hoy, 11)),
+        holderName: "Ahora sí",
+      })).ok,
+    ).toBe(true);
+  });
+
+  it("un servicio activo viene marcado como activo", async () => {
+    const servicios = await listBookableServices(tenant);
+    expect(servicios.find((x) => x.id === doble)).toMatchObject({ active: true });
   });
 });

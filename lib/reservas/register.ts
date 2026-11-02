@@ -132,6 +132,15 @@ export async function createBooking(
         );
 
       if (!servicio) return { ok: false as const, error: "Ese servicio ya no existe." };
+      // "Disponible para vender" apagado: lo mismo que en las ventas, no se
+      // ofrece de nuevo. Lo que ya estaba reservado sigue su curso (llegada,
+      // cobros, salida); esto solo cierra la puerta a reservas nuevas.
+      if (!servicio.isActive) {
+        return {
+          ok: false as const,
+          error: `"${servicio.name}" no está disponible para vender. Actívalo en Productos para aceptar reservas.`,
+        };
+      }
       if (!servicio.bookingUnit) {
         return {
           ok: false as const,

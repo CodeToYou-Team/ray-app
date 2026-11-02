@@ -28,6 +28,12 @@ export interface ResourceRow {
 export interface BookableService {
   id: string;
   name: string;
+  /**
+   * "Disponible para vender". Apagado, el servicio NO acepta reservas nuevas,
+   * pero sigue en la lista: sus reservas ya hechas tienen que poder recibir
+   * su llegada, sus cobros y su salida.
+   */
+  active: boolean;
   unidad: BookingUnit;
   /** Muchas reservas a la vez hasta llenar la capacidad. */
   shared: boolean;
@@ -43,6 +49,11 @@ export interface BookableService {
  * Es lo que arma las filas de la cuadrícula y las opciones del formulario.
  * Un servicio reservable sin recursos aparece igual: así la pantalla puede
  * decir "agrega habitaciones" en vez de esconderlo.
+ *
+ * Los que NO están disponibles para vender también vienen, marcados con
+ * `active: false`. Esconderlos haría desaparecer sus reservas ya hechas: el
+ * huésped que llega la semana que viene no tendría dónde registrarse. Quien
+ * decide qué se ofrece para reservar de nuevo es la pantalla, con `active`.
  */
 export async function listBookableServices(
   tenantId: string,
@@ -52,6 +63,7 @@ export async function listBookableServices(
       .select({
         id: services.id,
         name: services.name,
+        active: services.isActive,
         unidad: services.bookingUnit,
         shared: services.bookingShared,
         perPerson: services.bookingPerPerson,
@@ -105,6 +117,8 @@ export async function listBookableServices(
 export interface ServiceSetupRow {
   id: string;
   name: string;
+  /** "Disponible para vender", que se cambia en Productos. */
+  active: boolean;
   price: string;
   currency: string;
   unidad: BookingUnit | null;
@@ -126,6 +140,7 @@ export async function listServicesForSetup(
       .select({
         id: services.id,
         name: services.name,
+        active: services.isActive,
         price: services.price,
         currency: services.currency,
         unidad: services.bookingUnit,

@@ -127,12 +127,24 @@ export function BookingBoard({
     setAperturas((n) => n + 1);
   }
 
-  const reservables = servicios.filter((s) => s.resources.length > 0);
+  /** Lo que se puede reservar de nuevo: activo y con al menos un recurso. */
+  const reservables = servicios.filter((s) => s.active && s.resources.length > 0);
+
+  /**
+   * Lo que se pinta en la cuadrícula. Un servicio no disponible para vender
+   * aparece solo si tiene reservas en la ventana: ahí hay que poder registrar
+   * llegadas, cobros y salidas. Sin reservas, mostrarlo sería ofrecer algo
+   * que ya no se vende.
+   */
+  const visibles = servicios.filter(
+    (s) => s.active || reservas.some((r) => r.serviceId === s.id),
+  );
+  const todosApagados = servicios.length > 0 && servicios.every((s) => !s.active);
 
   // -------------------------------------------------------------------------
   // Sin nada que reservar todavía.
   // -------------------------------------------------------------------------
-  if (servicios.length === 0) {
+  if (visibles.length === 0) {
     return (
       <div className="mx-auto max-w-7xl space-y-4">
         <Encabezado />
@@ -142,9 +154,9 @@ export function BookingBoard({
             <div>
               <p className="font-medium">Todavía no hay nada que reservar</p>
               <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                Marca un servicio como reservable (por ejemplo &ldquo;Habitación
-                doble&rdquo;, por noche) y agrégale sus habitaciones, canchas o
-                equipos.
+                {todosApagados
+                  ? "Los servicios reservables están marcados como no disponibles para vender. Actívalos en Productos para aceptar reservas."
+                  : "Marca un servicio como reservable (por ejemplo “Habitación doble”, por noche) y agrégale sus habitaciones, canchas o equipos."}
               </p>
             </div>
             {canSetup ? (
@@ -247,7 +259,7 @@ export function BookingBoard({
             </thead>
 
             <tbody>
-              {servicios.map((s) => (
+              {visibles.map((s) => (
                 <GrupoServicio
                   key={s.id}
                   servicio={s}
@@ -353,6 +365,10 @@ function GrupoServicio({
   onVer: (b: BoardBooking) => void;
   onLista: (l: Lista) => void;
 }) {
+  // Las reservas ya hechas se ven y se manejan igual (llegada, cobros,
+  // salida: eso vive en el detalle). Lo que se apaga es ofrecer lugar nuevo.
+  const puedeReservar = canManage && servicio.active;
+
   return (
     <>
       <tr className="border-b bg-muted/40">
@@ -366,6 +382,11 @@ function GrupoServicio({
             {servicio.perPerson && " por persona"}
             {servicio.shared && " · con cupos"}
           </span>
+          {!servicio.active && (
+            <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
+              No disponible: no acepta reservas nuevas
+            </span>
+          )}
         </td>
       </tr>
 
@@ -399,7 +420,7 @@ function GrupoServicio({
                 reservas={reservas.filter((b) => b.resourceId === r.id)}
                 fechas={fechas}
                 hoy={hoy}
-                canManage={canManage}
+                canManage={puedeReservar}
                 onNueva={onNueva}
                 onLista={onLista}
               />
@@ -410,7 +431,7 @@ function GrupoServicio({
                 reservas={reservas.filter((b) => b.resourceId === r.id)}
                 fechas={fechas}
                 hoy={hoy}
-                canManage={canManage}
+                canManage={puedeReservar}
                 onNueva={onNueva}
                 onVer={onVer}
               />
@@ -421,7 +442,7 @@ function GrupoServicio({
                 reservas={reservas.filter((b) => b.resourceId === r.id)}
                 fechas={fechas}
                 hoy={hoy}
-                canManage={canManage}
+                canManage={puedeReservar}
                 onNueva={onNueva}
                 onVer={onVer}
               />
@@ -684,7 +705,7 @@ function CeldasCompartidas({
                     subtitulo: `${ocupado} de ${cap} cupos`,
                     ids: deLaNoche.map((b) => b.id),
                     inicial: inicial(f),
-                    puedeAgregar: !pasado && !lleno,
+                    puedeAgregar: canManage && !pasado && !lleno,
                   })
                 }
                 className={cn(
@@ -734,7 +755,7 @@ function CeldasCompartidas({
                         subtitulo: `${ini.slice(11, 16)}–${fin.slice(11, 16)} · ${ocupado} de ${cap} cupos`,
                         ids: grupo.map((b) => b.id),
                         inicial: inicial(f),
-                        puedeAgregar: !pasado && !lleno,
+                        puedeAgregar: canManage && !pasado && !lleno,
                       })
                     }
                     className={cn(

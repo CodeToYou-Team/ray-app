@@ -32,6 +32,7 @@ import type { Unidad } from "@/lib/reservas/rango";
 export interface SetupService {
   id: string;
   name: string;
+  active: boolean;
   price: string;
   currency: string;
   unidad: Unidad | null;
@@ -147,6 +148,16 @@ function ServiceCard({ service }: { service: SetupService }) {
               {service.unidad && ` / ${service.unidad}`}
               {service.unidad && service.perPerson && " / persona"}
             </p>
+            {/*
+              Explica por qué no aparece en Disponibilidad aunque esté bien
+              configurado: el interruptor vive en otra pantalla.
+            */}
+            {!service.active && service.unidad && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Marcado como no disponible para vender en Productos: no acepta
+                reservas nuevas. Las que ya tiene siguen su curso.
+              </p>
+            )}
           </div>
 
           <Select

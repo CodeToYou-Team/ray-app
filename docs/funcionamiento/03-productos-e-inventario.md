@@ -49,7 +49,7 @@ Botón **Nuevo producto** / **Nuevo servicio** (según la pestaña activa) o el 
 | Moneda | ✔ | ✔ | Por defecto la moneda del negocio (Ajustes › Negocio) |
 | Stock mínimo | opcional | — | Por debajo de esto, el producto aparece como "stock bajo" |
 | Stock inicial | solo al crear | — | Se registra como un movimiento `inicial`, no como un número suelto |
-| Disponible para vender | ✔ | ✔ | Si se apaga, deja de aparecer al registrar ventas y compras. Las reservas **no** lo respetan todavía: ver [limitaciones](07-limitaciones-y-pendientes.md#reservas) |
+| Disponible para vender | ✔ | ✔ | Si se apaga, deja de aparecer al registrar ventas y compras, y un servicio reservable deja de aceptar reservas nuevas (las que ya tiene siguen su curso: ver [Reservas](08-reservas.md#servicios-no-disponibles-para-vender)) |
 | Columnas personalizadas | ✔ | ✔ | Las configuradas por el dueño; se validan según su tipo |
 
 Al guardar:

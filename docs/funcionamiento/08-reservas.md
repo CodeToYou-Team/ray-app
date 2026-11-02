@@ -72,6 +72,24 @@ Ejemplos de configuración:
 - **Nombres de recurso únicos** entre los activos del negocio, sin distinguir mayúsculas: "101" es
   una sola habitación aunque se venda como Doble o como Suite.
 
+### Servicios "no disponibles para vender"
+
+El interruptor **Disponible para vender** de la ficha del servicio (en Productos) también vale para
+reservas, con un matiz:
+
+- **Apagado, no acepta reservas nuevas.** No aparece en el formulario ni ofrece celdas libres en
+  la cuadrícula. Si alguien lo intenta igual, se rechaza con "\"Suite\" no está disponible para
+  vender. Actívalo en Productos para aceptar reservas."
+- **Las reservas que ya tenía siguen su curso.** El servicio sigue en la cuadrícula mientras tenga
+  reservas en esos 14 días, con la etiqueta "No disponible: no acepta reservas nuevas", y se les
+  puede registrar la llegada, cobrar y registrar la salida. Si desapareciera, el huésped que llega
+  mañana no tendría dónde registrarse.
+- Sin reservas en la ventana, un servicio apagado no se muestra.
+- En **Recursos** se sigue pudiendo configurar, con una nota que explica por qué no aparece en
+  Disponibilidad.
+
+Encenderlo de nuevo reabre las reservas.
+
 ### Archivar un recurso
 
 El icono de archivo saca el recurso de la disponibilidad sin borrar las reservas que tuvo. **No se
