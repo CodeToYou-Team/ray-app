@@ -99,17 +99,18 @@ Tras añadir la conversión de moneda en ventas, quedaron mensajes que ya no son
 
 El módulo está descrito en [Reservas](08-reservas.md). Lo que hoy no hace o hace a medias:
 
-### Una reserva no se puede modificar
+### Salida anticipada con algo ya cobrado de más
 
-No hay forma de cambiar las fechas, el recurso o la cantidad de personas de una reserva hecha. Hay
-que cancelarla y crear otra (lo cobrado se queda en la primera: habría que anular esos cobros y
-volver a cobrar en la nueva).
+Si alguien reservó hasta el 14 y se va el 12, se puede **modificar** la reserva para que salga el
+12: las noches que no usó quedan libres. Pero si ya había pagado las cuatro noches, el total no
+puede quedar por debajo de lo cobrado, y hay que **anular un cobro a mano** en Finanzas y volver a
+cobrar lo que corresponda. No hay devolución automática.
 
-### Salida anticipada
+### Cambiar de servicio una reserva
 
-Si alguien reservó hasta el 14 y se va el 12, el check-out se registra el 12, pero el recurso
-**sigue ocupado hasta el 14** y el total no cambia. Liberar las noches no usadas implica decidir si
-se devuelve dinero, y está pendiente.
+Modificar permite cambiar recurso, fechas, personas y titular, pero no el servicio (de Doble a
+Suite). Para eso se cancela y se crea otra; lo cobrado en la primera habría que anularlo y volver a
+cobrarlo en la nueva.
 
 ### Otras limitaciones
 

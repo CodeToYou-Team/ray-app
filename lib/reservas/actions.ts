@@ -12,6 +12,7 @@ import {
   markNoShow as markNoShowCore,
   registerPayment as registerPaymentCore,
   configureServiceBooking as configureServiceBookingCore,
+  updateBooking as updateBookingCore,
   updateResourceCapacity as updateResourceCapacityCore,
   type BookingResult,
   type CheckOutResult,
@@ -19,6 +20,8 @@ import {
   type PaymentResult,
   type RegisterPaymentInput,
   type Result,
+  type UpdateBookingInput,
+  type UpdateBookingResult,
 } from "./register";
 
 /**
@@ -36,6 +39,8 @@ export type {
   PaymentResult,
   RegisterPaymentInput,
   Result,
+  UpdateBookingInput,
+  UpdateBookingResult,
 };
 
 function revalidateReservas() {
@@ -165,5 +170,17 @@ export async function registerPayment(
     revalidatePath("/finanzas/ingresos");
     revalidatePath("/finanzas/movimientos");
     revalidatePath("/dashboard");
+  }
+}
+
+/** Modificar es parte de llevar la reserva: el mismo permiso que crearla. */
+export async function updateBooking(
+  input: UpdateBookingInput,
+): Promise<UpdateBookingResult> {
+  const { tenantId, user } = await requireCapability("booking:manage");
+  try {
+    return await updateBookingCore({ tenantId, userId: user.id }, input);
+  } finally {
+    revalidateReservas();
   }
 }

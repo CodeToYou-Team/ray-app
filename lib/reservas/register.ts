@@ -36,7 +36,13 @@ import {
   sumMoney,
 } from "@/lib/money";
 import { bordesLocalesSql, periodoSql } from "./periodo";
-import { cantidad, hoyEn, totalReserva, type Rango } from "./rango";
+import {
+  bordesLocales,
+  cantidad,
+  hoyEn,
+  totalReserva,
+  type Rango,
+} from "./rango";
 
 export interface ActorContext {
   tenantId: string;
@@ -612,9 +618,18 @@ export async function archiveResource(
 interface ReservaCargada {
   id: string;
   status: BookingStatus;
+  serviceId: string;
+  resourceId: string;
+  unidad: "noche" | "hora";
+  shared: boolean;
+  perPerson: boolean;
+  partySize: number;
   currency: string;
   unitPrice: string;
   holderName: string;
+  holderDocument: string | null;
+  holderPhone: string | null;
+  notes: string | null;
   resourceName: string;
   /** Hora LOCAL del negocio. */
   inicio: string;
@@ -660,7 +675,11 @@ async function cargarReserva(
       unitPrice: bookings.unitPrice,
       partySize: bookings.partySize,
       perPerson: bookings.perPerson,
+      shared: bookings.shared,
       holderName: bookings.holderName,
+      holderDocument: bookings.holderDocument,
+      holderPhone: bookings.holderPhone,
+      notes: bookings.notes,
       inicio: bordes.inicio,
       fin: bordes.fin,
       // La comparación de días se hace en la zona del negocio: a las 22:00 en
@@ -725,9 +744,18 @@ async function cargarReserva(
   return {
     id: b.id,
     status: b.status,
+    serviceId: b.serviceId,
+    resourceId: b.resourceId,
+    unidad,
+    shared: b.shared,
+    perPerson: b.perPerson,
+    partySize: b.partySize,
     currency: b.currency,
     unitPrice: b.unitPrice,
     holderName: b.holderName,
+    holderDocument: b.holderDocument,
+    holderPhone: b.holderPhone,
+    notes: b.notes,
     resourceName: extra?.resourceName ?? "",
     inicio: b.inicio,
     fin: b.fin,
@@ -1254,4 +1282,202 @@ export function picoDeOcupacion(
     pico = Math.max(pico, ocupado);
   }
   return pico;
+}
+
+// ---------------------------------------------------------------------------
+// Modificar una reserva
+// ---------------------------------------------------------------------------
+
+const updateSchema = z.object({
+  id: z.uuid(),
+  resourceId: z.uuid("Elige el recurso"),
+  rango: rangoSchema,
+  personas: z
+    .number()
+    .int("Las personas van en números enteros")
+    .min(1, "Al menos una persona")
+    .optional(),
+  holderName: z.string().trim().min(1, "Escribe a nombre de quién va").max(200),
+  holderDocument: z.string().trim().max(50).optional(),
+  holderPhone: z.string().trim().max(50).optional(),
+  notes: z.string().trim().max(1000).optional(),
+});
+
+export type UpdateBookingInput = z.infer<typeof updateSchema>;
+
+export type UpdateBookingResult =
+  | { ok: true; total: string; saldo: string }
+  | { ok: false; error: string };
+
+/**
+ * Modifica una reserva: recurso, fechas, personas y datos del titular.
+ *
+ * Solo una reservada o en curso. Una en curso no puede mover su entrada: el
+ * huésped ya llegó, y esa hora quedó registrada. Sí puede extender o acortar
+ * la salida, cambiar de habitación o corregir cuántos son.
+ *
+ * El SERVICIO no cambia: pasar de Doble a Suite cambia el precio, la unidad y
+ * el modo, y eso es otra reserva (se cancela esta y se hace la nueva).
+ *
+ * El precio por unidad queda CONGELADO, como en una venta corregida: cambiar
+ * "eran 2 noches, son 3" no revalúa la estadía a la tarifa de hoy. Lo que se
+ * recalcula es la cantidad.
+ *
+ * La doble reserva y los cupos los sigue garantizando la base al modificar:
+ * el EXCLUDE y el trigger de capacidad también corren en UPDATE, y ninguno se
+ * compara con la propia reserva.
+ *
+ * Si el nuevo total queda por debajo de lo ya cobrado, se rechaza: eso es
+ * decidir una devolución, y se hace anulando un cobro, no en silencio.
+ */
+export async function updateBooking(
+  { tenantId, userId }: ActorContext,
+  raw: UpdateBookingInput,
+): Promise<UpdateBookingResult> {
+  const parsed = updateSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const input = parsed.data;
+  const rango = input.rango as Rango;
+
+  try {
+    return await withTenant(tenantId, async (tx) => {
+      // Bloqueada: un cobro simultáneo no puede colarse entre "leo lo
+      // pagado" y "cambio el total".
+      const r = await cargarReserva(tx, tenantId, input.id);
+      if (!r) return { ok: false as const, error: "No se encontró esa reserva." };
+
+      if (r.status !== "reservada" && r.status !== "en_curso") {
+        return {
+          ok: false as const,
+          error: "Solo se modifica una reserva pendiente o en curso.",
+        };
+      }
+      if (rango.unidad !== r.unidad) {
+        return { ok: false as const, error: `Esta reserva va por ${r.unidad}.` };
+      }
+
+      const unidades = cantidad(rango);
+      if (!unidades.ok) return { ok: false as const, error: unidades.error };
+
+      const nuevos = bordesLocales(rango);
+      if (r.status === "en_curso" && nuevos.inicio !== r.inicio) {
+        return {
+          ok: false as const,
+          error:
+            "Ya llegó: la entrada no se puede mover. Sí se puede cambiar la salida, el recurso y las personas.",
+        };
+      }
+
+      const [recurso] = await tx
+        .select()
+        .from(resources)
+        .where(
+          and(
+            eq(resources.id, input.resourceId),
+            eq(resources.tenantId, tenantId),
+            eq(resources.serviceId, r.serviceId),
+          ),
+        );
+      if (!recurso) {
+        return {
+          ok: false as const,
+          error: "Ese recurso no es del mismo servicio. Para cambiar de servicio, cancela y crea otra reserva.",
+        };
+      }
+      // Quedarse en un recurso que se archivó después se admite; mudarse a
+      // uno archivado, no.
+      if (recurso.archivedAt && recurso.id !== r.resourceId) {
+        return { ok: false as const, error: `"${recurso.name}" está archivado.` };
+      }
+
+      const personas = input.personas ?? r.partySize;
+      if (personas > recurso.capacity) {
+        return {
+          ok: false as const,
+          error: r.shared
+            ? `"${recurso.name}" tiene ${recurso.capacity} cupos en total.`
+            : `"${recurso.name}" admite hasta ${recurso.capacity} ${recurso.capacity === 1 ? "persona" : "personas"}.`,
+        };
+      }
+
+      const total = totalReserva({
+        qty: unidades.qty,
+        partySize: personas,
+        perPerson: r.perPerson,
+        unitPrice: r.unitPrice,
+      });
+      if (compareMoney(total, r.pagado) < 0) {
+        return {
+          ok: false as const,
+          error: `Con este cambio el total queda en ${total} ${r.currency}, y ya se cobraron ${r.pagado}. Para devolver la diferencia, anula un cobro en Finanzas y vuelve a cobrar lo que corresponda.`,
+        };
+      }
+
+      // Lo que cambió, para la auditoría.
+      const diff: Record<string, { from: unknown; to: unknown }> = {};
+      if (nuevos.inicio !== r.inicio || nuevos.fin !== r.fin) {
+        diff.rango = { from: { inicio: r.inicio, fin: r.fin }, to: nuevos };
+      }
+      if (recurso.id !== r.resourceId) {
+        diff.recurso = { from: r.resourceName, to: recurso.name };
+      }
+      if (personas !== r.partySize) diff.personas = { from: r.partySize, to: personas };
+      const holderDocument = input.holderDocument || null;
+      const holderPhone = input.holderPhone || null;
+      const notes = input.notes || null;
+      if (input.holderName !== r.holderName) {
+        diff.titular = { from: r.holderName, to: input.holderName };
+      }
+      if (holderDocument !== r.holderDocument) {
+        diff.documento = { from: r.holderDocument, to: holderDocument };
+      }
+      if (holderPhone !== r.holderPhone) diff.telefono = { from: r.holderPhone, to: holderPhone };
+      if (notes !== r.notes) diff.notas = { from: r.notes, to: notes };
+      if (total !== r.total) diff.total = { from: r.total, to: total };
+
+      if (Object.keys(diff).length === 0) {
+        return { ok: true as const, total, saldo: r.saldo };
+      }
+
+      await tx
+        .update(bookings)
+        .set({
+          resourceId: recurso.id,
+          period: periodoSql(rango, r.timezone),
+          partySize: personas,
+          holderName: input.holderName,
+          holderDocument,
+          holderPhone,
+          notes,
+        })
+        .where(and(eq(bookings.id, r.id), eq(bookings.tenantId, tenantId)));
+
+      await tx.insert(auditLog).values({
+        id: uuidv7(),
+        tenantId,
+        entity: "bookings",
+        entityId: r.id,
+        action: "update",
+        actorId: userId,
+        diff,
+      });
+
+      return { ok: true as const, total, saldo: subtractMoney(total, r.pagado) };
+    });
+  } catch (error) {
+    const code = pgCode(error);
+    if (code === "23P01") {
+      return {
+        ok: false,
+        error: "Ese recurso ya tiene otra reserva que se cruza con esas fechas.",
+      };
+    }
+    if (code === "RS001") {
+      return { ok: false, error: "No quedan cupos suficientes en ese horario." };
+    }
+    if (code === "RS002") {
+      return { ok: false, error: "El grupo no cabe en ese recurso." };
+    }
+    return { ok: false, error: "No se pudo guardar el cambio." };
+  }
 }

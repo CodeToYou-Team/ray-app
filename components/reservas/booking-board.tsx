@@ -109,6 +109,10 @@ export function BookingBoard({
    */
   const [lista, setLista] = useState<Lista | null>(null);
 
+  /** La reserva que se está modificando, por id (lee siempre la versión fresca). */
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const editando = editandoId ? reservas.find((r) => r.id === editandoId) : undefined;
+
   const fechas = Array.from({ length: dias }, (_, i) => sumarDias(desde, i));
   const ultimo = fechas[fechas.length - 1];
 
@@ -318,6 +322,31 @@ export function BookingBoard({
           canManage={canManage}
           cobro={cobro}
           onClose={() => setDetalleId(null)}
+          onModificar={() => {
+            setDetalleId(null);
+            setEditandoId(detalle.id);
+            setAperturas((n) => n + 1);
+          }}
+        />
+      )}
+
+      {editando && (
+        <BookingForm
+          key={`editar-${editando.id}-${aperturas}`}
+          open
+          onOpenChange={(abierto) => {
+            if (!abierto) setEditandoId(null);
+          }}
+          // Todos los servicios, no solo los reservables: una reserva de un
+          // servicio que se apagó también se puede modificar.
+          servicios={servicios}
+          reservas={reservas}
+          inicial={{
+            serviceId: editando.serviceId,
+            resourceId: editando.resourceId,
+            fecha: editando.inicio.slice(0, 10),
+          }}
+          editing={editando}
         />
       )}
     </div>

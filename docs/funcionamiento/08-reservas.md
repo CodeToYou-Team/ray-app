@@ -231,10 +231,11 @@ Muestra el titular, el estado, el servicio y el recurso, y:
 | **Registrar salida** (check-out) | En curso | Pasa a *Finalizada* y guarda la hora de salida. Si hay saldo, pide confirmarlo |
 | **No se presentó** | Reservada, desde el día de llegada | Libera el recurso. **Lo cobrado se conserva** (para eso es un anticipo). Pide confirmación |
 | **Cancelar** | Reservada | Libera el recurso. Se puede anotar un motivo. Pide confirmación |
+| **Modificar** | Reservada o En curso | Ver [Modificar una reserva](#modificar-una-reserva) |
 | **Cobrar** | Reservada, En curso o Finalizada, si hay saldo | Ver abajo |
 
-Permisos: registrar llegada, salida, no presentado y cancelar exigen `booking:manage` (los tres
-roles). Cobrar exige `transaction:create`, porque registra un ingreso (también los tres roles).
+Permisos: registrar llegada, salida, no presentado, cancelar y modificar exigen `booking:manage`
+(los tres roles). Cobrar exige `transaction:create`, porque registra un ingreso (también los tres roles).
 
 Detalles:
 
@@ -251,6 +252,36 @@ Detalles:
   se devuelve el anticipo, hay que anular el cobro en Finanzas. El diálogo de cancelación lo avisa.
 - Los botones dependen de la fecha que ve el navegador; quien decide es el servidor. Cerca de la
   medianoche puede aparecer un botón que el servidor rechace con su motivo.
+
+### Modificar una reserva
+
+Botón **Modificar** en el detalle. Abre el mismo formulario de reserva, precargado.
+
+| Se puede cambiar | Reservada | En curso |
+|---|:-:|:-:|
+| Recurso (otro del **mismo** servicio) | ✔ | ✔ (cambio de habitación) |
+| Entrada | ✔ | — (ya llegó: queda como se registró) |
+| Salida | ✔ | ✔ (extender o acortar la estadía) |
+| Personas o cupos | ✔ | ✔ |
+| Titular, documento, teléfono, notas | ✔ | ✔ |
+
+Reglas:
+
+- **El servicio no se cambia.** Pasar de Doble a Suite cambia el precio, la unidad y el modo: es
+  otra reserva. Se cancela esta y se crea la nueva.
+- **El precio por unidad queda como se reservó**, aunque la tarifa haya cambiado. Lo que se
+  recalcula es la cantidad: extender de 2 a 3 noches suma una noche al precio de la reserva.
+- **Las mismas protecciones que al crear**: no se puede mover encima de otra reserva ni pasar de
+  los cupos. La reserva no choca consigo misma: correrla una noche, aunque se solape con sus
+  propias fechas viejas, funciona.
+- **El total no puede quedar por debajo de lo ya cobrado.** Si la estadía se acorta y ya se pagó de
+  más, eso es una devolución: se anula un cobro en Finanzas y se vuelve a cobrar lo que
+  corresponda. El formulario lo avisa antes de guardar.
+- Finalizadas, canceladas y no presentadas no se modifican.
+- Se registra en la auditoría, con solo lo que cambió.
+
+Esto también resuelve la **salida anticipada** cuando el cliente no pagó de más: se acorta la
+salida y las noches que no usó quedan libres.
 
 ### Cobrar
 
@@ -305,6 +336,9 @@ Cada cobro **es un ingreso normal**:
 | Cobro en otra moneda sin tasa | "La reserva es en USD y el pago en VES. Escribe la tasa que aplicaste." |
 | Cambiar la forma de reservar con reservas | "\"Habitación doble\" ya tiene reservas. Para reservar de otra forma, crea otro servicio." |
 | Bajar la capacidad por debajo de lo ocupado | "\"Sala\" ya tiene momentos con 12 cupos ocupados. No se puede bajar a 10." |
+| Modificar moviéndola encima de otra | "Ese recurso ya tiene otra reserva que se cruza con esas fechas." |
+| Modificar la entrada de una en curso | "Ya llegó: la entrada no se puede mover. Sí se puede cambiar la salida, el recurso y las personas." |
+| Acortar por debajo de lo cobrado | "Con este cambio el total queda en 80.00 USD, y ya se cobraron 120.00. Para devolver la diferencia, anula un cobro en Finanzas y vuelve a cobrar lo que corresponda." |
 | Archivar un recurso con reservas pendientes | "\"101\" tiene reservas pendientes. Cancélalas o espera a que terminen." |
 | Archivar un servicio con reservas pendientes | "\"Habitación doble\" tiene 2 reservas pendientes. Cancélalas o espera a que terminen antes de archivarlo. Para dejar de aceptar reservas nuevas, apaga \"Disponible para vender\"." |
 
@@ -315,10 +349,9 @@ Ver también [limitaciones](07-limitaciones-y-pendientes.md#reservas).
 - **Horarios fijos** (en desarrollo): publicar los turnos de un servicio (yoga, martes y jueves a
   las 18:00) y que solo se pueda reservar en ellos. Hoy un servicio por hora acepta cualquier tramo
   de 30 minutos.
-- **Modificar una reserva**: no se pueden cambiar las fechas, el recurso ni las personas de una
-  reserva hecha. Hay que cancelarla y crear otra.
-- **Salida anticipada**: si alguien reservó hasta el 14 y se va el 12, el recurso sigue ocupado
-  hasta el 14 y el total no cambia.
+- **Cambiar de servicio** en una reserva (de Doble a Suite): hay que cancelarla y crear otra.
+- **Salida anticipada con devolución automática**: si el cliente ya pagó de más, acortar la
+  reserva exige anular un cobro a mano antes.
 - **Columnas personalizadas en la reserva** (por ejemplo, placa del vehículo o motivo del viaje).
 - **"Una doble cualquiera"**: reservar el tipo de habitación y asignar el número al llegar.
 - **Dos recursos en una reserva** (un masaje que necesita terapeuta y cabina).

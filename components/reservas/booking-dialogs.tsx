@@ -8,6 +8,7 @@ import {
   IconCash,
   IconLogin,
   IconLogout,
+  IconPencil,
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,7 @@ import {
   checkOut,
   createBooking,
   markNoShow,
+  updateBooking,
 } from "@/lib/reservas/actions";
 import {
   bordesLocales,
@@ -91,33 +93,44 @@ export function BookingForm({
   servicios,
   reservas,
   inicial,
+  editing,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   servicios: BoardService[];
   reservas: BoardBooking[];
   inicial: Inicial;
+  /**
+   * Presente = modificar esa reserva en vez de crear una. El estado se siembra
+   * de aquí una sola vez; el padre lo monta con `key`.
+   */
+  editing?: BoardBooking;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const [serviceId, setServiceId] = useState(inicial.serviceId);
-  const [resourceId, setResourceId] = useState(inicial.resourceId);
+  const [serviceId, setServiceId] = useState(editing?.serviceId ?? inicial.serviceId);
+  const [resourceId, setResourceId] = useState(editing?.resourceId ?? inicial.resourceId);
 
   // Por noche
-  const [desde, setDesde] = useState(inicial.fecha);
-  const [hasta, setHasta] = useState(sumarDias(inicial.fecha, 1));
+  const [desde, setDesde] = useState(editing ? editing.inicio.slice(0, 10) : inicial.fecha);
+  const [hasta, setHasta] = useState(
+    editing ? editing.fin.slice(0, 10) : sumarDias(inicial.fecha, 1),
+  );
   // Por hora
-  const [fecha, setFecha] = useState(inicial.fecha);
-  const [inicio, setInicio] = useState("09:00");
-  const [fin, setFin] = useState("10:00");
+  const [fecha, setFecha] = useState(editing ? editing.inicio.slice(0, 10) : inicial.fecha);
+  const [inicio, setInicio] = useState(editing ? editing.inicio.slice(11, 16) : "09:00");
+  const [fin, setFin] = useState(editing ? editing.fin.slice(11, 16) : "10:00");
 
-  const [personas, setPersonas] = useState("1");
-  const [holderName, setHolderName] = useState("");
-  const [holderDocument, setHolderDocument] = useState("");
-  const [holderPhone, setHolderPhone] = useState("");
-  const [notes, setNotes] = useState("");
+  const [personas, setPersonas] = useState(String(editing?.partySize ?? 1));
+  const [holderName, setHolderName] = useState(editing?.holderName ?? "");
+  const [holderDocument, setHolderDocument] = useState(editing?.holderDocument ?? "");
+  const [holderPhone, setHolderPhone] = useState(editing?.holderPhone ?? "");
+  const [notes, setNotes] = useState(editing?.notes ?? "");
+
+  /** En curso: ya llegó, así que la entrada quedó registrada y no se mueve. */
+  const entradaFija = editing?.status === "en_curso";
 
   const servicio = servicios.find((s) => s.id === serviceId);
   const unidad = servicio?.unidad ?? "noche";
@@ -132,15 +145,30 @@ export function BookingForm({
   const personasValidas = Number.isInteger(nPersonas) && nPersonas >= 1;
   const shared = servicio?.shared ?? false;
 
+  /**
+   * Al modificar, el precio por unidad es el CONGELADO en la reserva, no el
+   * del servicio hoy: extender una estadía no la revalúa. Lo mismo para la
+   * moneda y para si cobra por persona.
+   */
+  const precio = editing?.unitPrice ?? servicio?.price ?? "0";
+  const moneda = editing?.currency ?? servicio?.currency ?? "";
+  const porPersona = editing?.perPerson ?? servicio?.perPerson ?? false;
+
   const total =
     servicio && cant.ok && personasValidas
       ? totalReserva({
           qty: cant.qty,
           partySize: nPersonas,
-          perPerson: servicio.perPerson,
-          unitPrice: servicio.price,
+          perPerson: porPersona,
+          unitPrice: precio,
         })
       : null;
+
+  /** Al modificar, no puede quedar por debajo de lo ya cobrado. */
+  const pagado = editing?.pagado ?? "0.00";
+  const pasaDeLoCobrado = Boolean(
+    editing && total && compareMoney(total, pagado) < 0,
+  );
 
   /**
    * Cuántos cupos quedan en cada recurso para el rango pedido.
@@ -152,11 +180,15 @@ export function BookingForm({
    * mucho), así que se recalcula en cada render. Solo evita ofrecer lo que ya
    * se sabe lleno: la palabra final la tiene la base.
    */
+  // Al modificar, la propia reserva no ocupa: si no, se vería a sí misma
+  // como un choque. La base hace lo mismo (no se compara consigo misma).
+  const otras = editing ? reservas.filter((b) => b.id !== editing.id) : reservas;
+
   const libres = new Map<string, number>();
   if (cant.ok && servicio) {
     const pedido = bordesLocales(rango);
     for (const r of servicio.resources) {
-      const suyas = reservas.filter((b) => b.resourceId === r.id);
+      const suyas = otras.filter((b) => b.resourceId === r.id);
       libres.set(
         r.id,
         shared
@@ -183,22 +215,25 @@ export function BookingForm({
     personasValidas &&
     holderName.trim() &&
     !recursoOcupado &&
-    !noCabe;
+    !noCabe &&
+    !pasaDeLoCobrado;
 
   function guardar() {
     if (!servicio) return;
     setError(null);
+    const comun = {
+      resourceId,
+      rango,
+      personas: nPersonas,
+      holderName,
+      holderDocument: holderDocument || undefined,
+      holderPhone: holderPhone || undefined,
+      notes: notes || undefined,
+    };
     start(async () => {
-      const r = await createBooking({
-        serviceId: servicio.id,
-        resourceId,
-        rango,
-        personas: nPersonas,
-        holderName,
-        holderDocument: holderDocument || undefined,
-        holderPhone: holderPhone || undefined,
-        notes: notes || undefined,
-      });
+      const r = editing
+        ? await updateBooking({ id: editing.id, ...comun })
+        : await createBooking({ serviceId: servicio.id, ...comun });
       if (r.ok) {
         onOpenChange(false);
         router.refresh();
@@ -212,10 +247,15 @@ export function BookingForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-base">Nueva reserva</DialogTitle>
+          <DialogTitle className="text-base">
+            {editing ? "Modificar reserva" : "Nueva reserva"}
+          </DialogTitle>
           <DialogDescription className="text-xs">
-            El precio queda fijado al reservar: si la tarifa cambia después, esta
-            reserva no.
+            {editing
+              ? entradaFija
+                ? "Ya llegó: la entrada queda como se registró. Se puede cambiar la salida, el recurso y las personas. El precio por unidad es el de la reserva."
+                : "El precio por unidad es el de la reserva, aunque la tarifa haya cambiado: lo que se recalcula es la cantidad."
+              : "El precio queda fijado al reservar: si la tarifa cambia después, esta reserva no."}
           </DialogDescription>
         </DialogHeader>
 
@@ -225,6 +265,8 @@ export function BookingForm({
               <Label htmlFor="servicio">Qué se reserva</Label>
               <Select
                 value={serviceId}
+                // Al modificar, el servicio es fijo: cambiarlo es otra reserva.
+                disabled={Boolean(editing)}
                 onValueChange={(v) => {
                   setServiceId(v);
                   // Los recursos son de cada servicio.
@@ -284,6 +326,7 @@ export function BookingForm({
                   id="desde"
                   type="date"
                   value={desde}
+                  disabled={entradaFija}
                   onChange={(e) => {
                     const v = e.target.value;
                     setDesde(v);
@@ -312,6 +355,7 @@ export function BookingForm({
                   id="fecha"
                   type="date"
                   value={fecha}
+                  disabled={entradaFija}
                   onChange={(e) => setFecha(e.target.value)}
                 />
               </div>
@@ -322,6 +366,7 @@ export function BookingForm({
                   type="time"
                   step={TRAMO_MINUTOS * 60}
                   value={inicio}
+                  disabled={entradaFija}
                   onChange={(e) => setInicio(e.target.value)}
                 />
               </div>
@@ -365,17 +410,33 @@ export function BookingForm({
           {!cant.ok ? (
             <p className="text-xs text-destructive">{cant.error}</p>
           ) : servicio && total ? (
-            <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2">
-              <span className="text-xs text-muted-foreground">
-                {cant.descripcion}
-                {servicio.perPerson && ` × ${nPersonas} ${nPersonas === 1 ? "persona" : "personas"}`}{" "}
-                × {formatMoney(servicio.price, servicio.currency)}
-              </span>
-              <span className="font-mono text-sm font-semibold">
-                {formatMoney(total, servicio.currency)}
-              </span>
+            <div className="space-y-1 rounded-md bg-muted/50 px-3 py-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                  {cant.descripcion}
+                  {porPersona && ` × ${nPersonas} ${nPersonas === 1 ? "persona" : "personas"}`}{" "}
+                  × {formatMoney(precio, moneda)}
+                </span>
+                <span className="font-mono text-sm font-semibold">
+                  {formatMoney(total, moneda)}
+                </span>
+              </div>
+              {editing && compareMoney(pagado, "0") > 0 && (
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Ya cobrado</span>
+                  <span className="font-mono">{formatMoney(pagado, moneda)}</span>
+                </div>
+              )}
             </div>
           ) : null}
+
+          {pasaDeLoCobrado && (
+            <p className="text-xs text-destructive">
+              Ya se cobraron {formatMoney(pagado, moneda)}: el total no puede quedar por
+              debajo. Para devolver la diferencia, anula un cobro en Finanzas y vuelve a
+              cobrar lo que corresponda.
+            </p>
+          )}
 
           {recursoOcupado && recurso && (
             <p className="text-xs text-destructive">
@@ -434,7 +495,7 @@ export function BookingForm({
             Cancelar
           </Button>
           <Button onClick={guardar} disabled={pending || !puedeGuardar}>
-            {pending ? "Guardando…" : "Reservar"}
+            {pending ? "Guardando…" : editing ? "Guardar cambios" : "Reservar"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -477,6 +538,7 @@ export function BookingDetail({
   canManage,
   cobro,
   onClose,
+  onModificar,
 }: {
   reserva: BoardBooking;
   servicio: BoardService | undefined;
@@ -486,6 +548,7 @@ export function BookingDetail({
   /** null = el rol no puede cobrar. */
   cobro: CobroConfig | null;
   onClose: () => void;
+  onModificar: () => void;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -506,6 +569,8 @@ export function BookingDetail({
   const puedeLlegar = canManage && reserva.status === "reservada" && empezo && !termino;
   const puedeNoShow = canManage && reserva.status === "reservada" && empezo;
   const puedeCancelar = canManage && reserva.status === "reservada";
+  const puedeModificar =
+    canManage && (reserva.status === "reservada" || reserva.status === "en_curso");
   const puedeSalir = canManage && reserva.status === "en_curso";
   const puedeCobrar =
     cobro !== null &&
@@ -752,6 +817,12 @@ export function BookingDetail({
         {modo === "ver" && (
           <DialogFooter className="flex-wrap gap-2 sm:justify-between">
             <div className="flex flex-wrap gap-2">
+              {puedeModificar && (
+                <Button size="sm" variant="ghost" className="gap-1.5" onClick={onModificar}>
+                  <IconPencil className="size-4" />
+                  Modificar
+                </Button>
+              )}
               {puedeCancelar && (
                 <Button
                   size="sm"
