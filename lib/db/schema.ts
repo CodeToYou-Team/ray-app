@@ -354,6 +354,13 @@ export const services = pgTable(
      * por hora). Ausente = se vende como renglon, como una "Instalacion".
      */
     bookingUnit: bookingUnit("booking_unit"),
+    /**
+     * Compartido = muchas reservas a la vez hasta llenar la capacidad (la
+     * clase, el tour). Exclusivo = una reserva a la vez (la habitacion).
+     */
+    bookingShared: boolean("booking_shared").notNull().default(false),
+    /** Por persona (el tour, 15 c/u) o por reserva (la habitacion, 40 vayan 1 o 3). */
+    bookingPerPerson: boolean("booking_per_person").notNull().default(false),
     custom: jsonb("custom")
       .$type<Record<string, unknown>>()
       .notNull()
@@ -886,6 +893,11 @@ export const resources = pgTable(
     serviceId: uuid("service_id").notNull(),
     name: text("name").notNull(),
     notes: text("notes"),
+    /**
+     * Exclusivo: cuantas personas caben en UNA reserva (la 101, hasta 3).
+     * Compartido: cuantas caben EN TOTAL a la vez (la clase, hasta 15).
+     */
+    capacity: integer("capacity").notNull().default(1),
     /** Se archivan, nunca se borran: una reserva vieja dice en que habitacion fue. */
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -921,6 +933,14 @@ export const bookings = pgTable(
     /** Semiabierto [entrada, salida). Solo se escribe con SQL; ver `tstzrange`. */
     period: tstzrange("period").notNull(),
     status: bookingStatus("status").notNull().default("reservada"),
+    /** Cuantas personas o cupos ocupa. */
+    partySize: integer("party_size").notNull().default(1),
+    /**
+     * SNAPSHOT del servicio al reservar, como el precio. Ademas, el EXCLUDE
+     * necesita `shared` en la propia fila: no puede mirar otra tabla.
+     */
+    shared: boolean("shared").notNull().default(false),
+    perPerson: boolean("per_person").notNull().default(false),
     /** SNAPSHOT del servicio al reservar: si sube la tarifa, esta no cambia. */
     unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
     currency: varchar("currency", { length: 10 }).notNull(),

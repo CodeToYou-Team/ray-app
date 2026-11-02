@@ -10,6 +10,8 @@
  * real— vive en ./periodo.ts y lo hace Postgres. Ver la nota de ese archivo.
  */
 
+import { lineSubtotal, multiplyQuantity } from "@/lib/money";
+
 export type Unidad = "noche" | "hora";
 
 /** Por noche: la fecha de entrada y la de salida, en hora local del negocio. */
@@ -176,4 +178,57 @@ export function bordesLocales(rango: Rango): { inicio: string; fin: string } {
     inicio: `${rango.fecha}T${rango.inicio}`,
     fin: `${rango.fecha}T${rango.fin}`,
   };
+}
+
+/**
+ * El total de una reserva.
+ *
+ * Por reserva: unidades × precio (la habitación, 2 noches × 40, vayan 1 o 3).
+ * Por persona: unidades × personas × precio (el tour, 1 día × 3 × 15).
+ *
+ * Una sola multiplicación con un solo redondeo, en vez de redondear el
+ * subtotal por persona y después multiplicar: así el total coincide con el
+ * que calcularía cualquiera con la calculadora.
+ */
+export function totalReserva(input: {
+  qty: string;
+  partySize: number;
+  perPerson: boolean;
+  unitPrice: string;
+}): string {
+  const unidades = input.perPerson
+    ? multiplyQuantity(input.qty, input.partySize)
+    : input.qty;
+  return lineSubtotal(unidades, input.unitPrice);
+}
+
+/**
+ * La mayor ocupación (en personas) dentro de un rango, contando reservas que
+ * se cruzan con él.
+ *
+ * Mismo criterio que el trigger de capacidad: la ocupación solo sube donde
+ * empieza una reserva, así que basta mirarla en el inicio del rango y en cada
+ * inicio de otra reserva que caiga dentro. Compara texto porque los bordes
+ * vienen todos en hora local del negocio.
+ *
+ * Es para mostrar "quedan 3 cupos" antes de enviar. La palabra final la tiene
+ * el trigger, con la fila del recurso bloqueada.
+ */
+export function ocupacionMaxima(
+  pedido: { inicio: string; fin: string },
+  reservas: { inicio: string; fin: string; partySize: number }[],
+): number {
+  const dentro = reservas.filter((r) => seCruzan(pedido, r));
+  const puntos = [
+    pedido.inicio,
+    ...dentro.map((r) => r.inicio).filter((p) => p > pedido.inicio && p < pedido.fin),
+  ];
+  let pico = 0;
+  for (const p of puntos) {
+    const ocupado = dentro
+      .filter((r) => r.inicio <= p && p < r.fin)
+      .reduce((acc, r) => acc + r.partySize, 0);
+    pico = Math.max(pico, ocupado);
+  }
+  return pico;
 }

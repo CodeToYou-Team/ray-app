@@ -63,6 +63,13 @@
   takes `FOR UPDATE` on the booking row before reading the balance — removing it
   lets concurrent payments overpay. A trigger blocks editing the money fields
   of a payment transaction; correct one by voiding it.
+  Capacity: a service is exclusive or shared (`booking_shared`). Exclusive
+  bookings keep the `EXCLUDE` (now `WHERE NOT shared`); shared ones are checked
+  by the `bookings_capacity` trigger, which locks the resource row and measures
+  the PEAK occupancy over the range, not the sum. Its custom SQLSTATEs are
+  `RS001` (no room left) and `RS002` (party larger than an exclusive resource);
+  `createBooking` translates both. Totals go through `totalReserva()` in
+  `rango.ts` — never multiply price by people by hand in a fourth place.
 - `/lib/money.ts`, `/lib/currencies.ts` - Exact decimal arithmetic and the closed
   currency list. Currency columns are `varchar(10)`: stablecoin tickers (USDT, USDC)
   are 4 characters, not 3.

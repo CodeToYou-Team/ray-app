@@ -155,6 +155,19 @@ export function subtractQuantity(a: string, b: string): string {
   return fromScaled(toScaled(a, 3) - toScaled(b, 3), 3);
 }
 
+/**
+ * Multiplica una cantidad por un entero, exacto: 1,5 horas × 4 personas = 6.
+ *
+ * Solo enteros a propósito: el factor es un conteo (personas, cupos), y
+ * aceptar decimales abriría la puerta a "2,7 personas".
+ */
+export function multiplyQuantity(value: string, factor: number): string {
+  if (!Number.isInteger(factor)) {
+    throw new Error(`El factor tiene que ser entero: ${factor}`);
+  }
+  return fromScaled(toScaled(value, 3) * BigInt(factor), 3);
+}
+
 /** Niega una cantidad: la salida de stock de una venta. */
 export function negateQuantity(value: string): string {
   return fromScaled(-toScaled(value, 3), 3);

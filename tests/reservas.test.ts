@@ -6,7 +6,7 @@ import {
   cancelBooking,
   createBooking,
   createResource,
-  setServiceBookingUnit,
+  configureServiceBooking,
 } from "@/lib/reservas/register";
 import { bookingsInWindow, listBookableServices } from "@/lib/reservas/queries";
 import { cantidad, seCruzan, sumarDias } from "@/lib/reservas/rango";
@@ -412,15 +412,15 @@ describe.skipIf(!hasDb)("reservas", () => {
   });
 
   it("no se cambia la forma de reservar un servicio que ya tiene reservas", async () => {
-    const r = await setServiceBookingUnit(ctx, { serviceId: doble, unidad: "hora" });
+    const r = await configureServiceBooking(ctx, { serviceId: doble, unidad: "hora" });
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.error).toMatch(/ya tiene reservas/i);
   });
 
   it("sí se activa uno que nunca se reservó", async () => {
-    expect((await setServiceBookingUnit(ctx, { serviceId: instalacion, unidad: "hora" })).ok).toBe(true);
-    expect((await setServiceBookingUnit(ctx, { serviceId: instalacion, unidad: null })).ok).toBe(true);
+    expect((await configureServiceBooking(ctx, { serviceId: instalacion, unidad: "hora" })).ok).toBe(true);
+    expect((await configureServiceBooking(ctx, { serviceId: instalacion, unidad: null })).ok).toBe(true);
   });
 
   // -------------------------------------------------------------------------

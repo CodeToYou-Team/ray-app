@@ -13,20 +13,25 @@ import {
   type BookingStatus,
   type BookingUnit,
 } from "@/lib/db/schema";
-import { lineSubtotal, subtractMoney, sumMoney } from "@/lib/money";
+import { subtractMoney, sumMoney } from "@/lib/money";
 import { bordesLocalesSql, periodoSql } from "./periodo";
-import { cantidad, type Rango } from "./rango";
+import { cantidad, totalReserva, type Rango } from "./rango";
 
 export interface ResourceRow {
   id: string;
   name: string;
   notes: string | null;
+  /** Exclusivo: personas por reserva. Compartido: cupos en total a la vez. */
+  capacity: number;
 }
 
 export interface BookableService {
   id: string;
   name: string;
   unidad: BookingUnit;
+  /** Muchas reservas a la vez hasta llenar la capacidad. */
+  shared: boolean;
+  perPerson: boolean;
   price: string;
   currency: string;
   resources: ResourceRow[];
@@ -48,6 +53,8 @@ export async function listBookableServices(
         id: services.id,
         name: services.name,
         unidad: services.bookingUnit,
+        shared: services.bookingShared,
+        perPerson: services.bookingPerPerson,
         price: services.price,
         currency: services.currency,
       })
@@ -69,6 +76,7 @@ export async function listBookableServices(
         serviceId: resources.serviceId,
         name: resources.name,
         notes: resources.notes,
+        capacity: resources.capacity,
       })
       .from(resources)
       .where(
@@ -89,7 +97,7 @@ export async function listBookableServices(
       unidad: s.unidad!,
       resources: recs
         .filter((r) => r.serviceId === s.id)
-        .map(({ id, name, notes }) => ({ id, name, notes })),
+        .map(({ id, name, notes, capacity }) => ({ id, name, notes, capacity })),
     }));
   });
 }
@@ -100,6 +108,8 @@ export interface ServiceSetupRow {
   price: string;
   currency: string;
   unidad: BookingUnit | null;
+  shared: boolean;
+  perPerson: boolean;
   /** Si ya tiene reservas, la unidad no se puede cambiar. */
   bookingCount: number;
   resources: ResourceRow[];
@@ -119,6 +129,8 @@ export async function listServicesForSetup(
         price: services.price,
         currency: services.currency,
         unidad: services.bookingUnit,
+        shared: services.bookingShared,
+        perPerson: services.bookingPerPerson,
       })
       .from(services)
       .where(and(eq(services.tenantId, tenantId), isNull(services.deletedAt)))
@@ -134,6 +146,7 @@ export async function listServicesForSetup(
           serviceId: resources.serviceId,
           name: resources.name,
           notes: resources.notes,
+          capacity: resources.capacity,
         })
         .from(resources)
         .where(
@@ -158,7 +171,7 @@ export async function listServicesForSetup(
       bookingCount: porServicio.get(s.id) ?? 0,
       resources: recs
         .filter((r) => r.serviceId === s.id)
-        .map(({ id, name, notes }) => ({ id, name, notes })),
+        .map(({ id, name, notes, capacity }) => ({ id, name, notes, capacity })),
     }));
   });
 }
@@ -186,6 +199,10 @@ export interface BookingRow {
   status: BookingStatus;
   checkedInAt: Date | null;
   checkedOutAt: Date | null;
+  /** Cuántas personas o cupos ocupa. */
+  partySize: number;
+  shared: boolean;
+  perPerson: boolean;
   /** Suma de los cobros vivos, en la moneda de la reserva. */
   pagado: string;
   saldo: string;
@@ -236,6 +253,9 @@ export async function bookingsInWindow(
         status: bookings.status,
         checkedInAt: bookings.checkedInAt,
         checkedOutAt: bookings.checkedOutAt,
+        partySize: bookings.partySize,
+        shared: bookings.shared,
+        perPerson: bookings.perPerson,
         inicio: bordes.inicio,
         fin: bordes.fin,
         unitPrice: bookings.unitPrice,
@@ -278,7 +298,12 @@ export async function bookingsInWindow(
           };
     const c = cantidad(rango);
     const qty = c.ok ? c.qty : "0";
-    const total = lineSubtotal(qty, r.unitPrice);
+    const total = totalReserva({
+      qty,
+      partySize: r.partySize,
+      perPerson: r.perPerson,
+      unitPrice: r.unitPrice,
+    });
     const suyos = pagos[r.id] ?? [];
     // Solo los vivos: un cobro anulado en Finanzas sale del saldo.
     const pagado = sumMoney(suyos.filter((p) => !p.voided).map((p) => p.appliedAmount));

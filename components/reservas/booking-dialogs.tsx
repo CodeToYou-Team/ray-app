@@ -38,12 +38,14 @@ import {
 import {
   bordesLocales,
   cantidad,
+  ocupacionMaxima,
   seCruzan,
   sumarDias,
+  totalReserva,
   TRAMO_MINUTOS,
   type Rango,
 } from "@/lib/reservas/rango";
-import { compareMoney, lineSubtotal } from "@/lib/money";
+import { compareMoney } from "@/lib/money";
 import { formatDate, formatMoney } from "@/lib/format";
 import type { BoardBooking, BoardService } from "./types";
 import { PaymentForm, type CobroConfig } from "./booking-payment";
@@ -111,6 +113,7 @@ export function BookingForm({
   const [inicio, setInicio] = useState("09:00");
   const [fin, setFin] = useState("10:00");
 
+  const [personas, setPersonas] = useState("1");
   const [holderName, setHolderName] = useState("");
   const [holderDocument, setHolderDocument] = useState("");
   const [holderPhone, setHolderPhone] = useState("");
@@ -125,27 +128,62 @@ export function BookingForm({
       : { unidad, fecha, inicio, fin };
 
   const cant = cantidad(rango);
+  const nPersonas = Number(personas);
+  const personasValidas = Number.isInteger(nPersonas) && nPersonas >= 1;
+  const shared = servicio?.shared ?? false;
+
   const total =
-    servicio && cant.ok ? lineSubtotal(cant.qty, servicio.price) : null;
+    servicio && cant.ok && personasValidas
+      ? totalReserva({
+          qty: cant.qty,
+          partySize: nPersonas,
+          perPerson: servicio.perPerson,
+          unitPrice: servicio.price,
+        })
+      : null;
 
   /**
-   * Recursos que ya se sabe ocupados en el rango pedido. Son unas decenas de
-   * reservas como mucho (las de la ventana visible): se recalcula en cada
-   * render sin costo que valga la pena memorizar.
+   * Cuántos cupos quedan en cada recurso para el rango pedido.
+   *
+   * Exclusivo: 0 si alguna reserva se cruza, o la capacidad entera si no.
+   * Compartido: la capacidad menos el pico de ocupación del rango.
+   *
+   * Sale de las reservas ya cargadas en la cuadrícula (unas decenas como
+   * mucho), así que se recalcula en cada render. Solo evita ofrecer lo que ya
+   * se sabe lleno: la palabra final la tiene la base.
    */
-  const ocupados = cant.ok
-    ? new Set(
-        reservas
-          .filter((r) => seCruzan(bordesLocales(rango), { inicio: r.inicio, fin: r.fin }))
-          .map((r) => r.resourceId),
-      )
-    : new Set<string>();
+  const libres = new Map<string, number>();
+  if (cant.ok && servicio) {
+    const pedido = bordesLocales(rango);
+    for (const r of servicio.resources) {
+      const suyas = reservas.filter((b) => b.resourceId === r.id);
+      libres.set(
+        r.id,
+        shared
+          ? r.capacity - ocupacionMaxima(pedido, suyas)
+          : suyas.some((b) => seCruzan(pedido, b))
+            ? 0
+            : r.capacity,
+      );
+    }
+  }
 
-  const recursoOcupado = Boolean(resourceId && ocupados.has(resourceId));
   const recurso = servicio?.resources.find((r) => r.id === resourceId);
+  const libresRecurso = resourceId ? (libres.get(resourceId) ?? 0) : 0;
+  // Exclusivo ocupado: alguien ya lo tiene. Compartido: no quedan cupos para
+  // este grupo. Exclusivo libre pero grupo grande: no cabe.
+  const recursoOcupado = Boolean(resourceId && cant.ok && libresRecurso === 0);
+  const noCabe =
+    Boolean(recurso) && personasValidas && !recursoOcupado && nPersonas > libresRecurso;
 
   const puedeGuardar =
-    servicio && resourceId && cant.ok && holderName.trim() && !recursoOcupado;
+    servicio &&
+    resourceId &&
+    cant.ok &&
+    personasValidas &&
+    holderName.trim() &&
+    !recursoOcupado &&
+    !noCabe;
 
   function guardar() {
     if (!servicio) return;
@@ -155,6 +193,7 @@ export function BookingForm({
         serviceId: servicio.id,
         resourceId,
         rango,
+        personas: nPersonas,
         holderName,
         holderDocument: holderDocument || undefined,
         holderPhone: holderPhone || undefined,
@@ -215,15 +254,20 @@ export function BookingForm({
                 </SelectTrigger>
                 <SelectContent>
                   {servicio?.resources.map((r) => {
-                    const tomado = ocupados.has(r.id);
+                    const quedan = libres.get(r.id);
+                    const tomado = quedan === 0;
                     return (
                       <SelectItem key={r.id} value={r.id} disabled={tomado}>
                         {r.name}
-                        {tomado && (
-                          <span className="ml-1.5 text-[10px] text-muted-foreground">
-                            ocupado
-                          </span>
-                        )}
+                        <span className="ml-1.5 text-[10px] text-muted-foreground">
+                          {tomado
+                            ? shared
+                              ? "lleno"
+                              : "ocupado"
+                            : shared && quedan !== undefined
+                              ? `${quedan} de ${r.capacity} cupos`
+                              : `hasta ${r.capacity}`}
+                        </span>
                       </SelectItem>
                     );
                   })}
@@ -294,13 +338,38 @@ export function BookingForm({
             </div>
           )}
 
+          <div className="space-y-2">
+            <Label htmlFor="personas">
+              {shared ? "Cupos" : "Personas"}
+            </Label>
+            <Input
+              id="personas"
+              type="number"
+              min={1}
+              max={recurso?.capacity}
+              step={1}
+              value={personas}
+              onChange={(e) => setPersonas(e.target.value)}
+              className="w-24 font-mono"
+            />
+            {noCabe && recurso && (
+              <p className="text-xs text-destructive">
+                {shared
+                  ? `Quedan ${libresRecurso} cupos en ${recurso.name} para ese horario.`
+                  : `${recurso.name} admite hasta ${recurso.capacity} ${recurso.capacity === 1 ? "persona" : "personas"}.`}
+              </p>
+            )}
+          </div>
+
           {/* El total, o lo que impide calcularlo. */}
           {!cant.ok ? (
             <p className="text-xs text-destructive">{cant.error}</p>
           ) : servicio && total ? (
             <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2">
               <span className="text-xs text-muted-foreground">
-                {cant.descripcion} × {formatMoney(servicio.price, servicio.currency)}
+                {cant.descripcion}
+                {servicio.perPerson && ` × ${nPersonas} ${nPersonas === 1 ? "persona" : "personas"}`}{" "}
+                × {formatMoney(servicio.price, servicio.currency)}
               </span>
               <span className="font-mono text-sm font-semibold">
                 {formatMoney(total, servicio.currency)}
@@ -310,7 +379,9 @@ export function BookingForm({
 
           {recursoOcupado && recurso && (
             <p className="text-xs text-destructive">
-              {recurso.name} ya tiene una reserva que se cruza con esas fechas.
+              {shared
+                ? `${recurso.name} ya no tiene cupos en ese horario.`
+                : `${recurso.name} ya tiene una reserva que se cruza con esas fechas.`}{" "}
               Elige otro o cambia las fechas.
             </p>
           )}
@@ -481,10 +552,16 @@ export function BookingDetail({
             <dd className="text-right">{describirRango(reserva)}</dd>
           </div>
           <div className="flex justify-between gap-4">
+            <dt className="text-muted-foreground">{reserva.shared ? "Cupos" : "Personas"}</dt>
+            <dd>{reserva.partySize}</dd>
+          </div>
+          <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">Total</dt>
             <dd className="text-right">
               <span className="text-xs text-muted-foreground">
-                {reserva.descripcion} × {formatMoney(reserva.unitPrice, reserva.currency)} ={" "}
+                {reserva.descripcion}
+                {reserva.perPerson && ` × ${reserva.partySize}`} ×{" "}
+                {formatMoney(reserva.unitPrice, reserva.currency)} ={" "}
               </span>
               <span className="font-mono font-semibold">
                 {formatMoney(reserva.total, reserva.currency)}
@@ -737,6 +814,87 @@ export function BookingDetail({
             </div>
           </DialogFooter>
         )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Lista de un turno compartido
+// ---------------------------------------------------------------------------
+
+/**
+ * Las reservas de un turno o una noche de un recurso compartido: quién va,
+ * cuántos ocupa cada uno y si debe algo. Tocar una abre su detalle.
+ */
+export function BookingList({
+  titulo,
+  subtitulo,
+  reservas,
+  puedeAgregar,
+  onAgregar,
+  onVer,
+  onClose,
+}: {
+  titulo: string;
+  subtitulo: string;
+  reservas: BoardBooking[];
+  puedeAgregar: boolean;
+  onAgregar: () => void;
+  onVer: (b: BoardBooking) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open onOpenChange={(abierto) => !abierto && onClose()}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-base">{titulo}</DialogTitle>
+          <DialogDescription className="text-xs">{subtitulo}</DialogDescription>
+        </DialogHeader>
+
+        {reservas.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No quedan reservas en este turno.</p>
+        ) : (
+          <ul className="divide-y rounded-md border">
+            {reservas.map((b) => {
+              const estado = ESTADO[b.status];
+              return (
+                <li key={b.id}>
+                  <button
+                    type="button"
+                    onClick={() => onVer(b)}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted/50"
+                  >
+                    <span className="flex items-center gap-2">
+                      {compareMoney(b.saldo, "0") > 0 && (
+                        <span
+                          aria-label="Con saldo pendiente"
+                          className="size-1.5 shrink-0 rounded-full bg-destructive"
+                        />
+                      )}
+                      {b.holderName}
+                      <span
+                        className={`rounded-full px-1.5 py-0.5 text-[10px] ${estado.className}`}
+                      >
+                        {estado.label}
+                      </span>
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {b.partySize} {b.partySize === 1 ? "cupo" : "cupos"}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            Cerrar
+          </Button>
+          {puedeAgregar && <Button onClick={onAgregar}>Agregar reserva</Button>}
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

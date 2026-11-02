@@ -473,11 +473,41 @@ ni un doble clic ni dos recepcionistas a la vez se lo pueden saltar.
 - **Por hora, en tramos de 30 minutos.** Cubre canchas de hora y media sin abrir la puerta
   a duraciones de 17 minutos que nadie cobra.
 
-### Lo que la fase 1 NO cubre (a propósito)
+### Capacidad y cupos
 
-- **Cupos** (clase de 15 personas, tour de 40 plazas, "una doble cualquiera"). Ahí sí pueden
-  coincidir varias reservas y la que sobra no. No se expresa con `EXCLUDE`: hace falta
-  contar con bloqueo. Para capacidades chicas sirve modelar "Plaza 1..15" como recursos.
+Dos decisiones por servicio y un número por recurso:
+
+- **Modo** (`services.booking_shared`): *exclusivo* (una reserva a la vez: la habitación, la
+  cancha) o *compartido* (varias hasta llenar: la clase, el tour, el estacionamiento).
+- **Cobro** (`services.booking_per_person`): *por reserva* (la habitación cuesta 40 vayan
+  1 o 3) o *por persona* (el tour, 15 cada uno).
+- **Capacidad** (`resources.capacity`): en un exclusivo, cuántas personas caben en UNA
+  reserva; en un compartido, cuántas caben EN TOTAL a la vez.
+
+La reserva lleva `party_size` y copia `shared` y `per_person` del servicio, como el precio.
+
+**Dos garantías, una por modo:**
+
+- *Exclusivo*: el `EXCLUDE` de siempre, que ahora solo aplica a filas con `NOT shared`.
+- *Compartido*: un trigger que **bloquea la fila del recurso** y calcula el **pico** de
+  ocupación del rango: la ocupación solo sube donde empieza una reserva, así que basta
+  mirarla en el inicio del rango y en cada inicio que caiga dentro. Medir el pico y no la
+  suma importa: 3 personas una noche y 3 la siguiente, en un dormitorio de 4, dejan lugar
+  para 1 que se quede las dos noches. Quitando el bloqueo, las inscripciones simultáneas
+  sobrevenden (comprobado).
+
+El trigger no corre cuando cambia el estado: si alguien baja la capacidad, registrar la
+llegada de una reserva que ya existía no puede fallar por eso. Y la app no deja bajar la
+capacidad por debajo de lo ya comprometido.
+
+La unidad y el modo quedan fijos con la primera reserva; el cobro por persona no (cada
+reserva guardó cómo se calculó la suya).
+
+### Lo que todavía NO cubre (a propósito)
+
+- **"Una doble cualquiera"** (reservar el tipo y asignar la habitación al llegar). Se puede
+  modelar como un recurso compartido "Dobles" de capacidad 10, pero se pierde saber en qué
+  habitación está cada uno; para hoteles conviene seguir asignando al reservar.
 - **Dos recursos por reserva** (masaje: terapeuta y cabina).
 - **Reservas recurrentes** (la cancha todos los martes).
 - **Tarifas por temporada o por persona.**
@@ -499,7 +529,10 @@ ni un doble clic ni dos recepcionistas a la vez se lo pueden saltar.
    - **No-show conserva lo cobrado**: para eso es un anticipo.
    - **Pendiente:** salida anticipada. Hoy la reserva sigue ocupando sus noches hasta el
      final y el total no cambia. Liberarlas es una decisión de tarifa (¿se devuelve?).
-3. **Columnas personalizadas en la reserva**, con el mismo mecanismo que productos y
+3. **Capacidad, cupos y cobro por persona.** Ver "Capacidad y cupos" arriba.
+4. **Horarios fijos.** Publicar los turnos de un servicio (yoga: martes y jueves a las
+   18:00) y que solo se pueda reservar en ellos.
+5. **Columnas personalizadas en la reserva**, con el mismo mecanismo que productos y
    servicios.
 
 ---

@@ -11,7 +11,8 @@ import {
   createResource as createResourceCore,
   markNoShow as markNoShowCore,
   registerPayment as registerPaymentCore,
-  setServiceBookingUnit as setServiceBookingUnitCore,
+  configureServiceBooking as configureServiceBookingCore,
+  updateResourceCapacity as updateResourceCapacityCore,
   type BookingResult,
   type CheckOutResult,
   type CreateBookingInput,
@@ -65,13 +66,27 @@ export async function cancelBooking(input: {
   }
 }
 
-export async function setServiceBookingUnit(input: {
+export async function configureServiceBooking(input: {
   serviceId: string;
   unidad: "noche" | "hora" | null;
+  compartido?: boolean;
+  porPersona?: boolean;
 }): Promise<Result> {
   const { tenantId, user } = await requireCapability("resource:manage");
   try {
-    return await setServiceBookingUnitCore({ tenantId, userId: user.id }, input);
+    return await configureServiceBookingCore({ tenantId, userId: user.id }, input);
+  } finally {
+    revalidateReservas();
+  }
+}
+
+export async function updateResourceCapacity(input: {
+  id: string;
+  capacity: number;
+}): Promise<Result> {
+  const { tenantId, user } = await requireCapability("resource:manage");
+  try {
+    return await updateResourceCapacityCore({ tenantId, userId: user.id }, input);
   } finally {
     revalidateReservas();
   }
@@ -81,6 +96,7 @@ export async function createResource(input: {
   serviceId: string;
   name: string;
   notes?: string;
+  capacity?: number;
 }): Promise<Result<{ id: string }>> {
   const { tenantId, user } = await requireCapability("resource:manage");
   try {

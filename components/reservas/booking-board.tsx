@@ -15,7 +15,12 @@ import { formatMoney } from "@/lib/format";
 import { compareMoney } from "@/lib/money";
 import { sumarDias, unidadLabel } from "@/lib/reservas/rango";
 import { cn } from "@/lib/utils";
-import { BookingDetail, BookingForm, type Inicial } from "./booking-dialogs";
+import {
+  BookingDetail,
+  BookingForm,
+  BookingList,
+  type Inicial,
+} from "./booking-dialogs";
 import type { CobroConfig } from "./booking-payment";
 import type { BoardBooking, BoardService } from "./types";
 
@@ -96,6 +101,13 @@ export function BookingBoard({
    */
   const [detalleId, setDetalleId] = useState<string | null>(null);
   const detalle = detalleId ? reservas.find((r) => r.id === detalleId) : undefined;
+
+  /**
+   * La lista de reservas de un turno o noche de un recurso compartido. Igual
+   * que el detalle, guarda ids y no copias: después de cancelar o agregar, la
+   * lista lee las reservas frescas.
+   */
+  const [lista, setLista] = useState<Lista | null>(null);
 
   const fechas = Array.from({ length: dias }, (_, i) => sumarDias(desde, i));
   const ultimo = fechas[fechas.length - 1];
@@ -246,6 +258,7 @@ export function BookingBoard({
                   canSetup={canSetup}
                   onNueva={nueva}
                   onVer={(b) => setDetalleId(b.id)}
+                  onLista={setLista}
                 />
               ))}
             </tbody>
@@ -263,6 +276,24 @@ export function BookingBoard({
           servicios={reservables}
           reservas={reservas}
           inicial={inicial}
+        />
+      )}
+
+      {lista && (
+        <BookingList
+          titulo={lista.titulo}
+          subtitulo={lista.subtitulo}
+          reservas={reservas.filter((r) => lista.ids.includes(r.id))}
+          puedeAgregar={canManage && lista.puedeAgregar}
+          onAgregar={() => {
+            setLista(null);
+            nueva(lista.inicial);
+          }}
+          onVer={(b) => {
+            setLista(null);
+            setDetalleId(b.id);
+          }}
+          onClose={() => setLista(null)}
         />
       )}
 
@@ -292,6 +323,15 @@ function Encabezado() {
   );
 }
 
+interface Lista {
+  titulo: string;
+  subtitulo: string;
+  ids: string[];
+  inicial: Inicial;
+  /** Falso si el turno ya pasó o está lleno. */
+  puedeAgregar: boolean;
+}
+
 function GrupoServicio({
   servicio,
   reservas,
@@ -301,6 +341,7 @@ function GrupoServicio({
   canSetup,
   onNueva,
   onVer,
+  onLista,
 }: {
   servicio: BoardService;
   reservas: BoardBooking[];
@@ -310,6 +351,7 @@ function GrupoServicio({
   canSetup: boolean;
   onNueva: (v: Inicial) => void;
   onVer: (b: BoardBooking) => void;
+  onLista: (l: Lista) => void;
 }) {
   return (
     <>
@@ -321,6 +363,8 @@ function GrupoServicio({
           {servicio.name}
           <span className="ml-2 font-mono font-normal text-muted-foreground">
             {formatMoney(servicio.price, servicio.currency)} {unidadLabel(servicio.unidad)}
+            {servicio.perPerson && " por persona"}
+            {servicio.shared && " · con cupos"}
           </span>
         </td>
       </tr>
@@ -348,7 +392,18 @@ function GrupoServicio({
             >
               {r.name}
             </th>
-            {servicio.unidad === "noche" ? (
+            {servicio.shared ? (
+              <CeldasCompartidas
+                servicio={servicio}
+                recurso={r}
+                reservas={reservas.filter((b) => b.resourceId === r.id)}
+                fechas={fechas}
+                hoy={hoy}
+                canManage={canManage}
+                onNueva={onNueva}
+                onLista={onLista}
+              />
+            ) : servicio.unidad === "noche" ? (
               <CeldasNoches
                 servicioId={servicio.id}
                 recursoId={r.id}
@@ -543,6 +598,160 @@ function CeldasHoras({
                   onClick={() =>
                     onNueva({ serviceId: servicioId, resourceId: recursoId, fecha: f })
                   }
+                  className="flex h-6 items-center justify-center rounded text-muted-foreground/0 hover:bg-muted hover:text-muted-foreground"
+                >
+                  <IconPlus className="size-3" />
+                  <span className="sr-only">Reservar el {f}</span>
+                </button>
+              )}
+            </div>
+          </td>
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * Un recurso compartido: lo que se pinta es la ocupación, no los nombres.
+ *
+ * Por noche, una celda por noche con "ocupados/capacidad". Por hora, una
+ * ficha por turno (mismo inicio y fin) con su ocupación. Tocar cualquiera abre
+ * la lista de reservas de ese turno, desde donde se ve cada una o se agrega
+ * otra.
+ */
+function CeldasCompartidas({
+  servicio,
+  recurso,
+  reservas,
+  fechas,
+  hoy,
+  canManage,
+  onNueva,
+  onLista,
+}: {
+  servicio: BoardService;
+  recurso: BoardService["resources"][number];
+  reservas: BoardBooking[];
+  fechas: string[];
+  hoy: string;
+  canManage: boolean;
+  onNueva: (v: Inicial) => void;
+  onLista: (l: Lista) => void;
+}) {
+  const cap = recurso.capacity;
+  const inicial = (f: string): Inicial => ({
+    serviceId: servicio.id,
+    resourceId: recurso.id,
+    fecha: f,
+  });
+
+  return (
+    <>
+      {fechas.map((f) => {
+        const pasado = f < hoy;
+
+        if (servicio.unidad === "noche") {
+          const deLaNoche = reservas.filter(
+            (b) => b.inicio.slice(0, 10) <= f && f < b.fin.slice(0, 10),
+          );
+          const ocupado = deLaNoche.reduce((acc, b) => acc + b.partySize, 0);
+          const lleno = ocupado >= cap;
+
+          if (deLaNoche.length === 0) {
+            return (
+              <td key={f} className={cn("h-10 p-0.5", f === hoy && "bg-primary/5")}>
+                {canManage && !pasado && (
+                  <button
+                    type="button"
+                    onClick={() => onNueva(inicial(f))}
+                    className="flex size-full items-center justify-center rounded font-mono text-[10px] text-muted-foreground/50 hover:bg-muted hover:text-muted-foreground"
+                  >
+                    0/{cap}
+                  </button>
+                )}
+              </td>
+            );
+          }
+
+          return (
+            <td key={f} className={cn("h-10 p-0.5", f === hoy && "bg-primary/5")}>
+              <button
+                type="button"
+                onClick={() =>
+                  onLista({
+                    titulo: `${recurso.name} · ${f}`,
+                    subtitulo: `${ocupado} de ${cap} cupos`,
+                    ids: deLaNoche.map((b) => b.id),
+                    inicial: inicial(f),
+                    puedeAgregar: !pasado && !lleno,
+                  })
+                }
+                className={cn(
+                  "flex size-full items-center justify-center gap-1 rounded font-mono text-[10px] font-medium",
+                  lleno
+                    ? "bg-destructive/15 text-destructive hover:bg-destructive/25"
+                    : "bg-primary/15 text-primary hover:bg-primary/25",
+                )}
+              >
+                {deLaNoche.some((b) => compareMoney(b.saldo, "0") > 0) && (
+                  <span
+                    aria-label="Con saldo pendiente"
+                    className="size-1.5 shrink-0 rounded-full bg-destructive"
+                  />
+                )}
+                {ocupado}/{cap}
+              </button>
+            </td>
+          );
+        }
+
+        // Por hora: se agrupan por turno (mismo inicio y fin).
+        const delDia = reservas.filter((b) => b.inicio.slice(0, 10) === f);
+        const turnos = new Map<string, BoardBooking[]>();
+        for (const b of delDia) {
+          const clave = `${b.inicio}|${b.fin}`;
+          turnos.set(clave, [...(turnos.get(clave) ?? []), b]);
+        }
+
+        return (
+          <td
+            key={f}
+            className={cn("min-h-10 p-0.5 align-top", f === hoy && "bg-primary/5")}
+          >
+            <div className="flex flex-col gap-0.5">
+              {[...turnos.entries()].map(([clave, grupo]) => {
+                const ocupado = grupo.reduce((acc, b) => acc + b.partySize, 0);
+                const lleno = ocupado >= cap;
+                const [ini, fin] = clave.split("|");
+                return (
+                  <button
+                    key={clave}
+                    type="button"
+                    onClick={() =>
+                      onLista({
+                        titulo: `${recurso.name} · ${f}`,
+                        subtitulo: `${ini.slice(11, 16)}–${fin.slice(11, 16)} · ${ocupado} de ${cap} cupos`,
+                        ids: grupo.map((b) => b.id),
+                        inicial: inicial(f),
+                        puedeAgregar: !pasado && !lleno,
+                      })
+                    }
+                    className={cn(
+                      "flex items-center gap-1 truncate rounded px-1 py-0.5 text-left font-mono text-[10px]",
+                      lleno
+                        ? "bg-destructive/15 text-destructive hover:bg-destructive/25"
+                        : "bg-primary/15 text-primary hover:bg-primary/25",
+                    )}
+                  >
+                    {ini.slice(11, 16)} · {ocupado}/{cap}
+                  </button>
+                );
+              })}
+              {canManage && !pasado && (
+                <button
+                  type="button"
+                  onClick={() => onNueva(inicial(f))}
                   className="flex h-6 items-center justify-center rounded text-muted-foreground/0 hover:bg-muted hover:text-muted-foreground"
                 >
                   <IconPlus className="size-3" />

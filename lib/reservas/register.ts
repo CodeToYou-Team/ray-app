@@ -30,14 +30,13 @@ import {
   isMoney,
   isRate,
   isZero,
-  lineSubtotal,
   normalizeMoney,
   normalizeRate,
   subtractMoney,
   sumMoney,
 } from "@/lib/money";
 import { bordesLocalesSql, periodoSql } from "./periodo";
-import { cantidad, hoyEn, type Rango } from "./rango";
+import { cantidad, hoyEn, totalReserva, type Rango } from "./rango";
 
 export interface ActorContext {
   tenantId: string;
@@ -80,6 +79,8 @@ const bookingSchema = z.object({
   resourceId: z.uuid("Elige el recurso"),
   rango: rangoSchema,
   holderName: z.string().trim().min(1, "Escribe a nombre de quién va").max(200),
+  /** Cuántas personas o cupos ocupa. Por defecto, una. */
+  personas: z.number().int("Las personas van en números enteros").min(1, "Al menos una persona").optional(),
   holderDocument: z.string().trim().max(50).optional(),
   holderPhone: z.string().trim().max(50).optional(),
   notes: z.string().trim().max(1000).optional(),
@@ -164,6 +165,19 @@ export async function createBooking(
         return { ok: false as const, error: `"${recurso.name}" está archivado.` };
       }
 
+      // Que el grupo quepa. En un compartido, además, que queden cupos: eso lo
+      // decide el trigger con la fila del recurso bloqueada, porque aquí
+      // contar "quedan 2" y después insertar tiene el hueco de siempre.
+      const personas = input.personas ?? 1;
+      if (personas > recurso.capacity) {
+        return {
+          ok: false as const,
+          error: servicio.bookingShared
+            ? `"${recurso.name}" tiene ${recurso.capacity} cupos en total.`
+            : `"${recurso.name}" admite hasta ${recurso.capacity} ${recurso.capacity === 1 ? "persona" : "personas"}.`,
+        };
+      }
+
       const unidades = cantidad(input.rango as Rango);
       if (!unidades.ok) return { ok: false as const, error: unidades.error };
 
@@ -184,6 +198,11 @@ export async function createBooking(
         serviceId: servicio.id,
         resourceId: recurso.id,
         period: periodoSql(input.rango as Rango, timezone),
+        partySize: personas,
+        // Copiados del servicio, como el precio: si mañana el tour pasa a
+        // cobrarse por grupo, esta reserva conserva cómo se calculó.
+        shared: servicio.bookingShared,
+        perPerson: servicio.bookingPerPerson,
         unitPrice,
         currency: servicio.currency,
         holderName: input.holderName,
@@ -204,6 +223,7 @@ export async function createBooking(
           recurso: recurso.name,
           rango: input.rango,
           titular: input.holderName,
+          personas,
         },
       });
 
@@ -212,18 +232,34 @@ export async function createBooking(
         id,
         qty: unidades.qty,
         unitPrice,
-        total: lineSubtotal(unidades.qty, unitPrice),
+        total: totalReserva({
+          qty: unidades.qty,
+          partySize: personas,
+          perPerson: servicio.bookingPerPerson,
+          unitPrice,
+        }),
         currency: servicio.currency,
       };
     });
   } catch (error) {
+    const code = pgCode(error);
     // 23P01 = exclusion_violation: el EXCLUDE de `bookings`. Es el caso
     // esperado, no un fallo: alguien ya tiene ese recurso en esas fechas.
-    if (pgCode(error) === "23P01") {
+    if (code === "23P01") {
       return {
         ok: false,
         error: "Ese recurso ya tiene una reserva que se cruza con esas fechas.",
       };
+    }
+    // RS001: el trigger de capacidad. Otra vez lo esperado, no un fallo.
+    if (code === "RS001") {
+      return {
+        ok: false,
+        error: "No quedan cupos suficientes en ese horario.",
+      };
+    }
+    if (code === "RS002") {
+      return { ok: false, error: "El grupo no cabe en ese recurso." };
     }
     return { ok: false, error: "No se pudo guardar la reserva." };
   }
@@ -294,16 +330,27 @@ export async function cancelBooking(
 // ---------------------------------------------------------------------------
 
 /**
- * Activa, cambia o quita la unidad de reserva de un servicio.
+ * Cómo se reserva un servicio: unidad, si es compartido y si cobra por persona.
  *
- * Solo si el servicio no tiene reservas, de ningún estado. Pasar de "por
- * noche" a "por hora" dejaría las reservas existentes con una cantidad que ya
- * no significa lo mismo; y quitarla dejaría reservas de un servicio que "no se
- * reserva". Si hace falta, se crea otro servicio.
+ * La UNIDAD y el MODO (exclusivo o compartido) solo cambian si el servicio no
+ * tiene reservas, de ningún estado:
+ * - pasar de "por noche" a "por hora" dejaría reservas cuya cantidad ya no
+ *   significa lo mismo;
+ * - pasar de exclusivo a compartido mezclaría en un mismo recurso reservas
+ *   que no se pueden solapar con otras que sí, y ninguna de las dos garantías
+ *   cubriría el cruce entre ellas.
+ *
+ * El COBRO por persona sí se puede cambiar en cualquier momento: cada reserva
+ * guardó cómo se calculaba la suya.
  */
-export async function setServiceBookingUnit(
+export async function configureServiceBooking(
   { tenantId, userId }: ActorContext,
-  input: { serviceId: string; unidad: "noche" | "hora" | null },
+  input: {
+    serviceId: string;
+    unidad: "noche" | "hora" | null;
+    compartido?: boolean;
+    porPersona?: boolean;
+  },
 ): Promise<Result> {
   try {
     return await withTenant(tenantId, async (tx) => {
@@ -318,24 +365,40 @@ export async function setServiceBookingUnit(
           ),
         );
       if (!servicio) return { ok: false as const, error: "Ese servicio ya no existe." };
-      if (servicio.bookingUnit === input.unidad) return { ok: true as const };
 
-      const [{ n }] = await tx
-        .select({ n: count() })
-        .from(bookings)
-        .where(
-          and(eq(bookings.tenantId, tenantId), eq(bookings.serviceId, servicio.id)),
-        );
-      if (n > 0) {
-        return {
-          ok: false as const,
-          error: `"${servicio.name}" ya tiene reservas. Para reservar de otra forma, crea otro servicio.`,
-        };
+      // Sin unidad, el servicio no se reserva: compartido y por persona no
+      // significan nada (y la base lo exige con un CHECK).
+      const unidad = input.unidad;
+      const compartido = unidad ? (input.compartido ?? servicio.bookingShared) : false;
+      const porPersona = unidad ? (input.porPersona ?? servicio.bookingPerPerson) : false;
+
+      const cambiaForma =
+        unidad !== servicio.bookingUnit || compartido !== servicio.bookingShared;
+      const cambiaCobro = porPersona !== servicio.bookingPerPerson;
+      if (!cambiaForma && !cambiaCobro) return { ok: true as const };
+
+      if (cambiaForma) {
+        const [{ n }] = await tx
+          .select({ n: count() })
+          .from(bookings)
+          .where(
+            and(eq(bookings.tenantId, tenantId), eq(bookings.serviceId, servicio.id)),
+          );
+        if (n > 0) {
+          return {
+            ok: false as const,
+            error: `"${servicio.name}" ya tiene reservas. Para reservar de otra forma, crea otro servicio.`,
+          };
+        }
       }
 
       await tx
         .update(services)
-        .set({ bookingUnit: input.unidad })
+        .set({
+          bookingUnit: unidad,
+          bookingShared: compartido,
+          bookingPerPerson: porPersona,
+        })
         .where(and(eq(services.id, servicio.id), eq(services.tenantId, tenantId)));
 
       await tx.insert(auditLog).values({
@@ -345,7 +408,11 @@ export async function setServiceBookingUnit(
         entityId: servicio.id,
         action: "update",
         actorId: userId,
-        diff: { bookingUnit: { from: servicio.bookingUnit, to: input.unidad } },
+        diff: {
+          bookingUnit: { from: servicio.bookingUnit, to: unidad },
+          bookingShared: { from: servicio.bookingShared, to: compartido },
+          bookingPerPerson: { from: servicio.bookingPerPerson, to: porPersona },
+        },
       });
 
       return { ok: true as const };
@@ -355,10 +422,17 @@ export async function setServiceBookingUnit(
   }
 }
 
+const capacidadSchema = z
+  .number()
+  .int("La capacidad va en números enteros")
+  .min(1, "La capacidad tiene que ser al menos 1")
+  .max(10000);
+
 const resourceSchema = z.object({
   serviceId: z.uuid(),
   name: z.string().trim().min(1, "Escribe un nombre, como 101 o Cancha 2").max(100),
   notes: z.string().trim().max(500).optional(),
+  capacity: capacidadSchema.optional(),
 });
 
 export async function createResource(
@@ -396,6 +470,7 @@ export async function createResource(
         serviceId: servicio.id,
         name: input.name,
         notes: input.notes || null,
+        capacity: input.capacity ?? 1,
       });
 
       await tx.insert(auditLog).values({
@@ -405,7 +480,7 @@ export async function createResource(
         entityId: id,
         action: "create",
         actorId: userId,
-        diff: { name: input.name, servicio: servicio.name },
+        diff: { name: input.name, servicio: servicio.name, capacidad: input.capacity ?? 1 },
       });
 
       return { ok: true as const, id };
@@ -541,6 +616,8 @@ async function cargarReserva(
       resourceId: bookings.resourceId,
       currency: bookings.currency,
       unitPrice: bookings.unitPrice,
+      partySize: bookings.partySize,
+      perPerson: bookings.perPerson,
       holderName: bookings.holderName,
       inicio: bordes.inicio,
       fin: bordes.fin,
@@ -575,7 +652,12 @@ async function cargarReserva(
           fin: b.fin.slice(11, 16),
         };
   const c = cantidad(rango);
-  const total = lineSubtotal(c.ok ? c.qty : "0", b.unitPrice);
+  const total = totalReserva({
+    qty: c.ok ? c.qty : "0",
+    partySize: b.partySize,
+    perPerson: b.perPerson,
+    unitPrice: b.unitPrice,
+  });
 
   // Solo cuentan los cobros cuya transacción sigue viva: anular el cobro en
   // Finanzas lo saca del saldo, que es justamente la forma de corregirlo.
@@ -1014,4 +1096,120 @@ export async function registerPayment(
     }
     return { ok: false, error: "No se pudo registrar el cobro." };
   }
+}
+
+/**
+ * Cambia la capacidad de un recurso.
+ *
+ * Subirla siempre se puede. Bajarla, solo hasta lo que ya está comprometido
+ * en reservas que no terminaron: si la clase del martes ya tiene 12
+ * inscritos, no puede pasar a tener 10 cupos y dejar a dos sin lugar en
+ * silencio.
+ *
+ * Bloquea la fila del recurso, igual que el trigger que valida las reservas
+ * compartidas: así una inscripción no puede colarse entre "cuento los
+ * comprometidos" y "bajo la capacidad".
+ */
+export async function updateResourceCapacity(
+  { tenantId, userId }: ActorContext,
+  input: { id: string; capacity: number },
+): Promise<Result> {
+  const cap = capacidadSchema.safeParse(input.capacity);
+  if (!cap.success) return { ok: false, error: cap.error.issues[0].message };
+  const nueva = cap.data;
+
+  try {
+    return await withTenant(tenantId, async (tx) => {
+      const [recurso] = await tx
+        .select({
+          id: resources.id,
+          name: resources.name,
+          capacity: resources.capacity,
+          shared: services.bookingShared,
+        })
+        .from(resources)
+        .innerJoin(
+          services,
+          and(eq(services.id, resources.serviceId), eq(services.tenantId, resources.tenantId)),
+        )
+        .where(and(eq(resources.id, input.id), eq(resources.tenantId, tenantId)))
+        .for("update", { of: resources });
+
+      if (!recurso) return { ok: false as const, error: "No se encontró ese recurso." };
+      if (recurso.capacity === nueva) return { ok: true as const };
+
+      if (nueva < recurso.capacity) {
+        const pendientes = await tx
+          .select({
+            desde: sql<number>`extract(epoch from lower(${bookings.period}))`,
+            hasta: sql<number>`extract(epoch from upper(${bookings.period}))`,
+            personas: bookings.partySize,
+          })
+          .from(bookings)
+          .where(
+            and(
+              eq(bookings.tenantId, tenantId),
+              eq(bookings.resourceId, recurso.id),
+              ne(bookings.status, "cancelada"),
+              ne(bookings.status, "no_show"),
+              sql`upper(${bookings.period}) > now()`,
+            ),
+          );
+
+        const comprometido = recurso.shared
+          ? picoDeOcupacion(pendientes)
+          : Math.max(0, ...pendientes.map((p) => p.personas));
+
+        if (nueva < comprometido) {
+          return {
+            ok: false as const,
+            error: recurso.shared
+              ? `"${recurso.name}" ya tiene momentos con ${comprometido} cupos ocupados. No se puede bajar a ${nueva}.`
+              : `"${recurso.name}" tiene una reserva para ${comprometido} personas. No se puede bajar a ${nueva}.`,
+          };
+        }
+      }
+
+      await tx
+        .update(resources)
+        .set({ capacity: nueva })
+        .where(and(eq(resources.id, recurso.id), eq(resources.tenantId, tenantId)));
+
+      await tx.insert(auditLog).values({
+        id: uuidv7(),
+        tenantId,
+        entity: "resources",
+        entityId: recurso.id,
+        action: "update",
+        actorId: userId,
+        diff: { capacity: { from: recurso.capacity, to: nueva } },
+      });
+
+      return { ok: true as const };
+    });
+  } catch {
+    return { ok: false, error: "No se pudo cambiar la capacidad." };
+  }
+}
+
+/**
+ * El pico de ocupación de un conjunto de reservas: la mayor cantidad de
+ * personas a la vez. Mismo criterio que el trigger: la ocupación solo sube
+ * donde empieza una reserva, así que basta mirar cada inicio.
+ */
+export function picoDeOcupacion(
+  reservas: { desde: number; hasta: number; personas: number }[],
+): number {
+  let pico = 0;
+  for (const punto of reservas) {
+    let ocupado = 0;
+    for (const r of reservas) {
+      // Semiabierto: [desde, hasta).
+      if (Number(r.desde) <= Number(punto.desde) && Number(punto.desde) < Number(r.hasta)) {
+        ocupado += r.personas;
+      }
+    }
+    pico = Math.max(pico, ocupado);
+  }
+  return pico;
 }
