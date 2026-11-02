@@ -95,23 +95,52 @@ Tras añadir la conversión de moneda en ventas, quedaron mensajes que ya no son
 - **La pantalla de login no enlaza al registro**: se llega con el enlace que da el dueño.
 - **No hay recuperación de contraseña** desde la app.
 
-## Trabajo en curso: Reservas
+## Reservas
 
-En el árbol de trabajo hay cambios **sin commit** para un módulo de **reservas** (habitaciones,
-canchas, salas, equipos). No forma parte del estado descrito en estos documentos; lo que se ve
-hasta ahora:
+El módulo está descrito en [Reservas](08-reservas.md). Lo que hoy no hace o hace a medias:
 
-- Diseño en la sección "Reservas: recurso + rango de tiempo" de
-  [`../plan_arquitectura_v2.md`](../plan_arquitectura_v2.md): un servicio es reservable si tiene
-  unidad (`noche` u `hora`), cada recurso físico pertenece a un servicio, y Postgres impide dos
-  reservas solapadas del mismo recurso con una restricción `EXCLUDE`.
-- Nueva migración `drizzle/0016_bookings.sql` y tablas en el esquema.
-- Permisos nuevos: `booking:read` y `booking:manage` (los tres roles) y `resource:manage` (dueño
-  y encargado).
-- Rutas registradas en el menú: **Reservas › Disponibilidad** (`/reservas`) y **Recursos**
-  (`/reservas/recursos`), con sus páginas en construcción.
-- Fase 1 prevista: recursos, crear y cancelar reservas, y cuadrícula de disponibilidad. El cobro,
-  check-in/check-out y columnas personalizadas en reservas van en fases posteriores.
+### Un servicio "no disponible" se sigue pudiendo reservar
 
-Cuando se haga commit, conviene añadir un documento `08-reservas.md` y actualizar el mapa de
-pantallas del [índice](README.md).
+El interruptor **Disponible para vender** de un servicio lo saca de las ventas, pero **la cuadrícula
+y el formulario de reservas no lo miran**: si el servicio es reservable, sigue apareciendo y
+aceptando reservas. Un servicio **archivado**, en cambio, sí desaparece.
+
+- Dónde: `listBookableServices` ([`lib/reservas/queries.ts`](../../lib/reservas/queries.ts)) y
+  `createBooking` ([`lib/reservas/register.ts`](../../lib/reservas/register.ts)) no filtran por
+  `is_active`.
+
+### Una reserva no se puede modificar
+
+No hay forma de cambiar las fechas, el recurso o la cantidad de personas de una reserva hecha. Hay
+que cancelarla y crear otra (lo cobrado se queda en la primera: habría que anular esos cobros y
+volver a cobrar en la nueva).
+
+### Salida anticipada
+
+Si alguien reservó hasta el 14 y se va el 12, el check-out se registra el 12, pero el recurso
+**sigue ocupado hasta el 14** y el total no cambia. Liberar las noches no usadas implica decidir si
+se devuelve dinero, y está pendiente.
+
+### Otras limitaciones
+
+- **Fechas pasadas**: la cuadrícula no ofrece reservar en días pasados, pero el formulario deja
+  escribir una fecha pasada y la reserva se acepta.
+- **Sin listado ni búsqueda de reservas**: solo existe la cuadrícula de 14 días. Encontrar una
+  reserva concreta, o las que salieron con saldo pendiente, obliga a recorrerla.
+- **Por hora**, la reserva no puede cruzar la medianoche y va en tramos de 30 minutos.
+- **Compartidos por hora**: la cuadrícula agrupa por turno exacto (mismo inicio y fin). Dos
+  reservas que se solapan con horas distintas aparecen como fichas separadas, aunque el control de
+  cupos sí las cuenta juntas.
+- **Cancelar no devuelve dinero**: los cobros de una reserva cancelada siguen siendo ingresos
+  hasta que se anulen en Finanzas.
+- No hay "una doble cualquiera" (asignar la habitación al llegar), reservas con dos recursos ni
+  reservas recurrentes.
+
+## Trabajo en curso
+
+- **Reservas con horarios fijos**: publicar los turnos de un servicio (yoga, martes y jueves a las
+  18:00) y que solo se pueda reservar en ellos.
+- **Columnas personalizadas en la reserva**, con el mismo mecanismo que productos y servicios.
+
+El plan completo está en la sección "Reservas" de
+[`../plan_arquitectura_v2.md`](../plan_arquitectura_v2.md).

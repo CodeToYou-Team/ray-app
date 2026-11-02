@@ -113,6 +113,12 @@ en tablas.
 | `field:manage` | Configurar columnas de productos y servicios | ✔ | — | — |
 | `member:manage` | Invitar, cambiar roles y quitar personas | ✔ | — | — |
 | `tenant:manage` | Moneda por defecto y tasas de cambio | ✔ | — | — |
+| `booking:read` | Ver la disponibilidad y las reservas | ✔ | ✔ | ✔ |
+| `booking:manage` | Reservar, cancelar, registrar llegada, salida y no presentado | ✔ | ✔ | ✔ |
+| `resource:manage` | Decidir qué servicios se reservan y con qué recursos | ✔ | ✔ | — |
+
+Cobrar una reserva no tiene permiso propio: registra un ingreso, así que exige
+`transaction:create`.
 
 Además existen `transaction:read_all` (dueño y encargado) y `transaction:read_own` (personal),
 pero **hoy no se aplican**: ver [limitaciones](07-limitaciones-y-pendientes.md#el-rol-personal-ve-todas-las-operaciones-y-sus-totales).
@@ -129,11 +135,11 @@ En la pantalla de Equipo los roles se describen así:
 1. **Menú lateral.** Se ocultan los enlaces a pantallas que el rol no puede abrir. Un grupo
    (por ejemplo Ajustes) solo desaparece si ninguna de sus secciones es accesible. Es
    comodidad, no seguridad.
-2. **Páginas protegidas.** Reportes, Historial, Negocio, Columnas y Equipo comprueban el permiso
-   al cargarse. Si falta, muestran una tarjeta **"No tienes acceso"** con una explicación del
+2. **Páginas protegidas.** Reportes, Historial, Negocio, Columnas, Equipo, Disponibilidad y
+   Recursos comprueban el permiso al cargarse. Si falta, muestran una tarjeta **"No tienes acceso"** con una explicación del
    motivo y un botón para volver al inicio.
-3. **Botones.** Corregir, Anular, Nuevo producto, Ajustar inventario, editar catálogos… solo se
-   pintan si el rol tiene el permiso.
+3. **Botones.** Corregir, Anular, Nuevo producto, Ajustar inventario, editar catálogos, Nueva
+   reserva, Cobrar… solo se pintan si el rol tiene el permiso.
 4. **Server Actions.** Cada escritura empieza con `requireCapability(...)`. Aunque alguien
    invoque la acción directamente, sin el permiso falla. Esta es la comprobación que de verdad
    protege.
@@ -153,6 +159,7 @@ Orden de las secciones (filtrado según el rol):
 - **Inicio**
 - **Finanzas** → Ingresos · Gastos · Movimientos · Reportes · Historial
 - **Productos**
+- **Reservas** → Disponibilidad · Recursos
 - **Inventario** → Stock · Alertas
 - *(abajo)* **Ajustes** → Negocio · Catálogos · Columnas · Equipo
 - *(abajo del todo)* Usuario: nombre y correo; su menú tiene **Modo claro/oscuro**, el rol y

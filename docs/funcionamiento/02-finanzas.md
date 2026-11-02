@@ -178,6 +178,13 @@ principio, y el historial muestra que hubo una corrección.
 La auditoría guarda qué campos cambiaron (`desde → hasta`). No se puede corregir una operación
 anulada.
 
+**Los cobros de reservas no se corrigen desde aquí.** Aparecen como operaciones sueltas con el
+concepto `Reserva <recurso> · <titular>`, pero la reserva guardó cuánto le abonó cada uno; si
+aquí cambiara el monto, la transacción diría una cosa y el saldo de la reserva otra. El formulario
+lo rechaza con "Este cobro pertenece a una reserva. Para corregirlo, anúlalo y vuelve a cobrar
+desde la reserva.", y la base de datos impide cambiar su monto, moneda o tasa por cualquier otra
+vía. Ver [Reservas](08-reservas.md#los-cobros-en-finanzas).
+
 ## Anular una operación
 
 Menú ⋮ › **Anular** (solo dueño). Se ejecuta al momento, sin diálogo de confirmación.
@@ -188,6 +195,8 @@ Menú ⋮ › **Anular** (solo dueño). Se ejecuta al momento, sin diálogo de c
   `anulacion`): una venta anulada devuelve las unidades, una compra anulada las retira.
 - Se registra en la auditoría.
 - No se puede anular dos veces.
+- Si es el **cobro de una reserva**, además vuelve a subir el saldo de esa reserva. Es la forma de
+  corregir un cobro equivocado o de registrar que se devolvió un anticipo.
 
 ## Monedas
 

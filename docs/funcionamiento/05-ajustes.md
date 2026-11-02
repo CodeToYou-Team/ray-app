@@ -37,7 +37,7 @@ se fijaron.
   operación guardó la suya).
 
 Para qué sirve: es la tasa con la que llega **precargado** el formulario al registrar una venta
-cobrada en otra moneda. Si no hay ninguna fijada para ese par, se propone la última usada. Ver
+cobrada en otra moneda, o al [cobrar una reserva](08-reservas.md#cobrar) en otra moneda. Si no hay ninguna fijada para ese par, se propone la última usada. Ver
 [Finanzas › tasa de cambio](02-finanzas.md#venta-en-otra-moneda-la-tasa-de-cambio).
 
 **Cambiar o quitar una tasa no modifica ninguna operación ya registrada.**

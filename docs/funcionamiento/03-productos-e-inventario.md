@@ -6,7 +6,9 @@ Una sola pantalla con dos pestañas: **Productos (n)** y **Servicios (n)** (el n
 no archivados).
 
 - **Productos** llevan inventario.
-- **Servicios** no tienen stock.
+- **Servicios** no tienen stock. Un servicio también puede volverse **reservable** (una
+  habitación por noche, una cancha por hora, una clase con cupos) desde **Reservas › Recursos**:
+  ver [Reservas](08-reservas.md).
 
 ### Listado
 
@@ -47,7 +49,7 @@ Botón **Nuevo producto** / **Nuevo servicio** (según la pestaña activa) o el 
 | Moneda | ✔ | ✔ | Por defecto la moneda del negocio (Ajustes › Negocio) |
 | Stock mínimo | opcional | — | Por debajo de esto, el producto aparece como "stock bajo" |
 | Stock inicial | solo al crear | — | Se registra como un movimiento `inicial`, no como un número suelto |
-| Disponible para vender | ✔ | ✔ | Si se apaga, deja de aparecer al registrar ventas y compras |
+| Disponible para vender | ✔ | ✔ | Si se apaga, deja de aparecer al registrar ventas y compras. Las reservas **no** lo respetan todavía: ver [limitaciones](07-limitaciones-y-pendientes.md#reservas) |
 | Columnas personalizadas | ✔ | ✔ | Las configuradas por el dueño; se validan según su tipo |
 
 Al guardar:

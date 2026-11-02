@@ -1,6 +1,7 @@
 # Funcionamiento actual de Ray App
 
-> Estado descrito: rama `testing`, commit `d134eda` (1 de noviembre de 2026).
+> Estado descrito: rama `testing`, commit `b740023` (1 de noviembre de 2026), que incluye el
+> módulo de reservas hasta la capacidad y el cobro por persona.
 > Estos documentos describen **lo que la aplicación hace hoy**, leído del código.
 > El plan a futuro vive en [`../plan_arquitectura_v2.md`](../plan_arquitectura_v2.md) y la
 > puesta en marcha de la base de datos en [`../setup.md`](../setup.md).
@@ -8,8 +9,8 @@
 ## Qué es
 
 Ray App es una aplicación web para pequeños negocios que necesitan llevar **ingresos, gastos,
-catálogo de productos y servicios, e inventario**, cobrando en varias monedas a la vez
-(dólares, bolívares, euros, USDT, USDC…).
+catálogo de productos y servicios, inventario y reservas** (habitaciones, canchas, clases,
+equipos), cobrando en varias monedas a la vez (dólares, bolívares, euros, USDT, USDC…).
 
 Es **multi-cliente** (multi-tenant): varios negocios comparten la misma instalación y cada uno
 solo ve sus propios datos. Cada usuario pertenece a un negocio y tiene un rol (dueño, encargado
@@ -26,6 +27,7 @@ o personal) que decide qué puede ver y hacer.
 | 5 | [Ajustes](05-ajustes.md) | Negocio (moneda y tasas), catálogos, columnas personalizadas, equipo |
 | 6 | [Arquitectura técnica](06-arquitectura-tecnica.md) | Stack, capas, aislamiento entre clientes, modelo de datos, dinero, auditoría |
 | 7 | [Limitaciones conocidas y trabajo en curso](07-limitaciones-y-pendientes.md) | Huecos detectados al revisar el código y lo que está en desarrollo |
+| 8 | [Reservas](08-reservas.md) | Servicios reservables, recursos y capacidad, disponibilidad, check-in/check-out y cobros |
 
 ## Mapa de pantallas
 
@@ -47,6 +49,8 @@ con el título de la sección arriba y el contenido en el centro.
 | `/productos` | Productos y servicios | Todos los roles (editar: dueño y encargado) |
 | `/inventario` | Stock | Todos los roles |
 | `/inventario/alertas` | Alertas de inventario | Todos los roles |
+| `/reservas` | Disponibilidad: cuadrícula de recursos × días | Todos los roles |
+| `/reservas/recursos` | Qué servicios se reservan, cómo y con qué recursos | Dueño y encargado |
 | `/ajustes` | Redirige a la primera sección permitida | — |
 | `/ajustes/negocio` | Moneda por defecto y tasas de cambio | Solo dueño |
 | `/ajustes/catalogos` | Categorías y métodos de pago | Todos (editar: dueño y encargado) |
@@ -68,8 +72,9 @@ vista. Se detallan en cada documento.
 3. **Lo registrado no cambia solo.** El precio de cada renglón de una venta, la moneda y la tasa
    de cambio se guardan con la operación. Cambiar después un precio, una tasa o un método de
    pago no altera lo que ya se registró.
-4. **Nada se borra de verdad.** Las operaciones se anulan, los productos, categorías y columnas
-   se archivan. El historial siempre se puede reconstruir.
+4. **Nada se borra de verdad.** Las operaciones se anulan; los productos, categorías, columnas
+   y recursos se archivan; las reservas se cancelan. El historial siempre se puede reconstruir.
+   (La única excepción son las tasas vigentes de Ajustes, que no tienen historia que guardar.)
 5. **El stock no es un número guardado.** Es la suma de todas las entradas y salidas
    registradas. Para corregirlo se agrega un movimiento, nunca se sobrescribe.
 6. **Cada acción comprueba el permiso en el servidor.** Ocultar un botón en la interfaz es solo
@@ -88,4 +93,11 @@ vista. Se detallan en cada documento.
 | Corregir | Editar una operación ya registrada (concepto, fecha, montos, renglones…). |
 | Archivar | Ocultar algo de los selectores nuevos sin borrarlo del historial. |
 | Movimiento de stock | Una entrada (+) o salida (−) de unidades de un producto, con su motivo. |
-| Tasa sugerida | El número con que llega precargado el campo de tasa al registrar una venta. |
+| Tasa sugerida | El número con que llega precargado el campo de tasa al registrar una venta o cobrar una reserva. |
+| Recurso | Lo que se reserva: una habitación, una cancha, una sala, un equipo. |
+| Reserva | Un recurso ocupado durante un rango de noches u horas, a nombre de alguien. |
+| Exclusivo | Servicio cuyos recursos admiten una reserva a la vez (una habitación). |
+| Compartido | Servicio cuyos recursos admiten varias reservas a la vez hasta llenar la capacidad (una clase). |
+| Capacidad | En un exclusivo, personas por reserva; en un compartido, personas en total a la vez. |
+| Cobro de reserva | Un ingreso ligado a una reserva. Baja su saldo. |
+| Check-in / check-out | Registrar la llegada y la salida de una reserva. |
