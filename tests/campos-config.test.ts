@@ -338,6 +338,38 @@ describe.skipIf(!hasDb)("configuracion de columnas", () => {
     expect(fila.custom.marca).toBe("ACME");
   });
 
+  it("un campo oculto no se exige y conserva su valor al editar", async () => {
+    const lote = await createField(ctx, { entity: "product", label: "Lote", type: "text" });
+    if (!lote.ok) throw new Error(lote.error);
+
+    const p = await registerProduct(ctx, {
+      name: "Con lote",
+      categoryId: catProd,
+      price: "10.00",
+      currency: "USD",
+      custom: { marca: "ACME", obligatorio_nuevo: "x", lote: "L-42" },
+    });
+    if (!p.ok) throw new Error(p.error);
+
+    // Oculto Y obligatorio: el formulario ya no lo muestra ni lo manda.
+    expect(
+      (await updateField(ctx, lote.id, { label: "Lote", hidden: true, required: true })).ok,
+    ).toBe(true);
+
+    const r = await updateProduct(ctx, p.id, {
+      name: "Con lote",
+      categoryId: catProd,
+      price: "12.00",
+      currency: "USD",
+      custom: { marca: "ACME", obligatorio_nuevo: "x" },
+    });
+    expect(r.ok).toBe(true);
+
+    const [fila] = await sql<{ custom: Record<string, unknown> }[]>`
+      select custom from products where id = ${p.id}`;
+    expect(fila.custom.lote).toBe("L-42");
+  });
+
   it("un cliente no ve la configuracion de columnas de otro", async () => {
     const otro = uuidv7();
     await sql`insert into tenants (id, name, slug) values (${otro}, 'Otro', ${"o-" + otro.slice(0, 8)})`;

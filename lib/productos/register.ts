@@ -13,9 +13,7 @@ import {
 } from "@/lib/db/schema";
 import { isMoney, isQuantity, normalizeMoney, normalizeQuantity, isZero } from "@/lib/money";
 import { isKnownCurrency } from "@/lib/currencies";
-import { loadFieldConfigIn } from "@/lib/fields/queries";
-import { resolveFields } from "@/lib/fields/resolve";
-import { validateCustomValues } from "@/lib/fields/validate";
+import { validateCustomIn } from "@/lib/fields/queries";
 import type { Tx } from "@/lib/db";
 import type { FieldEntity } from "@/lib/db/schema";
 import { contarPendientes } from "@/lib/reservas/register";
@@ -72,20 +70,20 @@ const serviceSchema = productSchema.omit({
  *
  * Corre dentro de la misma transaccion que la escritura: si alguien cambia la
  * configuracion mientras se guarda, se valida contra una foto consistente.
+ *
+ * `previos` es lo que el registro ya tenia: los campos ocultos no estan en el
+ * formulario, asi que no se exigen y conservan su valor (ver
+ * `validateCustomIn`).
  */
 async function resolveCustom(
   tx: Tx,
   tenantId: string,
   entity: FieldEntity,
   raw: Record<string, unknown> | undefined,
+  previos?: Record<string, unknown>,
 ): Promise<{ values: Record<string, unknown> } | { error: string; field: string }> {
-  const config = await loadFieldConfigIn(tx, tenantId, entity);
-  const fields = resolveFields(entity, config, { includeHidden: true });
-
-  const result = validateCustomValues(fields, raw ?? {});
-  if (!result.ok) {
-    return { error: result.issues[0].message, field: result.issues[0].key };
-  }
+  const result = await validateCustomIn(tx, tenantId, entity, raw, previos);
+  if (!result.ok) return { error: result.error, field: result.field };
   return { values: result.values };
 }
 
@@ -246,7 +244,7 @@ export async function updateProduct(
       );
       if (problema) return { ok: false as const, error: problema, field: "categoryId" };
 
-      const custom = await resolveCustom(tx, tenantId, "product", input.custom);
+      const custom = await resolveCustom(tx, tenantId, "product", input.custom, before.custom);
       if ("error" in custom) {
         return { ok: false as const, error: custom.error, field: custom.field };
       }
@@ -481,7 +479,7 @@ export async function updateService(
       );
       if (problema) return { ok: false as const, error: problema, field: "categoryId" };
 
-      const custom = await resolveCustom(tx, tenantId, "service", input.custom);
+      const custom = await resolveCustom(tx, tenantId, "service", input.custom, before.custom);
       if ("error" in custom) {
         return { ok: false as const, error: custom.error, field: custom.field };
       }

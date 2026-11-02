@@ -150,6 +150,8 @@ Reglas:
   un sufijo.
 - **Archivar** una columna personalizada la quita del formulario y del listado. Los valores
   ya guardados se quedan en la base, pero se pierden en cada producto que se vuelva a guardar.
+- **Ocultar** una columna la quita del formulario sin tocar sus datos: no se exige aunque sea
+  obligatoria, y cada registro conserva el valor que ya tenía al volver a guardarse.
 - Para "cambiar el tipo" de una columna: crear una nueva y archivar la vieja.
 
 ### Validación
