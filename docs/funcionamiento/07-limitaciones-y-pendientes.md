@@ -116,8 +116,9 @@ cobrarlo en la nueva.
 
 - **Fechas pasadas**: la cuadrícula no ofrece reservar en días pasados, pero el formulario deja
   escribir una fecha pasada y la reserva se acepta.
-- **Sin listado ni búsqueda de reservas**: solo existe la cuadrícula de 14 días. Encontrar una
-  reserva concreta, o las que salieron con saldo pendiente, obliga a recorrerla.
+- **Modificar desde el listado** muestra como "ocupado" solo lo que está en la página visible: la
+  disponibilidad que ofrece el formulario es orientativa. Si el recurso ya está tomado, la base de
+  datos lo rechaza igual al guardar.
 - **Por hora**, la reserva no puede cruzar la medianoche y va en tramos de 30 minutos.
 - **Compartidos por hora**: la cuadrícula agrupa por turno exacto (mismo inicio y fin). Dos
   reservas que se solapan con horas distintas aparecen como fichas separadas, aunque el control de

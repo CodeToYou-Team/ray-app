@@ -135,8 +135,8 @@ En la pantalla de Equipo los roles se describen así:
 1. **Menú lateral.** Se ocultan los enlaces a pantallas que el rol no puede abrir. Un grupo
    (por ejemplo Ajustes) solo desaparece si ninguna de sus secciones es accesible. Es
    comodidad, no seguridad.
-2. **Páginas protegidas.** Reportes, Historial, Negocio, Columnas, Equipo, Disponibilidad y
-   Recursos comprueban el permiso al cargarse. Si falta, muestran una tarjeta **"No tienes acceso"** con una explicación del
+2. **Páginas protegidas.** Reportes, Historial, Negocio, Columnas, Equipo, Disponibilidad,
+   Listado de reservas y Recursos comprueban el permiso al cargarse. Si falta, muestran una tarjeta **"No tienes acceso"** con una explicación del
    motivo y un botón para volver al inicio.
 3. **Botones.** Corregir, Anular, Nuevo producto, Ajustar inventario, editar catálogos, Nueva
    reserva, Cobrar… solo se pintan si el rol tiene el permiso.
@@ -159,7 +159,7 @@ Orden de las secciones (filtrado según el rol):
 - **Inicio**
 - **Finanzas** → Ingresos · Gastos · Movimientos · Reportes · Historial
 - **Productos**
-- **Reservas** → Disponibilidad · Recursos
+- **Reservas** → Disponibilidad · Listado · Recursos
 - **Inventario** → Stock · Alertas
 - *(abajo)* **Ajustes** → Negocio · Catálogos · Columnas · Equipo
 - *(abajo del todo)* Usuario: nombre y correo; su menú tiene **Modo claro/oscuro**, el rol y

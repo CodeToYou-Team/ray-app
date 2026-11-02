@@ -47,6 +47,8 @@ describe("menu segun el rol", () => {
   it("la recepcion reserva, pero no decide que habitaciones existen", () => {
     const hrefs = hrefsVisibles("staff");
     expect(hrefs).toContain("/reservas");
+    // Buscar una reserva o ver quién debe es trabajo de recepción.
+    expect(hrefs).toContain("/reservas/listado");
     expect(hrefs).not.toContain("/reservas/recursos");
 
     // El encargado si administra los recursos.

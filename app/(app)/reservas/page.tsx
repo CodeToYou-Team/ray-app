@@ -5,9 +5,7 @@ import { roleHas } from "@/lib/authz/roles";
 import { SinPermiso } from "@/components/layout/sin-permiso";
 import { bookingsInWindow, listBookableServices } from "@/lib/reservas/queries";
 import { fechaValida, hoyEn, sumarDias } from "@/lib/reservas/rango";
-import { listCatalogs } from "@/lib/catalogs/queries";
-import { lastExchangeRates } from "@/lib/finanzas/queries";
-import { rateSuggestions } from "@/lib/tenant/rates";
+import { loadCobroConfig } from "@/lib/reservas/page-data";
 
 /** Cuántos días muestra la cuadrícula de una vez. Dos semanas. */
 const DIAS = 14;
@@ -43,19 +41,10 @@ export default async function ReservasPage({
   const desde = params.desde && fechaValida(params.desde) ? params.desde : hoy;
   const hasta = sumarDias(desde, DIAS);
 
-  // Cobrar es registrar un ingreso: lo que hace falta para eso solo se carga
-  // si el rol puede hacerlo.
-  const canCharge = roleHas(role, "transaction:create");
-
-  const [servicios, reservas, catalogos, tasas] = await Promise.all([
+  const [servicios, reservas, cobro] = await Promise.all([
     listBookableServices(tenantId),
     bookingsInWindow(tenantId, timezone, { desde, hasta }),
-    canCharge
-      ? listCatalogs(tenantId, ["income_category", "payment_method"])
-      : Promise.resolve(null),
-    canCharge
-      ? lastExchangeRates(tenantId).then((u) => rateSuggestions(tenantId, u))
-      : Promise.resolve({}),
+    loadCobroConfig(tenantId, role),
   ]);
 
   return (
@@ -68,22 +57,7 @@ export default async function ReservasPage({
         hoy={hoy}
         canManage={roleHas(role, "booking:manage")}
         canSetup={roleHas(role, "resource:manage")}
-        cobro={
-          catalogos
-            ? {
-                paymentMethods: (catalogos.payment_method ?? []).map((m) => ({
-                  id: m.id,
-                  label: m.label,
-                  currency: m.currency ?? "",
-                })),
-                categories: (catalogos.income_category ?? []).map((c) => ({
-                  id: c.id,
-                  label: c.label,
-                })),
-                tasas,
-              }
-            : null
-        }
+        cobro={cobro}
       />
     </PageTransition>
   );

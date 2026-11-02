@@ -317,7 +317,6 @@ export function BookingBoard({
         <BookingDetail
           key={detalle.id}
           reserva={detalle}
-          servicio={servicios.find((s) => s.id === detalle.serviceId)}
           hoy={hoy}
           canManage={canManage}
           cobro={cobro}

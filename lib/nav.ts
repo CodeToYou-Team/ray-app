@@ -66,6 +66,12 @@ export const ROUTES: RouteDef[] = [
     description: "Disponibilidad y reservas de habitaciones, canchas o equipos",
   },
   {
+    pattern: "/reservas/listado",
+    title: "Listado de reservas",
+    description: "Buscar reservas y ver cuánto se debe",
+    navLabel: "Listado",
+  },
+  {
     pattern: "/reservas/recursos",
     title: "Recursos",
     description: "Qué se reserva y con qué habitaciones, canchas o equipos",
@@ -164,6 +170,7 @@ const ROUTE_CAPABILITY: Record<string, Capability> = {
   "/ajustes/usuarios": "member:manage",
   "/ajustes/negocio": "tenant:manage",
   "/reservas": "booking:read",
+  "/reservas/listado": "booking:read",
   "/reservas/recursos": "resource:manage",
 };
 
@@ -199,6 +206,7 @@ const NAV_STRUCTURE: NavGroup[] = [
     icon: IconCalendarEvent,
     children: [
       { href: "/reservas", name: "Disponibilidad" },
+      "/reservas/listado",
       "/reservas/recursos",
     ],
   },

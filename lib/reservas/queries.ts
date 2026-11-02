@@ -1,6 +1,19 @@
 import "server-only";
 
-import { and, asc, count, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  notInArray,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { withTenant } from "@/lib/db/tenant";
 import {
@@ -13,7 +26,8 @@ import {
   type BookingStatus,
   type BookingUnit,
 } from "@/lib/db/schema";
-import { subtractMoney, sumMoney } from "@/lib/money";
+import { normalizeMoney, subtractMoney, sumMoney } from "@/lib/money";
+import { escapeLike } from "@/lib/finanzas/queries";
 import { bordesLocalesSql, periodoSql } from "./periodo";
 import { cantidad, totalReserva, type Rango } from "./rango";
 
@@ -210,6 +224,9 @@ export interface BookingRow {
   id: string;
   serviceId: string;
   resourceId: string;
+  /** Nombres, para que el detalle no dependa de que el recurso siga activo. */
+  serviceName: string;
+  resourceName: string;
   unidad: BookingUnit;
   status: BookingStatus;
   checkedInAt: Date | null;
@@ -256,14 +273,37 @@ export async function bookingsInWindow(
     { unidad: "noche", desde: ventana.desde, hasta: ventana.hasta },
     timezone,
   );
+  return consultarReservas(tenantId, timezone, {
+    where: [
+      notInArray(bookings.status, NO_OCUPAN),
+      sql`${bookings.period} && ${rangoVentana}`,
+    ],
+    orderBy: [sql`lower(${bookings.period})`],
+  });
+}
+
+/**
+ * La consulta de reservas que comparten la cuadrícula y el listado.
+ *
+ * Una sola forma de reserva para las dos pantallas: el detalle, los cobros y
+ * "Modificar" funcionan igual se abran desde donde se abran, y el total y el
+ * saldo se calculan en un solo lugar (`totalReserva`).
+ */
+async function consultarReservas(
+  tenantId: string,
+  timezone: string,
+  opciones: { where: (SQL | undefined)[]; orderBy: SQL[]; limit?: number; offset?: number },
+): Promise<BookingRow[]> {
   const bordes = bordesLocalesSql(bookings.period, timezone);
 
-  const rows = await withTenant(tenantId, (tx) =>
-    tx
+  const rows = await withTenant(tenantId, (tx) => {
+    const q = tx
       .select({
         id: bookings.id,
         serviceId: bookings.serviceId,
         resourceId: bookings.resourceId,
+        serviceName: services.name,
+        resourceName: resources.name,
         unidad: services.bookingUnit,
         status: bookings.status,
         checkedInAt: bookings.checkedInAt,
@@ -285,15 +325,17 @@ export async function bookingsInWindow(
         services,
         and(eq(services.id, bookings.serviceId), eq(services.tenantId, bookings.tenantId)),
       )
-      .where(
-        and(
-          eq(bookings.tenantId, tenantId),
-          notInArray(bookings.status, NO_OCUPAN),
-          sql`${bookings.period} && ${rangoVentana}`,
-        ),
+      .innerJoin(
+        resources,
+        and(eq(resources.id, bookings.resourceId), eq(resources.tenantId, bookings.tenantId)),
       )
-      .orderBy(sql`lower(${bookings.period})`),
-  );
+      .where(and(eq(bookings.tenantId, tenantId), ...opciones.where))
+      .orderBy(...opciones.orderBy);
+
+    return opciones.limit !== undefined
+      ? q.limit(opciones.limit).offset(opciones.offset ?? 0)
+      : q;
+  });
 
   const pagos = await paymentsForBookings(
     tenantId,
@@ -333,6 +375,175 @@ export async function bookingsInWindow(
       pagos: suyos,
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Listado y búsqueda
+// ---------------------------------------------------------------------------
+
+export const LISTADO_POR_PAGINA = 20;
+
+export type FiltroEstado = "pendientes" | BookingStatus;
+
+export interface BookingFilters {
+  /** Texto en el titular, el documento o el teléfono. */
+  q?: string;
+  estado?: FiltroEstado;
+  serviceId?: string;
+  /** YYYY-MM-DD local: reservas que tocan este día o después. */
+  desde?: string;
+  /** YYYY-MM-DD local: reservas que tocan este día o antes. */
+  hasta?: string;
+  /** Solo las que deben algo. */
+  conSaldo?: boolean;
+  page?: number;
+}
+
+/**
+ * El total de una reserva, en SQL.
+ *
+ * Existe porque el filtro "con saldo pendiente" y la suma de lo que se debe
+ * tienen que resolverse en Postgres para poder paginar en el servidor. La
+ * cuenta que vale para mostrar sigue siendo `totalReserva()` en TypeScript;
+ * esta tiene que dar EXACTAMENTE lo mismo, y hay una prueba que lo compara
+ * (tests/reservas-listado.test.ts) para que no se separen en silencio.
+ *
+ * Unidades: noches = días entre las fechas LOCALES de entrada y salida; horas
+ * = duración en horas (con tramos de 30 minutos, exacta en numeric). Un solo
+ * redondeo al final, como `lineSubtotal`.
+ */
+function totalSql(timezone: string): SQL {
+  const unidades = sql`CASE WHEN ${services.bookingUnit} = 'noche'
+    THEN ((upper(${bookings.period}) AT TIME ZONE ${timezone})::date
+          - (lower(${bookings.period}) AT TIME ZONE ${timezone})::date)::numeric
+    ELSE extract(epoch FROM (upper(${bookings.period}) - lower(${bookings.period}))) / 3600
+  END`;
+  return sql`round(${unidades}
+    * CASE WHEN ${bookings.perPerson} THEN ${bookings.partySize} ELSE 1 END
+    * ${bookings.unitPrice}, 2)`;
+}
+
+/** Lo cobrado de una reserva, en SQL: los cobros cuya transacción sigue viva. */
+const pagadoSql = sql`coalesce((
+  SELECT sum(bp.applied_amount)
+  FROM booking_payments bp
+  JOIN transactions t ON t.id = bp.transaction_id AND t.tenant_id = bp.tenant_id
+  WHERE bp.booking_id = ${bookings.id}
+    AND bp.tenant_id = ${bookings.tenantId}
+    AND t.deleted_at IS NULL
+), 0)`;
+
+/**
+ * Una cancelada o una no presentada no "deben": su total ya no se cobra. Lo
+ * cobrado se conserva, pero lo que faltaba deja de ser deuda.
+ */
+const DEBEN: BookingStatus[] = ["reservada", "en_curso", "finalizada"];
+
+function condiciones(timezone: string, f: BookingFilters): (SQL | undefined)[] {
+  const q = f.q?.trim();
+  const patron = q ? `%${escapeLike(q)}%` : undefined;
+
+  return [
+    patron
+      ? or(
+          ilike(bookings.holderName, patron),
+          ilike(bookings.holderDocument, patron),
+          ilike(bookings.holderPhone, patron),
+        )
+      : undefined,
+    f.estado === "pendientes"
+      ? inArray(bookings.status, ["reservada", "en_curso"])
+      : f.estado
+        ? eq(bookings.status, f.estado)
+        : undefined,
+    f.serviceId ? eq(bookings.serviceId, f.serviceId) : undefined,
+    // Rangos que TOCAN el periodo pedido, en días locales del negocio.
+    f.desde
+      ? sql`upper(${bookings.period}) > (${f.desde}::date)::timestamp AT TIME ZONE ${timezone}`
+      : undefined,
+    f.hasta
+      ? sql`lower(${bookings.period}) < ((${f.hasta}::date) + 1)::timestamp AT TIME ZONE ${timezone}`
+      : undefined,
+    f.conSaldo
+      ? and(
+          inArray(bookings.status, DEBEN),
+          sql`${totalSql(timezone)} - ${pagadoSql} > 0`,
+        )
+      : undefined,
+  ];
+}
+
+export interface SaldoPorMoneda {
+  currency: string;
+  saldo: string;
+  /** Cuántas reservas deben algo en esa moneda. */
+  count: number;
+}
+
+/**
+ * El listado de reservas: buscado, filtrado y paginado en el servidor.
+ *
+ * Además devuelve, por moneda, cuánto se debe en total entre las reservas
+ * filtradas: la pregunta "cuánto me deben" sin recorrer página por página.
+ * Nunca un total entre monedas.
+ */
+export async function listBookings(
+  tenantId: string,
+  timezone: string,
+  filtros: BookingFilters,
+): Promise<{ rows: BookingRow[]; total: number; saldos: SaldoPorMoneda[] }> {
+  const page = Math.max(0, filtros.page ?? 0);
+  const where = condiciones(timezone, filtros);
+
+  const [rows, [{ total }], saldos] = await Promise.all([
+    consultarReservas(tenantId, timezone, {
+      where,
+      // Lo más reciente o próximo primero.
+      orderBy: [sql`lower(${bookings.period}) desc`, sql`${bookings.id} desc`],
+      limit: LISTADO_POR_PAGINA,
+      offset: page * LISTADO_POR_PAGINA,
+    }),
+    withTenant(tenantId, (tx) =>
+      tx
+        .select({ total: count() })
+        .from(bookings)
+        .innerJoin(
+          services,
+          and(eq(services.id, bookings.serviceId), eq(services.tenantId, bookings.tenantId)),
+        )
+        .where(and(eq(bookings.tenantId, tenantId), ...where)),
+    ),
+    withTenant(tenantId, (tx) => {
+      const saldo = sql`${totalSql(timezone)} - ${pagadoSql}`;
+      return tx
+        .select({
+          currency: bookings.currency,
+          saldo: sql<string>`sum(${saldo})::text`,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(bookings)
+        .innerJoin(
+          services,
+          and(eq(services.id, bookings.serviceId), eq(services.tenantId, bookings.tenantId)),
+        )
+        .where(
+          and(
+            eq(bookings.tenantId, tenantId),
+            ...where,
+            inArray(bookings.status, DEBEN),
+            sql`${saldo} > 0`,
+          ),
+        )
+        .groupBy(bookings.currency)
+        .orderBy(bookings.currency);
+    }),
+  ]);
+
+  return {
+    rows,
+    total: Number(total),
+    saldos: saldos.map((s) => ({ ...s, saldo: normalizeMoney(s.saldo) })),
+  };
 }
 
 /**

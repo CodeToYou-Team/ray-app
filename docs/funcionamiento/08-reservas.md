@@ -202,9 +202,47 @@ Nueva reserva: 1 persona, noches del 10 y el 11  →  se acepta
 Nunca hay más de 4 a la vez (3 + 1 cada noche), aunque sumar todo daría 7. Y al revés: una reserva
 que empieza en un momento tranquilo pero atraviesa uno lleno se rechaza.
 
+## Listado de reservas (`/reservas/listado`)
+
+Todos los roles. Complementa a la cuadrícula, que muestra solo 14 días: aquí se encuentra la
+reserva de alguien sin saber cuándo es, y las que quedaron debiendo.
+
+### Filtros
+
+| Filtro | Notas |
+|---|---|
+| **Buscar** | Por titular, documento o teléfono, en cualquier parte del texto y sin distinguir mayúsculas (sí acentos). Espera ~350 ms después de la última tecla |
+| **Estado** | Todos · Pendientes (reservadas y en curso) · Reservadas · En curso · Finalizadas · Canceladas · No se presentó |
+| **Servicio** | Aparece si hay más de un servicio reservable |
+| **Desde / Hasta** | Reservas que **tocan** ese periodo, en días del negocio. La salida es borde abierto: una reserva que sale el 12 no aparece al filtrar por el 12. Si se ponen al revés, se intercambian |
+| **Solo con saldo pendiente** | Las que deben algo |
+
+Como en Finanzas, todo vive en la **URL** (el enlace se comparte y Atrás funciona), cambiar un
+filtro vuelve a la primera página, y **Limpiar** los quita todos.
+
+### Lo que se ve
+
+- Arriba, **"Por cobrar"** por moneda: cuánto se debe en total entre las reservas filtradas, y en
+  cuántas. Una tarjeta por moneda, nunca un total que mezcle bolívares con dólares.
+- La tabla: **Fechas · Titular** (con documento y teléfono) **· Qué** (servicio y recurso)
+  **· Personas · Estado · Total · Saldo**, más un enlace que lleva a la semana de esa reserva en la
+  cuadrícula.
+- **20 reservas por página**, de la más reciente o próxima a la más antigua.
+- Tocar una fila abre **el mismo detalle que en la cuadrícula**: cobrar, modificar, registrar
+  llegada o salida funcionan igual.
+
+### Qué cuenta como "debe"
+
+Una reserva **reservada, en curso o finalizada** con saldo mayor que cero. Las **canceladas y no
+presentadas no deben**, aunque no hayan pagado: su total ya no se cobra. En la tabla su saldo se
+muestra como "—", y no suman en "Por cobrar".
+
+Un cobro **anulado** en Finanzas deja de contar, así que la reserva vuelve a aparecer como deuda.
+
 ## El detalle de una reserva
 
-Muestra el titular, el estado, el servicio y el recurso, y:
+Se abre desde la cuadrícula o desde el listado. Muestra el titular, el estado, el servicio y el
+recurso, y:
 
 - **Fechas** y **Personas** (o Cupos).
 - **Total**, con su cálculo: `2 noches × USD 40,00 = USD 80,00`.

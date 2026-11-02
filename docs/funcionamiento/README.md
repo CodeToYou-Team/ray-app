@@ -50,6 +50,7 @@ con el título de la sección arriba y el contenido en el centro.
 | `/inventario` | Stock | Todos los roles |
 | `/inventario/alertas` | Alertas de inventario | Todos los roles |
 | `/reservas` | Disponibilidad: cuadrícula de recursos × días | Todos los roles |
+| `/reservas/listado` | Listado de reservas: búsqueda, filtros y lo que se debe | Todos los roles |
 | `/reservas/recursos` | Qué servicios se reservan, cómo y con qué recursos | Dueño y encargado |
 | `/ajustes` | Redirige a la primera sección permitida | — |
 | `/ajustes/negocio` | Moneda por defecto y tasas de cambio | Solo dueño |

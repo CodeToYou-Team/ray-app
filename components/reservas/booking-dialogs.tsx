@@ -507,7 +507,7 @@ export function BookingForm({
 // Detalle: estado, cobros y acciones
 // ---------------------------------------------------------------------------
 
-const ESTADO: Record<BoardBooking["status"], { label: string; className: string }> = {
+export const ESTADO: Record<BoardBooking["status"], { label: string; className: string }> = {
   reservada: { label: "Reservada", className: "bg-primary/15 text-primary" },
   en_curso: { label: "En curso", className: "bg-success/15 text-success" },
   finalizada: { label: "Finalizada", className: "bg-muted text-muted-foreground" },
@@ -533,7 +533,6 @@ type Modo = "ver" | "cobrando" | "cancelando" | "saliendo" | "noshow";
  */
 export function BookingDetail({
   reserva,
-  servicio,
   hoy,
   canManage,
   cobro,
@@ -541,7 +540,6 @@ export function BookingDetail({
   onModificar,
 }: {
   reserva: BoardBooking;
-  servicio: BoardService | undefined;
   /** YYYY-MM-DD en la zona del negocio. */
   hoy: string;
   canManage: boolean;
@@ -556,7 +554,6 @@ export function BookingDetail({
   const [modo, setModo] = useState<Modo>("ver");
   const [motivo, setMotivo] = useState("");
 
-  const recurso = servicio?.resources.find((r) => r.id === reserva.resourceId);
   const estado = ESTADO[reserva.status];
   const debe = compareMoney(reserva.saldo, "0") > 0;
 
@@ -607,7 +604,7 @@ export function BookingDetail({
             </span>
           </div>
           <DialogDescription className="text-xs">
-            {servicio?.name} · <span className="font-mono">{recurso?.name}</span>
+            {reserva.serviceName} · <span className="font-mono">{reserva.resourceName}</span>
           </DialogDescription>
         </DialogHeader>
 
@@ -755,7 +752,7 @@ export function BookingDetail({
           <div className="space-y-2 rounded-lg border p-3">
             <p className="text-sm">¿Marcar que no se presentó?</p>
             <p className="text-[11px] text-muted-foreground">
-              Libera {recurso?.name ?? "el recurso"} para esas fechas.
+              Libera {reserva.resourceName} para esas fechas.
               {compareMoney(reserva.pagado, "0") > 0 &&
                 ` Lo cobrado (${formatMoney(reserva.pagado, reserva.currency)}) se conserva.`}
             </p>
