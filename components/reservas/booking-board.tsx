@@ -12,9 +12,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatMoney } from "@/lib/format";
+import { compareMoney } from "@/lib/money";
 import { sumarDias, unidadLabel } from "@/lib/reservas/rango";
 import { cn } from "@/lib/utils";
 import { BookingDetail, BookingForm, type Inicial } from "./booking-dialogs";
+import type { CobroConfig } from "./booking-payment";
 import type { BoardBooking, BoardService } from "./types";
 
 interface Props {
@@ -27,6 +29,22 @@ interface Props {
   hoy: string;
   canManage: boolean;
   canSetup: boolean;
+  /** null = el rol no puede cobrar. */
+  cobro: CobroConfig | null;
+}
+
+/**
+ * Cómo se pinta una reserva según su estado. El color dice en qué está; el
+ * punto, que todavía debe algo.
+ */
+function claseReserva(b: BoardBooking): string {
+  if (b.status === "en_curso") return "bg-success/20 text-success hover:bg-success/30";
+  if (b.status === "finalizada") return "bg-muted text-muted-foreground hover:bg-muted/80";
+  return "bg-primary/15 text-primary hover:bg-primary/25";
+}
+
+function debe(b: BoardBooking): boolean {
+  return compareMoney(b.saldo, "0") > 0;
 }
 
 /** "lun 10". El día de la semana de una fecha no depende de ninguna zona. */
@@ -60,6 +78,7 @@ export function BookingBoard({
   hoy,
   canManage,
   canSetup,
+  cobro,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -69,7 +88,14 @@ export function BookingBoard({
   const [inicial, setInicial] = useState<Inicial | null>(null);
   /** Cambia en cada apertura: el formulario se siembra de cero cada vez. */
   const [aperturas, setAperturas] = useState(0);
-  const [detalle, setDetalle] = useState<BoardBooking | null>(null);
+  /**
+   * Se guarda el id, no la reserva: después de cobrar o registrar la llegada,
+   * `router.refresh()` trae las reservas nuevas y el detalle tiene que leer
+   * la versión fresca, no la que quedó copiada al abrirlo. Si la reserva sale
+   * de la ventana (se canceló), el detalle se cierra solo.
+   */
+  const [detalleId, setDetalleId] = useState<string | null>(null);
+  const detalle = detalleId ? reservas.find((r) => r.id === detalleId) : undefined;
 
   const fechas = Array.from({ length: dias }, (_, i) => sumarDias(desde, i));
   const ultimo = fechas[fechas.length - 1];
@@ -219,7 +245,7 @@ export function BookingBoard({
                   canManage={canManage}
                   canSetup={canSetup}
                   onNueva={nueva}
-                  onVer={setDetalle}
+                  onVer={(b) => setDetalleId(b.id)}
                 />
               ))}
             </tbody>
@@ -245,8 +271,10 @@ export function BookingBoard({
           key={detalle.id}
           reserva={detalle}
           servicio={servicios.find((s) => s.id === detalle.serviceId)}
+          hoy={hoy}
           canManage={canManage}
-          onClose={() => setDetalle(null)}
+          cobro={cobro}
+          onClose={() => setDetalleId(null)}
         />
       )}
     </div>
@@ -441,14 +469,21 @@ function CeldasNoches({
         <button
           type="button"
           onClick={() => onVer(b)}
-          title={`${b.holderName} · ${b.descripcion}`}
+          title={`${b.holderName} · ${b.descripcion}${debe(b) ? ` · debe ${b.saldo} ${b.currency}` : ""}`}
           className={cn(
-            "flex size-full items-center gap-1 truncate rounded bg-primary/15 px-2 text-left font-medium text-primary hover:bg-primary/25",
+            "flex size-full items-center gap-1 truncate rounded px-2 text-left font-medium",
+            claseReserva(b),
             empiezaAntes && "rounded-l-none",
             sigueDespues && "rounded-r-none",
           )}
         >
           {empiezaAntes && <span aria-hidden>‹</span>}
+          {debe(b) && (
+            <span
+              aria-label="Con saldo pendiente"
+              className="size-1.5 shrink-0 rounded-full bg-destructive"
+            />
+          )}
           <span className="truncate">{b.holderName}</span>
           {sigueDespues && <span aria-hidden className="ml-auto">›</span>}
         </button>
@@ -487,9 +522,18 @@ function CeldasHoras({
                   key={b.id}
                   type="button"
                   onClick={() => onVer(b)}
-                  title={`${b.holderName} · ${b.descripcion}`}
-                  className="truncate rounded bg-primary/15 px-1 py-0.5 text-left font-mono text-[10px] text-primary hover:bg-primary/25"
+                  title={`${b.holderName} · ${b.descripcion}${debe(b) ? ` · debe ${b.saldo} ${b.currency}` : ""}`}
+                  className={cn(
+                    "flex items-center gap-1 truncate rounded px-1 py-0.5 text-left font-mono text-[10px]",
+                    claseReserva(b),
+                  )}
                 >
+                  {debe(b) && (
+                    <span
+                      aria-label="Con saldo pendiente"
+                      className="size-1.5 shrink-0 rounded-full bg-destructive"
+                    />
+                  )}
                   {b.inicio.slice(11, 16)}
                 </button>
               ))}

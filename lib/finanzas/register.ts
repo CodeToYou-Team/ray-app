@@ -17,6 +17,7 @@ import { z } from "zod";
 import { withTenant } from "@/lib/db/tenant";
 import {
   auditLog,
+  bookingPayments,
   catalogItems,
   products,
   services,
@@ -522,6 +523,32 @@ export async function editTransaction(
         return {
           ok: false as const,
           error: "Esa operación está anulada. Registra una nueva en su lugar.",
+        };
+      }
+
+      /**
+       * Un cobro de reserva no se corrige desde aquí.
+       *
+       * La reserva guarda cuánto le abonó este cobro en su propia moneda; si
+       * aquí cambiara el monto o el método, la transacción diría una cosa y el
+       * saldo de la reserva otra. Se anula y se vuelve a cobrar desde la
+       * reserva. Un trigger lo impide igual para el dinero; esto da el motivo
+       * en palabras antes de llegar ahí.
+       */
+      const [esCobro] = await tx
+        .select({ bookingId: bookingPayments.bookingId })
+        .from(bookingPayments)
+        .where(
+          and(
+            eq(bookingPayments.tenantId, tenantId),
+            eq(bookingPayments.transactionId, actual.id),
+          ),
+        );
+      if (esCobro) {
+        return {
+          ok: false as const,
+          error:
+            "Este cobro pertenece a una reserva. Para corregirlo, anúlalo y vuelve a cobrar desde la reserva.",
         };
       }
 

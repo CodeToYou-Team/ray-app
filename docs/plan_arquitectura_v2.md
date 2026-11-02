@@ -432,7 +432,7 @@ guardar, pero no puede impedir que la habitación 101 se reserve dos veces la mi
 | Servicio | "Habitación doble, 40 USD/noche" | `services` + `booking_unit` |
 | Recurso | La habitación física 101 | `resources` (nueva) |
 | Reserva | La 101, del 10 al 12, a nombre de Pérez | `bookings` (nueva) |
-| Cobro | 2 noches × 40 USD, en Bs a la tasa del día | `transactions` (fase 2) |
+| Cobro | Anticipo de 40 USD, resto en Bs a la tasa del día | `transactions` + `booking_payments` |
 
 - **Un servicio es reservable si tiene `booking_unit`** (`noche` u `hora`). Sin ella se
   vende como siempre, como renglón de una venta. Es opcional por servicio.
@@ -441,9 +441,11 @@ guardar, pero no puede impedir que la habitación 101 se reserve dos veces la mi
   `resources (tenant_id, service_id, id)`. Hoy es redundante; existe para que pasar a
   "un recurso, varios servicios" (la misma cancha por hora o por día) no obligue a tocar
   `bookings`.
-- **La reserva no es una venta.** Se puede reservar sin pagar. El cobro llega en la fase 2
-  como transacciones ligadas, y al salir se genera la venta con `qty = noches`,
-  reutilizando precio congelado, tasa de cambio y reportes.
+- **La reserva no es una venta, y el check-out tampoco genera una.** Cada cobro es el
+  ingreso: una transacción normal, del día en que entró el dinero, ligada a la reserva por
+  `booking_payments`. Así el anticipo del lunes es ingreso del lunes, y se cuenta una sola
+  vez. *(El borrador decía "al salir se genera la venta con las noches"; eso contaba el
+  anticipo dos veces y se descartó antes de construir la fase 2.)*
 - **La reserva congela precio y moneda del servicio** al crearse, igual que un renglón de
   venta: si mañana sube la tarifa, una reserva hecha hoy no cambia.
 
@@ -484,8 +486,19 @@ ni un doble clic ni dos recepcionistas a la vez se lo pueden saltar.
 
 1. **Recursos, reservas y disponibilidad.** Qué servicios se reservan, sus recursos, crear
    y cancelar reservas, y la cuadrícula recursos × días.
-2. **Check-in / check-out y cobro.** Estados `en_curso` y `finalizada`, anticipos y saldo
-   pendiente, venta generada al salir.
+2. **Check-in / check-out y cobro.** Estados `en_curso`, `finalizada` y `no_show`;
+   cobros parciales en cualquier moneda con su tasa, y saldo pendiente.
+   - **Lo abonado se guarda en la moneda de la reserva** (`applied_amount`), no se deriva
+     dividiendo por la tasa: con tasas menores que 1 el redondeo se come centavos y el saldo
+     quedaría en 0,01 para siempre.
+   - **Cada operación bloquea la fila de la reserva** (`FOR UPDATE`) antes de leer el saldo.
+     Sin eso, dos cobros simultáneos del saldo completo pasan los dos (comprobado quitándolo).
+   - **El dinero de un cobro no se edita desde Finanzas**: un trigger lo impide. Se corrige
+     anulándolo, que lo saca del saldo.
+   - **Salir con saldo exige confirmarlo**, en el servidor, y queda auditado.
+   - **No-show conserva lo cobrado**: para eso es un anticipo.
+   - **Pendiente:** salida anticipada. Hoy la reserva sigue ocupando sus noches hasta el
+     final y el total no cambia. Liberarlas es una decisión de tarifa (¿se devuelve?).
 3. **Columnas personalizadas en la reserva**, con el mismo mecanismo que productos y
    servicios.
 

@@ -57,6 +57,12 @@
   would shift by the tenant's offset. `rango.ts` holds the timezone-free
   arithmetic and is the only part the client may import. Design and phase plan
   in `docs/plan_arquitectura_v2.md`, section "Reservas".
+  Payments: each one is an ordinary income `transaction` linked through
+  `booking_payments`; check-out generates nothing (a sale there would count the
+  deposit twice). Every booking mutation goes through `cargarReserva()`, which
+  takes `FOR UPDATE` on the booking row before reading the balance — removing it
+  lets concurrent payments overpay. A trigger blocks editing the money fields
+  of a payment transaction; correct one by voiding it.
 - `/lib/money.ts`, `/lib/currencies.ts` - Exact decimal arithmetic and the closed
   currency list. Currency columns are `varchar(10)`: stablecoin tickers (USDT, USDC)
   are 4 characters, not 3.

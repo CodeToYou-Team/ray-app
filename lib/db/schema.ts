@@ -930,6 +930,10 @@ export const bookings = pgTable(
     notes: text("notes"),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
     cancelReason: text("cancel_reason"),
+    /** Cuándo llegó de verdad. Presente si y solo si está en curso o finalizada. */
+    checkedInAt: timestamp("checked_in_at", { withTimezone: true }),
+    /** Cuándo se fue. Presente si y solo si está finalizada. */
+    checkedOutAt: timestamp("checked_out_at", { withTimezone: true }),
     createdBy: uuid("created_by").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -939,10 +943,53 @@ export const bookings = pgTable(
       .defaultNow(),
   },
   (table) => [
+    unique("bookings_tenant_id_key").on(table.tenantId, table.id),
     foreignKey({
       columns: [table.tenantId, table.serviceId, table.resourceId],
       foreignColumns: [resources.tenantId, resources.serviceId, resources.id],
       name: "bookings_resource_fk",
+    }),
+  ],
+);
+
+/**
+ * Cobros de una reserva: liga una transaccion de ingreso con la reserva a la
+ * que abona.
+ *
+ * El cobro ES el ingreso, registrado el dia que entro el dinero. El check-out
+ * no genera una venta aparte: si lo hiciera, el anticipo se contaria dos veces.
+ *
+ * `appliedAmount` va en la moneda de la RESERVA y se guarda, no se deriva:
+ * dividir el monto cobrado en Bs por la tasa no siempre devuelve el numero
+ * exacto, y un saldo que queda en 0,01 para siempre no tiene arreglo.
+ *
+ * Append-only: un cobro equivocado se corrige anulando su transaccion.
+ */
+export const bookingPayments = pgTable(
+  "booking_payments",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    bookingId: uuid("booking_id").notNull(),
+    transactionId: uuid("transaction_id").notNull(),
+    appliedAmount: numeric("applied_amount", { precision: 14, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("booking_payments_transaction_unique").on(table.transactionId),
+    foreignKey({
+      columns: [table.tenantId, table.bookingId],
+      foreignColumns: [bookings.tenantId, bookings.id],
+      name: "booking_payments_booking_fk",
+    }),
+    foreignKey({
+      columns: [table.tenantId, table.transactionId],
+      foreignColumns: [transactions.tenantId, transactions.id],
+      name: "booking_payments_transaction_fk",
     }),
   ],
 );

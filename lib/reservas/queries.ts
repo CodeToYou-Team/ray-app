@@ -1,15 +1,19 @@
 import "server-only";
 
 import { and, asc, count, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { withTenant } from "@/lib/db/tenant";
 import {
+  bookingPayments,
   bookings,
+  catalogItems,
   resources,
   services,
+  transactions,
   type BookingStatus,
   type BookingUnit,
 } from "@/lib/db/schema";
-import { lineSubtotal } from "@/lib/money";
+import { lineSubtotal, subtractMoney, sumMoney } from "@/lib/money";
 import { bordesLocalesSql, periodoSql } from "./periodo";
 import { cantidad, type Rango } from "./rango";
 
@@ -159,12 +163,33 @@ export async function listServicesForSetup(
   });
 }
 
+/** Un cobro de una reserva, como se muestra en su detalle. */
+export interface BookingPaymentRow {
+  transactionId: string;
+  /** Lo que abonó, en la moneda de la RESERVA. */
+  appliedAmount: string;
+  /** Lo que entró, en la moneda del pago. */
+  amount: string;
+  currency: string;
+  exchangeRate: string | null;
+  occurredOn: string;
+  paymentMethodLabel: string;
+  /** Anulado en Finanzas: se muestra, pero ya no cuenta para el saldo. */
+  voided: boolean;
+}
+
 export interface BookingRow {
   id: string;
   serviceId: string;
   resourceId: string;
   unidad: BookingUnit;
   status: BookingStatus;
+  checkedInAt: Date | null;
+  checkedOutAt: Date | null;
+  /** Suma de los cobros vivos, en la moneda de la reserva. */
+  pagado: string;
+  saldo: string;
+  pagos: BookingPaymentRow[];
   /** Hora LOCAL del negocio, "YYYY-MM-DDTHH:MI". Comparables como texto. */
   inicio: string;
   fin: string;
@@ -209,6 +234,8 @@ export async function bookingsInWindow(
         resourceId: bookings.resourceId,
         unidad: services.bookingUnit,
         status: bookings.status,
+        checkedInAt: bookings.checkedInAt,
+        checkedOutAt: bookings.checkedOutAt,
         inicio: bordes.inicio,
         fin: bordes.fin,
         unitPrice: bookings.unitPrice,
@@ -233,6 +260,11 @@ export async function bookingsInWindow(
       .orderBy(sql`lower(${bookings.period})`),
   );
 
+  const pagos = await paymentsForBookings(
+    tenantId,
+    rows.map((r) => r.id),
+  );
+
   return rows.map((r) => {
     const unidad = r.unidad ?? "noche";
     const rango: Rango =
@@ -246,12 +278,71 @@ export async function bookingsInWindow(
           };
     const c = cantidad(rango);
     const qty = c.ok ? c.qty : "0";
+    const total = lineSubtotal(qty, r.unitPrice);
+    const suyos = pagos[r.id] ?? [];
+    // Solo los vivos: un cobro anulado en Finanzas sale del saldo.
+    const pagado = sumMoney(suyos.filter((p) => !p.voided).map((p) => p.appliedAmount));
     return {
       ...r,
       unidad,
       qty,
       descripcion: c.ok ? c.descripcion : "",
-      total: lineSubtotal(qty, r.unitPrice),
+      total,
+      pagado,
+      saldo: subtractMoney(total, pagado),
+      pagos: suyos,
     };
   });
+}
+
+/**
+ * Los cobros de varias reservas, en UNA consulta.
+ *
+ * Incluye los anulados (marcados), para que el detalle muestre la historia
+ * completa: "cobré 100 y lo anulé" es información, no ruido.
+ */
+export async function paymentsForBookings(
+  tenantId: string,
+  ids: string[],
+): Promise<Record<string, BookingPaymentRow[]>> {
+  if (ids.length === 0) return {};
+
+  const metodo = alias(catalogItems, "metodo");
+
+  const rows = await withTenant(tenantId, (tx) =>
+    tx
+      .select({
+        bookingId: bookingPayments.bookingId,
+        transactionId: transactions.id,
+        appliedAmount: bookingPayments.appliedAmount,
+        amount: transactions.amount,
+        currency: transactions.currency,
+        exchangeRate: transactions.exchangeRate,
+        occurredOn: transactions.occurredOn,
+        deletedAt: transactions.deletedAt,
+        paymentMethodLabel: metodo.label,
+      })
+      .from(bookingPayments)
+      .innerJoin(
+        transactions,
+        and(
+          eq(transactions.id, bookingPayments.transactionId),
+          eq(transactions.tenantId, bookingPayments.tenantId),
+        ),
+      )
+      .innerJoin(metodo, eq(metodo.id, transactions.paymentMethodId))
+      .where(
+        and(
+          eq(bookingPayments.tenantId, tenantId),
+          inArray(bookingPayments.bookingId, ids),
+        ),
+      )
+      .orderBy(asc(transactions.occurredOn), asc(transactions.id)),
+  );
+
+  const porReserva: Record<string, BookingPaymentRow[]> = {};
+  for (const { bookingId, deletedAt, ...p } of rows) {
+    (porReserva[bookingId] ??= []).push({ ...p, voided: deletedAt !== null });
+  }
+  return porReserva;
 }

@@ -120,6 +120,13 @@
       "when": 1791312595589,
       "tag": "0016_bookings",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791312596589,
+      "tag": "0017_booking_checkin_payments",
+      "breakpoints": true
     }
   ]
 }

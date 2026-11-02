@@ -2,7 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IconAlertCircle, IconCalendarX } from "@tabler/icons-react";
+import {
+  IconAlertCircle,
+  IconCalendarX,
+  IconCash,
+  IconLogin,
+  IconLogout,
+} from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +28,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cancelBooking, createBooking } from "@/lib/reservas/actions";
+import {
+  cancelBooking,
+  checkIn,
+  checkOut,
+  createBooking,
+  markNoShow,
+} from "@/lib/reservas/actions";
 import {
   bordesLocales,
   cantidad,
@@ -31,9 +43,10 @@ import {
   TRAMO_MINUTOS,
   type Rango,
 } from "@/lib/reservas/rango";
-import { lineSubtotal } from "@/lib/money";
+import { compareMoney, lineSubtotal } from "@/lib/money";
 import { formatDate, formatMoney } from "@/lib/format";
 import type { BoardBooking, BoardService } from "./types";
+import { PaymentForm, type CobroConfig } from "./booking-payment";
 
 /** Con qué abre el formulario: lo que se tocó en la cuadrícula. */
 export interface Inicial {
@@ -359,8 +372,16 @@ export function BookingForm({
 }
 
 // ---------------------------------------------------------------------------
-// Detalle y cancelación
+// Detalle: estado, cobros y acciones
 // ---------------------------------------------------------------------------
+
+const ESTADO: Record<BoardBooking["status"], { label: string; className: string }> = {
+  reservada: { label: "Reservada", className: "bg-primary/15 text-primary" },
+  en_curso: { label: "En curso", className: "bg-success/15 text-success" },
+  finalizada: { label: "Finalizada", className: "bg-muted text-muted-foreground" },
+  cancelada: { label: "Cancelada", className: "bg-muted text-muted-foreground" },
+  no_show: { label: "No se presentó", className: "bg-muted text-muted-foreground" },
+};
 
 function describirRango(r: BoardBooking): string {
   if (r.unidad === "noche") {
@@ -369,43 +390,86 @@ function describirRango(r: BoardBooking): string {
   return `${formatDate(r.inicio.slice(0, 10))}, ${r.inicio.slice(11, 16)}–${r.fin.slice(11, 16)}`;
 }
 
+type Modo = "ver" | "cobrando" | "cancelando" | "saliendo" | "noshow";
+
+/**
+ * Detalle de una reserva y lo que se puede hacer con ella según su estado.
+ *
+ * Los botones que se muestran son una comodidad: el servidor vuelve a
+ * verificar estado, fechas y permisos. Si aquí "hoy" difiere del servidor por
+ * un par de minutos alrededor de la medianoche, quien decide es el servidor.
+ */
 export function BookingDetail({
   reserva,
   servicio,
+  hoy,
   canManage,
+  cobro,
   onClose,
 }: {
   reserva: BoardBooking;
   servicio: BoardService | undefined;
+  /** YYYY-MM-DD en la zona del negocio. */
+  hoy: string;
   canManage: boolean;
+  /** null = el rol no puede cobrar. */
+  cobro: CobroConfig | null;
   onClose: () => void;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [cancelando, setCancelando] = useState(false);
+  const [modo, setModo] = useState<Modo>("ver");
   const [motivo, setMotivo] = useState("");
 
   const recurso = servicio?.resources.find((r) => r.id === reserva.resourceId);
+  const estado = ESTADO[reserva.status];
+  const debe = compareMoney(reserva.saldo, "0") > 0;
 
-  function cancelar() {
+  // Lo mismo que verifica el servidor, para decidir qué botones mostrar.
+  const llegada = reserva.inicio.slice(0, 10);
+  const empezo = llegada <= hoy;
+  const termino =
+    reserva.unidad === "noche" ? reserva.fin.slice(0, 10) <= hoy : llegada < hoy;
+
+  const puedeLlegar = canManage && reserva.status === "reservada" && empezo && !termino;
+  const puedeNoShow = canManage && reserva.status === "reservada" && empezo;
+  const puedeCancelar = canManage && reserva.status === "reservada";
+  const puedeSalir = canManage && reserva.status === "en_curso";
+  const puedeCobrar =
+    cobro !== null &&
+    debe &&
+    (reserva.status === "reservada" ||
+      reserva.status === "en_curso" ||
+      reserva.status === "finalizada");
+
+  /** Corre una acción del servidor y refresca; cerrar o no lo decide quien llama. */
+  function correr(accion: () => Promise<{ ok: boolean; error?: string }>, cerrar = false) {
     setError(null);
     start(async () => {
-      const r = await cancelBooking({ id: reserva.id, reason: motivo || undefined });
+      const r = await accion();
       if (r.ok) {
-        onClose();
+        setModo("ver");
+        if (cerrar) onClose();
         router.refresh();
       } else {
-        setError(r.error);
+        setError(r.error ?? "No se pudo completar.");
       }
     });
   }
 
   return (
     <Dialog open onOpenChange={(abierto) => !abierto && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-base">{reserva.holderName}</DialogTitle>
+          <div className="flex items-center gap-2">
+            <DialogTitle className="text-base">{reserva.holderName}</DialogTitle>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${estado.className}`}
+            >
+              {estado.label}
+            </span>
+          </div>
           <DialogDescription className="text-xs">
             {servicio?.name} · <span className="font-mono">{recurso?.name}</span>
           </DialogDescription>
@@ -427,33 +491,149 @@ export function BookingDetail({
               </span>
             </dd>
           </div>
-          {reserva.holderDocument && (
-            <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">Documento</dt>
-              <dd>{reserva.holderDocument}</dd>
-            </div>
-          )}
-          {reserva.holderPhone && (
-            <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">Teléfono</dt>
-              <dd>
-                <a href={`tel:${reserva.holderPhone}`} className="underline underline-offset-2">
-                  {reserva.holderPhone}
-                </a>
-              </dd>
-            </div>
-          )}
-          {reserva.notes && (
-            <div className="space-y-1">
-              <dt className="text-muted-foreground">Notas</dt>
-              <dd className="whitespace-pre-wrap rounded-md bg-muted/50 p-2 text-xs">
-                {reserva.notes}
-              </dd>
-            </div>
-          )}
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted-foreground">Pagado</dt>
+            <dd className="font-mono">{formatMoney(reserva.pagado, reserva.currency)}</dd>
+          </div>
+          <div className="flex justify-between gap-4 border-t pt-2">
+            <dt className="font-medium">Saldo</dt>
+            <dd
+              className={`font-mono font-semibold ${debe ? "text-destructive" : "text-success"}`}
+            >
+              {formatMoney(reserva.saldo, reserva.currency)}
+            </dd>
+          </div>
         </dl>
 
-        {cancelando && (
+        {reserva.pagos.length > 0 && (
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">Cobros</p>
+            <ul className="divide-y rounded-md border text-xs">
+              {reserva.pagos.map((p) => (
+                <li
+                  key={p.transactionId}
+                  className={`flex items-center justify-between gap-3 px-3 py-2 ${p.voided ? "text-muted-foreground line-through" : ""}`}
+                >
+                  <span>
+                    {formatDate(p.occurredOn)} · {p.paymentMethodLabel}
+                    {p.voided && <span className="ml-1 no-underline">(anulado)</span>}
+                  </span>
+                  <span className="text-right font-mono">
+                    {formatMoney(p.amount, p.currency)}
+                    {/* Si se cobró en otra moneda, lo que abonó en la de la reserva. */}
+                    {p.currency !== reserva.currency && (
+                      <span className="block text-[10px] text-muted-foreground">
+                        = {formatMoney(p.appliedAmount, reserva.currency)}
+                      </span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {(reserva.holderDocument || reserva.holderPhone || reserva.notes) && (
+          <dl className="space-y-2 text-sm">
+            {reserva.holderDocument && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">Documento</dt>
+                <dd>{reserva.holderDocument}</dd>
+              </div>
+            )}
+            {reserva.holderPhone && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">Teléfono</dt>
+                <dd>
+                  <a href={`tel:${reserva.holderPhone}`} className="underline underline-offset-2">
+                    {reserva.holderPhone}
+                  </a>
+                </dd>
+              </div>
+            )}
+            {reserva.notes && (
+              <div className="space-y-1">
+                <dt className="text-muted-foreground">Notas</dt>
+                <dd className="whitespace-pre-wrap rounded-md bg-muted/50 p-2 text-xs">
+                  {reserva.notes}
+                </dd>
+              </div>
+            )}
+          </dl>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* Sub-pasos que piden confirmación o datos                       */}
+        {/* ------------------------------------------------------------- */}
+
+        {modo === "cobrando" && cobro && (
+          <PaymentForm
+            reserva={reserva}
+            config={cobro}
+            onBack={() => setModo("ver")}
+            onDone={() => {
+              setModo("ver");
+              router.refresh();
+            }}
+          />
+        )}
+
+        {modo === "saliendo" && (
+          <div className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+            <p className="text-sm">
+              Queda un saldo de{" "}
+              <span className="font-mono font-semibold">
+                {formatMoney(reserva.saldo, reserva.currency)}
+              </span>
+              .
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              Si sale así, el saldo queda pendiente y se puede cobrar después.
+              Queda registrado quién aceptó la salida con saldo.
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              {puedeCobrar && (
+                <Button size="sm" variant="outline" onClick={() => setModo("cobrando")}>
+                  Cobrar primero
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={pending}
+                onClick={() => correr(() => checkOut({ id: reserva.id, aceptarSaldo: true }))}
+              >
+                {pending ? "Registrando…" : "Salir con saldo pendiente"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {modo === "noshow" && (
+          <div className="space-y-2 rounded-lg border p-3">
+            <p className="text-sm">¿Marcar que no se presentó?</p>
+            <p className="text-[11px] text-muted-foreground">
+              Libera {recurso?.name ?? "el recurso"} para esas fechas.
+              {compareMoney(reserva.pagado, "0") > 0 &&
+                ` Lo cobrado (${formatMoney(reserva.pagado, reserva.currency)}) se conserva.`}
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setModo("ver")} disabled={pending}>
+                Volver
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={pending}
+                onClick={() => correr(() => markNoShow({ id: reserva.id }), true)}
+              >
+                {pending ? "Marcando…" : "No se presentó"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {modo === "cancelando" && (
           <div className="space-y-2">
             <Label htmlFor="motivo">Motivo (opcional)</Label>
             <Input
@@ -465,39 +645,98 @@ export function BookingDetail({
             <p className="text-[11px] text-muted-foreground">
               La reserva no se borra: queda como cancelada y el recurso se libera
               para esas fechas.
+              {compareMoney(reserva.pagado, "0") > 0 &&
+                " Lo cobrado se mantiene como ingreso; si devuelves el anticipo, anula el cobro en Finanzas."}
             </p>
+            <div className="flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setModo("ver")} disabled={pending}>
+                Volver
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={pending}
+                onClick={() =>
+                  correr(() => cancelBooking({ id: reserva.id, reason: motivo || undefined }), true)
+                }
+              >
+                {pending ? "Cancelando…" : "Confirmar cancelación"}
+              </Button>
+            </div>
           </div>
         )}
 
         {error && <ErrorBox>{error}</ErrorBox>}
 
-        <DialogFooter>
-          {canManage && reserva.status === "reservada" ? (
-            cancelando ? (
-              <>
-                <Button variant="ghost" onClick={() => setCancelando(false)} disabled={pending}>
-                  Volver
+        {/* ------------------------------------------------------------- */}
+        {/* Acciones                                                       */}
+        {/* ------------------------------------------------------------- */}
+
+        {modo === "ver" && (
+          <DialogFooter className="flex-wrap gap-2 sm:justify-between">
+            <div className="flex flex-wrap gap-2">
+              {puedeCancelar && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="gap-1.5 text-destructive hover:text-destructive"
+                  onClick={() => setModo("cancelando")}
+                >
+                  <IconCalendarX className="size-4" />
+                  Cancelar
                 </Button>
-                <Button variant="destructive" onClick={cancelar} disabled={pending}>
-                  {pending ? "Cancelando…" : "Confirmar cancelación"}
+              )}
+              {puedeNoShow && (
+                <Button size="sm" variant="ghost" onClick={() => setModo("noshow")}>
+                  No se presentó
                 </Button>
-              </>
-            ) : (
-              <Button
-                variant="outline"
-                className="gap-1.5 text-destructive hover:text-destructive"
-                onClick={() => setCancelando(true)}
-              >
-                <IconCalendarX className="size-4" />
-                Cancelar reserva
-              </Button>
-            )
-          ) : (
-            <Button variant="ghost" onClick={onClose}>
-              Cerrar
-            </Button>
-          )}
-        </DialogFooter>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {puedeCobrar && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  onClick={() => setModo("cobrando")}
+                >
+                  <IconCash className="size-4" />
+                  Cobrar
+                </Button>
+              )}
+              {puedeLlegar && (
+                <Button
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={pending}
+                  onClick={() => correr(() => checkIn({ id: reserva.id }))}
+                >
+                  <IconLogin className="size-4" />
+                  {pending ? "Registrando…" : "Registrar llegada"}
+                </Button>
+              )}
+              {puedeSalir && (
+                <Button
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={pending}
+                  onClick={() =>
+                    debe ? setModo("saliendo") : correr(() => checkOut({ id: reserva.id }))
+                  }
+                >
+                  <IconLogout className="size-4" />
+                  {pending ? "Registrando…" : "Registrar salida"}
+                </Button>
+              )}
+              {!puedeCobrar && !puedeLlegar && !puedeSalir && (
+                <Button size="sm" variant="ghost" onClick={onClose}>
+                  Cerrar
+                </Button>
+              )}
+            </div>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
