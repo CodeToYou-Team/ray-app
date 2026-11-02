@@ -130,7 +130,9 @@ politicas son decorativas y no hay aislamiento entre clientes — y no te entera
 hasta que un cliente ve los datos de otro.
 
 Crea un segundo proyecto de Supabase (o usa un Postgres local) para tests, migralo
-igual, y agrega a `.env.local`:
+igual, y agrega a `.env.local`. **Que no sea la base de desarrollo**: los tests crean y
+borran filas, y algunos (los de "siempre queda un superadmin") se saltan si encuentran
+datos reales.
 
 ```
 TEST_DATABASE_URL="postgresql://app_user:...@...:6543/postgres"
@@ -170,14 +172,15 @@ y servicio). Es idempotente y no pisa lo que el cliente haya editado despues.
 `--currency` es solo presentacion: define que moneda va en grande en los KPI.
 No se convierte nada — los totales van separados por moneda.
 
-**6.3 — (Opcional) Darte acceso a `/admin`:**
+**6.3 — (Opcional) Darte acceso a `/admin` como superadmin:**
 
 ```bash
-pnpm admin:grant --email yo@empresa.com
+pnpm admin:grant --email yo@empresa.com --super
 ```
 
 Desde ahí se dan de alta los siguientes negocios sin volver a la terminal, y sin que el dueño
-tenga que registrarse antes: queda una invitación que se canjea cuando lo haga.
+tenga que registrarse antes: queda una invitación que se canjea cuando lo haga. Los demás
+administradores se nombran en `/admin/administradores`.
 
 **6.4 — Entrar:**
 

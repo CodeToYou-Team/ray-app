@@ -155,6 +155,13 @@
       "when": 1791312600589,
       "tag": "0021_platform_admin",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791312601589,
+      "tag": "0022_platform_superadmin",
+      "breakpoints": true
     }
   ]
 }

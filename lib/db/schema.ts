@@ -123,24 +123,6 @@ export const memberships = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// Administradores de la plataforma
-// ---------------------------------------------------------------------------
-
-/**
- * Quien puede dar de alta, editar y suspender negocios. Se llena solo por
- * script (`pnpm admin:grant`): app_user no tiene permiso de escritura sobre
- * esta tabla. Ver 0021_platform_admin.sql.
- */
-export const platformAdmins = pgTable("platform_admins", {
-  userId: uuid("user_id")
-    .primaryKey()
-    .references(() => users.id, { onDelete: "cascade" }),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
-
-// ---------------------------------------------------------------------------
 // Auditoria
 // ---------------------------------------------------------------------------
 
@@ -185,6 +167,59 @@ export const auditLog = pgTable(
     // El log no se edita ni se reordena en el tiempo.
     check("audit_log_at_not_future", sql`${table.at} <= now() + interval '1 minute'`),
   ],
+);
+
+// ---------------------------------------------------------------------------
+// Administradores de la plataforma
+// ---------------------------------------------------------------------------
+
+/**
+ * Quien puede dar de alta, editar y suspender negocios.
+ *
+ * `admin` gestiona negocios. `superadmin` ademas nombra, cambia y quita
+ * admins; la base impide que lo haga nadie mas, que quede sin ningun
+ * superadmin, y registra cada cambio en platform_audit_log por trigger. Ver
+ * 0021_platform_admin.sql y 0022_platform_superadmin.sql.
+ */
+export const platformAdminLevel = ["admin", "superadmin"] as const;
+export type PlatformAdminLevel = (typeof platformAdminLevel)[number];
+
+export const platformAdmins = pgTable(
+  "platform_admins",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    level: text("level", { enum: platformAdminLevel }).notNull().default("admin"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "platform_admins_level_check",
+      sql`${table.level} in ('admin', 'superadmin')`,
+    ),
+  ],
+);
+
+/**
+ * Auditoria de lo que no pertenece a ningun negocio (hoy, los cambios de
+ * administradores). La escribe solo un trigger; app_user solo la lee, y solo
+ * si es superadmin. `actorId` NULL = el script.
+ */
+export const platformAuditLog = pgTable(
+  "platform_audit_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entity: text("entity").notNull(),
+    entityId: uuid("entity_id").notNull(),
+    action: auditAction("action").notNull(),
+    actorId: uuid("actor_id"),
+    diff: jsonb("diff").$type<Record<string, unknown>>().notNull().default({}),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("platform_audit_log_at_idx").on(table.at)],
 );
 
 export type Tenant = typeof tenants.$inferSelect;

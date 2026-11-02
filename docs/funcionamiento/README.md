@@ -41,6 +41,7 @@ con el título de la sección arriba y el contenido en el centro.
 | `/sin-acceso` | Cuenta creada sin invitación, o negocio suspendido | Usuario autenticado sin negocio activo |
 | `/admin` | Negocios: listado y alta | Admin de la plataforma |
 | `/admin/[id]` | Un negocio: datos, suspensión y equipo | Admin de la plataforma |
+| `/admin/administradores` | Administradores e historial de cambios | Superadmin |
 | `/dashboard` | Inicio | Todos los roles |
 | `/finanzas` | Redirige a `/finanzas/ingresos` | — |
 | `/finanzas/ingresos` | Ingresos | Todos los roles |

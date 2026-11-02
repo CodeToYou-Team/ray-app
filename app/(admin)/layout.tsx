@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { IconArrowLeft, IconShieldCog } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { AdminNav } from "@/components/admin/admin-nav";
 import { tryGetTenant, tryPlatformAdmin, trySession } from "@/lib/authz/session";
 import { signOut } from "@/lib/authz/actions";
 
@@ -35,14 +36,15 @@ export default async function AdminLayout({
           <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <IconShieldCog className="size-4" />
           </span>
-          <span className="text-sm">Administración</span>
+          <span className="hidden text-sm lg:inline">Administración</span>
         </Link>
 
-        <span className="ml-1 hidden truncate text-xs text-muted-foreground sm:inline">
-          {admin.email}
-        </span>
+        <AdminNav isSuperadmin={admin.level === "superadmin"} />
 
         <div className="ml-auto flex items-center gap-2">
+          <span className="hidden truncate text-xs text-muted-foreground md:inline">
+            {admin.email}
+          </span>
           {tenant && (
             <Button asChild variant="ghost" size="sm" className="gap-1.5">
               <Link href="/dashboard">

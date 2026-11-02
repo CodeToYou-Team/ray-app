@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requirePlatformAdmin } from "@/lib/authz/session";
+import { requirePlatformAdmin, requirePlatformSuperadmin } from "@/lib/authz/session";
 import {
   inviteMember as inviteMemberCore,
   cancelInvitation as cancelInvitationCore,
@@ -18,6 +18,11 @@ import {
   type CreateTenantInput,
   type UpdateTenantInput,
 } from "./tenants";
+import {
+  grantAdmin as grantAdminCore,
+  changeAdminLevel as changeAdminLevelCore,
+  revokeAdmin as revokeAdminCore,
+} from "./admins";
 
 /**
  * Server Actions de administracion de la plataforma.
@@ -129,5 +134,44 @@ export async function removeMember(
     return await removeMemberCore({ tenantId, userId: admin.id }, targetUserId);
   } finally {
     revalidateAdmin(tenantId);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Administradores. Solo superadmin; la base lo vuelve a exigir (0022).
+// ---------------------------------------------------------------------------
+
+function revalidateAdmins() {
+  revalidatePath("/admin/administradores");
+}
+
+export async function grantAdmin(input: {
+  email: string;
+  level: string;
+}): Promise<AdminResult> {
+  const admin = await requirePlatformSuperadmin();
+  const result = await grantAdminCore(admin.id, input);
+  if (result.ok) revalidateAdmins();
+  return result;
+}
+
+export async function changeAdminLevel(
+  targetUserId: string,
+  level: string,
+): Promise<AdminResult> {
+  const admin = await requirePlatformSuperadmin();
+  try {
+    return await changeAdminLevelCore(admin.id, targetUserId, level);
+  } finally {
+    revalidateAdmins();
+  }
+}
+
+export async function revokeAdmin(targetUserId: string): Promise<AdminResult> {
+  const admin = await requirePlatformSuperadmin();
+  try {
+    return await revokeAdminCore(admin.id, targetUserId);
+  } finally {
+    revalidateAdmins();
   }
 }

@@ -96,14 +96,21 @@ normal de un admin no vea nada de más. Las políticas de admin solo se activan 
 `platform_admins`, y solo permiten **leer** `tenants`, `memberships`, `users` e `invitations` de
 todos los negocios: nada de operaciones, reservas, productos ni auditoría. Las escrituras del
 admin pasan por el contexto del negocio que modifican (`tenantId`), con las mismas políticas de
-siempre. `platform_admins` se llena solo por script: `app_user` no puede escribir en ella.
+siempre.
+
+`platform_admins` tiene dos niveles, `admin` y `superadmin`. Solo un superadmin escribe en ella
+desde la app (`is_platform_superadmin()`, `SECURITY DEFINER` para que su política no se llame a
+sí misma). Un trigger con bloqueo asesor impide quedarse sin superadmin, también ante dos cambios
+simultáneos (error `PA001`), y otro registra cada cambio en `platform_audit_log` con el actor,
+incluido el script (actor nulo). `app_user` solo lee ese log, y solo si es superadmin.
 
 ## Modelo de datos
 
 | Tabla | Para qué | Notas |
 |---|---|---|
 | `tenants` | Negocios | `slug`, `timezone` (por defecto America/Caracas), `primary_currency`, `suspended_at` (solo lo cambia un admin: trigger) |
-| `platform_admins` | Administradores de la plataforma | Solo se escribe por script (`pnpm admin:grant`) |
+| `platform_admins` | Administradores de la plataforma | `level` admin/superadmin; solo un superadmin escribe; siempre queda uno (trigger) |
+| `platform_audit_log` | Auditoría de lo que no es de un negocio (cambios de admins) | La escribe solo un trigger; `actor_id` nulo = script |
 | `users` | Espejo de `auth.users` | Lo mantiene un trigger sobre `auth.users` |
 | `memberships` | Usuario ↔ negocio + rol | Único por (usuario, negocio). Rol: owner/manager/staff |
 | `invitations` | Correos invitados con rol | Correo en minúsculas; una pendiente por correo y negocio |
@@ -184,6 +191,7 @@ En `drizzle/`, aplicadas con `pnpm db:migrate`:
 | `0019_service_schedules` | horarios fijos (turnos) de los servicios por hora |
 | `0020_booking_custom_fields` | columnas personalizadas en la reserva (`field_entity` + `bookings.custom`) |
 | `0021_platform_admin` | `platform_admins`, políticas de lectura del admin, `tenants.suspended_at` y el trigger que se lo niega al negocio |
+| `0022_platform_superadmin` | nivel superadmin, sus políticas de escritura, "al menos un superadmin" y `platform_audit_log` |
 
 ## Scripts
 
@@ -195,7 +203,7 @@ En `drizzle/`, aplicadas con `pnpm db:migrate`:
 | `pnpm db:bootstrap` | Habilita la contraseña de `app_user` y escribe `DATABASE_URL` en `.env.local` |
 | `pnpm db:check` | Diagnóstico de conexión |
 | `pnpm seed:tenant --name … --slug … --email …` | Da de alta un negocio, su dueño (que debe estar registrado antes) y los catálogos iniciales. Idempotente |
-| `pnpm admin:grant --email … [--revoke]` | Da o quita acceso a `/admin`. Es la única forma de crear un admin |
+| `pnpm admin:grant --email … [--super \| --revoke]` | Da o quita acceso a `/admin`. Para el primer superadmin; después se gestionan en `/admin/administradores` |
 | `pnpm test` | Vitest |
 
 Los negocios se dan de alta desde `/admin` (ver [Acceso](01-acceso-y-roles.md#administración-de-la-plataforma-admin)).

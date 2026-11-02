@@ -2,10 +2,10 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import postgres from "postgres";
 import { uuidv7 } from "uuidv7";
 import { eq } from "drizzle-orm";
+import { isPlatformAdmin } from "@/lib/admin/admins";
 import {
   createTenant,
   emailBlockedElsewhere,
-  isPlatformAdmin,
   listTenants,
   setTenantSuspended,
   updateTenant,
@@ -64,6 +64,8 @@ describe.skipIf(!hasDb)("administracion de negocios", () => {
     if (!sql) return;
     await sql`delete from tenants where id in ${sql([tenant, otroTenant, ...creados])}`;
     await sql`delete from users where id in (${admin}, ${noAdmin}, ${dueno}, ${nuevoDueno})`;
+    // El trigger de 0022 registra el alta y la baja del admin del test.
+    await sql`delete from platform_audit_log where entity_id = ${admin}`;
     await sql.end();
   });
 

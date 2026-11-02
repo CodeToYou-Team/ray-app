@@ -48,9 +48,14 @@
   its own GUC (`app.platform_admin_id`), deliberately not `app.current_user_id`, and its
   policies only READ `tenants`, `memberships`, `users` and `invitations` across tenants —
   never transactions, bookings or products. Admin writes go through the target tenant's
-  context (`withPlatformAdmin(adminId, fn, tenantId)`). `platform_admins` is filled only by
-  `pnpm admin:grant`; `app_user` cannot write to it. Team changes reuse
+  context (`withPlatformAdmin(adminId, fn, tenantId)`). Team changes reuse
   `lib/authz/members.ts`, so "at least one owner" lives in one place for both doors.
+  Two levels in `platform_admins`: `admin` and `superadmin`. Only a superadmin writes to
+  it (policies in `drizzle/0022_platform_superadmin.sql`, enforced by the DB, not just
+  `requirePlatformSuperadmin()`). A trigger keeps at least one superadmin under an
+  advisory lock (`PA001`), and another writes every change to `platform_audit_log`, so
+  never log admin changes from app code. `pnpm admin:grant [--super]` bootstraps the first
+  superadmin.
 - `/lib/catalogs` - The polymorphic catalog registry, queries and actions.
 - `/lib/finanzas` - `register.ts` holds the transaction/inventory logic and takes an
   explicit `{tenantId, userId}`; `actions.ts` is a thin `"use server"` wrapper that

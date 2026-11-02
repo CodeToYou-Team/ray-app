@@ -9,7 +9,6 @@ import {
   catalogItems,
   invitations,
   memberships,
-  platformAdmins,
   tenants,
   users,
 } from "@/lib/db/schema";
@@ -120,17 +119,6 @@ function firstIssue(error: z.ZodError): { error: string; field?: string } {
     error: issue.message,
     field: typeof field === "string" ? field : undefined,
   };
-}
-
-/** ¿Esta en platform_admins? Lo usa requirePlatformAdmin(). */
-export async function isPlatformAdmin(userId: string): Promise<boolean> {
-  const rows = await withPlatformAdmin(userId, (tx) =>
-    tx
-      .select({ userId: platformAdmins.userId })
-      .from(platformAdmins)
-      .where(eq(platformAdmins.userId, userId)),
-  );
-  return rows.length > 0;
 }
 
 export async function listTenants(adminId: string): Promise<TenantSummary[]> {

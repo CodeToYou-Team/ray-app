@@ -2,16 +2,19 @@
  * Da (o quita) acceso a la administracion de la plataforma (/admin).
  *
  * Uso:
- *   pnpm admin:grant --email yo@empresa.com
+ *   pnpm admin:grant --email yo@empresa.com            # admin
+ *   pnpm admin:grant --email yo@empresa.com --super    # superadmin (o subirlo)
  *   pnpm admin:grant --email yo@empresa.com --revoke
  *
  * El usuario tiene que haberse registrado antes en Supabase Auth: el trigger de
  * drizzle/0002_auth_mirror.sql lo copia a public.users y este script lo busca
  * por email. No necesita pertenecer a ningun negocio.
  *
- * Es la UNICA forma de crear un admin, a proposito: app_user no puede escribir
- * en platform_admins (ver 0021_platform_admin.sql), asi que ninguna pantalla ni
- * Server Action puede dar este acceso. Corre con el rol dueño (DIRECT_URL).
+ * Desde la app, solo un superadmin nombra admins (/admin/administradores). Este
+ * script es para el primero, o para recuperar el acceso si no queda ninguno a
+ * mano: corre con el rol dueño (DIRECT_URL), que no pasa por RLS. Lo que la
+ * base impone igual vale aqui: no deja quitar al ultimo superadmin, y el
+ * trigger de 0022 registra el cambio en platform_audit_log con actor NULL.
  */
 import postgres from "postgres";
 import { config } from "dotenv";
@@ -26,9 +29,12 @@ function arg(name: string): string | undefined {
 
 const email = arg("email");
 const revoke = process.argv.includes("--revoke");
+const level = process.argv.includes("--super") ? "superadmin" : "admin";
 
 if (!email) {
-  console.error("Falta el correo.\n\n  pnpm admin:grant --email yo@empresa.com [--revoke]\n");
+  console.error(
+    "Falta el correo.\n\n  pnpm admin:grant --email yo@empresa.com [--super | --revoke]\n",
+  );
   process.exit(1);
 }
 
@@ -55,25 +61,40 @@ try {
   }
 
   if (revoke) {
-    const borrados = await sql`
-      delete from platform_admins where user_id = ${user.id} returning user_id
-    `;
+    let borrados;
+    try {
+      borrados = await sql`
+        delete from platform_admins where user_id = ${user.id} returning user_id
+      `;
+    } catch (error) {
+      if ((error as { code?: string }).code === "PA001") {
+        console.error(
+          `\n  ${user.email} es el ultimo superadmin. Nombra otro antes de quitarlo.\n`,
+        );
+        process.exit(1);
+      }
+      throw error;
+    }
     console.log(
       borrados.length > 0
         ? `\n  ${user.email} ya no es administrador.\n`
         : `\n  ${user.email} no era administrador.\n`,
     );
   } else {
-    const creados = await sql`
-      insert into platform_admins (user_id) values (${user.id})
-      on conflict (user_id) do nothing
-      returning user_id
+    const [antes] = await sql<{ level: string }[]>`
+      select level from platform_admins where user_id = ${user.id}
     `;
-    console.log(
-      creados.length > 0
-        ? `\n  ${user.email} ahora es administrador. Entra en /admin.\n`
-        : `\n  ${user.email} ya era administrador.\n`,
-    );
+
+    if (!antes) {
+      await sql`insert into platform_admins (user_id, level) values (${user.id}, ${level})`;
+      console.log(`\n  ${user.email} ahora es ${level}. Entra en /admin.\n`);
+    } else if (level === "superadmin" && antes.level !== "superadmin") {
+      // Sin --super no se baja a nadie: eso se hace desde la app, donde se ve.
+      await sql`update platform_admins set level = 'superadmin' where user_id = ${user.id}`;
+      console.log(`\n  ${user.email} paso de ${antes.level} a superadmin.\n`);
+    } else {
+      console.log(`\n  ${user.email} ya era ${antes.level}.\n`);
+    }
   }
 } finally {
   await sql.end();

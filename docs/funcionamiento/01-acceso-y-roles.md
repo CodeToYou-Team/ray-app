@@ -101,16 +101,44 @@ Detalles:
 ## Administración de la plataforma (`/admin`)
 
 Es la pantalla de quien opera Ray App, no de los negocios. Quién es admin lo decide la tabla
-`platform_admins`, que **solo se llena por script**:
+`platform_admins`, con dos niveles:
+
+| Nivel | Qué puede hacer |
+|---|---|
+| **Admin** | Crear, editar y suspender negocios, y gestionar sus equipos |
+| **Superadmin** | Todo lo anterior, y además nombrar, cambiar de nivel y quitar administradores |
+
+Un admin no necesita pertenecer a ningún negocio; si además pertenece a uno, el menú del usuario
+muestra **Administración**, y `/admin` tiene **Volver a la app**.
+
+### Administradores (`/admin/administradores`)
+
+Solo para superadmin; un admin ve "Solo para superadmin" y no aparece en su menú.
+
+- **Nombrar**: correo y nivel. La persona **tiene que tener cuenta ya**. No hay invitación
+  pendiente como con los dueños a propósito: ser admin es el acceso más alto, y una invitación a
+  un correo sin registrar se la quedaría quien se registrara primero con él.
+- **Cambiar de nivel** y **quitar**, con confirmación. Nadie se cambia ni se quita a sí mismo.
+- **Siempre queda al menos un superadmin.** Lo impone la base, también frente a dos cambios
+  simultáneos y frente al script.
+- **Historial**: cada alta, cambio y baja de administrador, con quién lo hizo y cuándo. Lo
+  escribe un trigger de la base, así que también queda lo que se hace por script (aparece como
+  "script").
+
+Que solo un superadmin escriba en `platform_admins` también lo impone la base: un admin que
+llamara a la acción directamente no cambiaría nada.
+
+### El script
+
+Sirve para el primer superadmin, o para recuperar el acceso si no queda ninguno a mano:
 
 ```bash
-pnpm admin:grant --email yo@empresa.com            # dar acceso
+pnpm admin:grant --email yo@empresa.com            # admin
+pnpm admin:grant --email yo@empresa.com --super    # superadmin (o subir a uno que ya es admin)
 pnpm admin:grant --email yo@empresa.com --revoke   # quitarlo
 ```
 
-Ninguna pantalla puede crear admins. Un admin no necesita pertenecer a ningún negocio; si además
-pertenece a uno, el menú del usuario muestra **Administración**, y `/admin` tiene **Volver a la
-app**.
+Corre con la credencial de la base (`DIRECT_URL`). Tampoco deja quitar al último superadmin.
 
 ### Negocios (`/admin`)
 

@@ -3,7 +3,7 @@ import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { Header } from "@/components/layout/header";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { getAccess } from "@/lib/authz/session";
-import { isPlatformAdmin } from "@/lib/admin/tenants";
+import { isPlatformAdmin } from "@/lib/admin/admins";
 
 /**
  * Shell de la aplicacion. Reemplaza los cuatro layouts byte-identicos que habia

@@ -5,9 +5,9 @@ import { eq } from "drizzle-orm";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { withUser } from "@/lib/db/tenant";
 import { claimInvitation } from "./members";
-import { isPlatformAdmin } from "@/lib/admin/tenants";
+import { getPlatformAdminLevel, isPlatformAdmin } from "@/lib/admin/admins";
 import { memberships, tenants, users } from "@/lib/db/schema";
-import type { MembershipRole } from "@/lib/db/schema";
+import type { MembershipRole, PlatformAdminLevel } from "@/lib/db/schema";
 import { roleHas, ForbiddenError, type Capability } from "./roles";
 
 export class UnauthenticatedError extends Error {
@@ -37,10 +37,18 @@ export class TenantSuspendedError extends Error {
 }
 
 export class NotPlatformAdminError extends Error {
-  constructor(userId: string) {
-    super(`El usuario ${userId} no es administrador de la plataforma.`);
+  constructor(userId: string, level: PlatformAdminLevel = "admin") {
+    super(
+      level === "superadmin"
+        ? `El usuario ${userId} no es superadmin de la plataforma.`
+        : `El usuario ${userId} no es administrador de la plataforma.`,
+    );
     this.name = "NotPlatformAdminError";
   }
+}
+
+export interface PlatformAdminUser extends SessionUser {
+  level: PlatformAdminLevel;
 }
 
 export interface SessionUser {
@@ -186,17 +194,31 @@ export async function requireCapability(
  * Cada Server Action de lib/admin empieza con esto, igual que las del negocio
  * empiezan con requireCapability().
  */
-export const requirePlatformAdmin = cache(async (): Promise<SessionUser> => {
+export const requirePlatformAdmin = cache(async (): Promise<PlatformAdminUser> => {
   const user = await requireSession();
-  if (!(await isPlatformAdmin(user.id))) throw new NotPlatformAdminError(user.id);
-  return user;
+  const level = await getPlatformAdminLevel(user.id);
+  if (!level) throw new NotPlatformAdminError(user.id);
+  return { ...user, level };
 });
 
+/**
+ * Exige ser superadmin: el unico nivel que nombra, cambia y quita admins. Las
+ * politicas de 0022 lo vuelven a exigir en la base.
+ */
+export async function requirePlatformSuperadmin(): Promise<PlatformAdminUser> {
+  const admin = await requirePlatformAdmin();
+  if (admin.level !== "superadmin") {
+    throw new NotPlatformAdminError(admin.id, "superadmin");
+  }
+  return admin;
+}
+
 /** Para la UI: decidir si se muestra el enlace a Administracion. */
-export const tryPlatformAdmin = cache(async (): Promise<SessionUser | null> => {
+export const tryPlatformAdmin = cache(async (): Promise<PlatformAdminUser | null> => {
   const user = await trySession();
   if (!user) return null;
-  return (await isPlatformAdmin(user.id)) ? user : null;
+  const level = await getPlatformAdminLevel(user.id);
+  return level ? { ...user, level } : null;
 });
 
 /** Sesion sin lanzar. Distingue "no entro" de "entro pero no lo invitaron". */
