@@ -148,6 +148,13 @@
       "when": 1791312599589,
       "tag": "0020_booking_custom_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791312600589,
+      "tag": "0021_platform_admin",
+      "breakpoints": true
     }
   ]
 }

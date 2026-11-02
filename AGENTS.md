@@ -39,8 +39,18 @@
   tree. Adding a route means adding an entry here, or the header warns in dev.
 - `/lib/format.ts` - `formatMoney` (currency-aware), `formatDate`, `getPercentChange`.
 - `/lib/db` - Drizzle schema, connection, and `withTenant()`. Server-only.
-- `/lib/authz` - `requireSession` / `requireTenant` / `requireCapability`, plus the
-  role-to-capability map. Every Server Action starts with one of these.
+- `/lib/authz` - `requireSession` / `requireTenant` / `requireCapability` /
+  `requirePlatformAdmin`, plus the role-to-capability map. Every Server Action starts with
+  one of these. `requireTenant` also rejects a suspended tenant (`tenants.suspended_at`),
+  which is what locks a suspended business out of every action, not just the layout.
+- `/lib/admin` - Platform administration (`/admin`): list, create, edit and suspend
+  tenants. Same `tenants.ts` / `actions.ts` split as finanzas. `withPlatformAdmin()` sets
+  its own GUC (`app.platform_admin_id`), deliberately not `app.current_user_id`, and its
+  policies only READ `tenants`, `memberships`, `users` and `invitations` across tenants —
+  never transactions, bookings or products. Admin writes go through the target tenant's
+  context (`withPlatformAdmin(adminId, fn, tenantId)`). `platform_admins` is filled only by
+  `pnpm admin:grant`; `app_user` cannot write to it. Team changes reuse
+  `lib/authz/members.ts`, so "at least one owner" lives in one place for both doors.
 - `/lib/catalogs` - The polymorphic catalog registry, queries and actions.
 - `/lib/finanzas` - `register.ts` holds the transaction/inventory logic and takes an
   explicit `{tenantId, userId}`; `actions.ts` is a thin `"use server"` wrapper that

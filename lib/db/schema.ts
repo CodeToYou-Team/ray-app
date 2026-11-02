@@ -52,6 +52,13 @@ export const tenants = pgTable("tenants", {
   primaryCurrency: varchar("primary_currency", { length: 10 })
     .notNull()
     .default("USD"),
+  /**
+   * Un negocio no se borra: se suspende. Con valor, nadie del negocio entra
+   * (requireTenant lo rechaza) y sus datos quedan intactos. Solo lo cambia un
+   * admin de la plataforma: un trigger lo impide desde el contexto del cliente
+   * (ver 0021_platform_admin.sql).
+   */
+  suspendedAt: timestamp("suspended_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -114,6 +121,24 @@ export const memberships = pgTable(
     index("memberships_tenant_idx").on(table.tenantId),
   ],
 );
+
+// ---------------------------------------------------------------------------
+// Administradores de la plataforma
+// ---------------------------------------------------------------------------
+
+/**
+ * Quien puede dar de alta, editar y suspender negocios. Se llena solo por
+ * script (`pnpm admin:grant`): app_user no tiene permiso de escritura sobre
+ * esta tabla. Ver 0021_platform_admin.sql.
+ */
+export const platformAdmins = pgTable("platform_admins", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 // ---------------------------------------------------------------------------
 // Auditoria

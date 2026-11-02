@@ -15,7 +15,8 @@
     "db:studio": "drizzle-kit studio",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed:tenant": "node --experimental-strip-types --no-warnings scripts/seed-tenant.ts"
+    "seed:tenant": "node --experimental-strip-types --no-warnings scripts/seed-tenant.ts",
+    "admin:grant": "node --experimental-strip-types --no-warnings scripts/grant-admin.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

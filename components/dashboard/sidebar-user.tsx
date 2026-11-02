@@ -5,7 +5,9 @@ import {
   IconLogout,
   IconMoon,
   IconSun,
+  IconShieldCog,
 } from "@tabler/icons-react";
+import Link from "next/link";
 import { useTransition } from "react";
 import { useTheme } from "next-themes";
 import { signOut } from "@/lib/authz/actions";
@@ -28,6 +30,8 @@ export interface SidebarUserProps {
   email: string;
   /** Rol dentro del cliente activo: owner, manager o staff. */
   role: string;
+  /** Muestra el acceso a /admin. Es comodidad: /admin verifica por su cuenta. */
+  isPlatformAdmin?: boolean;
 }
 
 /** Iniciales para el avatar. "Manuel Rodríguez" -> "MR", "ana@x.com" -> "AN". */
@@ -40,7 +44,7 @@ function initialsOf(name: string, email: string): string {
   return email.slice(0, 2).toUpperCase();
 }
 
-export function SidebarUser({ name, email, role }: SidebarUserProps) {
+export function SidebarUser({ name, email, role, isPlatformAdmin }: SidebarUserProps) {
   const { setTheme, theme } = useTheme();
   const [signingOut, startSignOut] = useTransition();
   const initials = initialsOf(name, email);
@@ -86,6 +90,14 @@ export function SidebarUser({ name, email, role }: SidebarUserProps) {
               )}
               {theme === "dark" ? "Modo claro" : "Modo oscuro"}
             </DropdownMenuItem>
+            {isPlatformAdmin && (
+              <DropdownMenuItem asChild>
+                <Link href="/admin">
+                  <IconShieldCog className="size-4 mr-2" />
+                  Administración
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <div className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
               Rol: {role}

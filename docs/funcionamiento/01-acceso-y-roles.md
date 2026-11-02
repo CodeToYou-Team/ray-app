@@ -48,6 +48,10 @@ rebotarlo al login (que parecería un fallo), la pantalla explica que falta una 
 **muestra el correo con el que entró**, que es el dato que necesita quien lo va a invitar.
 Tiene un botón **Salir**.
 
+Si la persona sí pertenece a un negocio pero ese negocio está **suspendido**, la misma pantalla
+le dice que el acceso está suspendido y que sus datos se conservan, en vez de pedirle una
+invitación que ya tiene.
+
 ## Cómo entra una persona nueva (flujo de invitación)
 
 ```
@@ -88,8 +92,59 @@ Detalles:
 - En cada petición, `proxy.ts` (el antiguo *middleware* de Next) **solo refresca la sesión**:
   rota el token si está por vencer. No decide permisos.
 - Si alguien sin sesión abre una pantalla interna, va a `/login`. Si tiene sesión pero no
-  negocio, va a `/sin-acceso`.
+  negocio, va a `/sin-acceso`, salvo que sea admin de la plataforma: entonces va a `/admin`.
+- Si su negocio está suspendido, va a `/sin-acceso`. La comprobación está en `requireTenant()`,
+  así que también rechaza cualquier Server Action: quien tenía la app abierta deja de poder
+  registrar nada.
 - **Cerrar sesión** está en el menú del usuario, abajo en la barra lateral.
+
+## Administración de la plataforma (`/admin`)
+
+Es la pantalla de quien opera Ray App, no de los negocios. Quién es admin lo decide la tabla
+`platform_admins`, que **solo se llena por script**:
+
+```bash
+pnpm admin:grant --email yo@empresa.com            # dar acceso
+pnpm admin:grant --email yo@empresa.com --revoke   # quitarlo
+```
+
+Ninguna pantalla puede crear admins. Un admin no necesita pertenecer a ningún negocio; si además
+pertenece a uno, el menú del usuario muestra **Administración**, y `/admin` tiene **Volver a la
+app**.
+
+### Negocios (`/admin`)
+
+Lista todos los negocios con su dueño (o el correo invitado como dueño que todavía no se
+registró), el tamaño del equipo, la moneda, la fecha de alta y si está activo o suspendido.
+
+**Nuevo negocio** pide nombre, identificador (slug, se propone a partir del nombre), correo del
+dueño, zona horaria y moneda por defecto. En una sola transacción crea el negocio, sus
+catálogos por defecto y una **invitación de dueño**. El dueño no necesita tener cuenta: se
+registra con ese correo y entra como dueño, con el mismo canje que usa Equipo. Si ya tenía cuenta
+sin negocio, le basta con volver a entrar.
+
+Se rechaza:
+
+- un correo que ya pertenece a otro negocio, o que tiene una invitación pendiente de otro (hoy
+  cada persona está en un solo negocio y el canje elige la invitación más antigua);
+- un identificador repetido, una zona horaria que no existe o una moneda fuera de la lista.
+
+### Un negocio (`/admin/[id]`)
+
+- **Datos**: nombre, zona horaria y moneda por defecto. El identificador no se cambia. Cambiar la
+  zona horaria avisa de que cambia cómo se leen las horas ya registradas.
+- **Suspender / Reactivar**, con confirmación. Suspender no borra nada; nadie del equipo entra
+  mientras dure. Un trigger impide que el propio negocio cambie su suspensión, aunque tenga
+  permiso para editar su fila (moneda por defecto).
+- **Equipo**: el mismo componente de Ajustes › Equipo, con el admin como actor. Sirve para
+  rescatar un negocio cuyo dueño ya no puede entrar: invitar a un dueño nuevo, subir de rol a
+  alguien del equipo o quitar a alguien. Se aplican las mismas reglas: **siempre queda al menos un
+  dueño**. La de "no puedes cambiar tu propio rol" no le afecta, porque el admin no es miembro.
+
+Todo queda en la auditoría del negocio con el admin como autor y `via: "admin"` en el detalle.
+
+El admin **no** ve operaciones, reservas, productos ni inventario de ningún negocio: las
+políticas de la base solo le abren negocios, membresías, usuarios e invitaciones.
 
 ## Roles y permisos
 

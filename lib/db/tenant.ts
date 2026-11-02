@@ -71,6 +71,45 @@ export async function withUser<T>(
 }
 
 /**
+ * Ejecuta `fn` con el contexto del ADMINISTRADOR de la plataforma.
+ *
+ * Habilita leer `tenants`, `memberships`, `users` e `invitations` de todos los
+ * clientes, y nada mas (ver drizzle/0021_platform_admin.sql). Fijar el GUC no
+ * alcanza por si solo: el id tiene que estar en `platform_admins`, o las
+ * politicas lo tratan como a cualquiera.
+ *
+ * Con `tenantId`, ademas abre el contexto de ese cliente en la misma
+ * transaccion. Es la unica forma de escribir: las escrituras del admin pasan por
+ * las mismas politicas que las del propio cliente. Lo unico que agrega el GUC de
+ * admin ahi es poder cambiar `tenants.suspended_at`, que un trigger le niega al
+ * cliente.
+ */
+export async function withPlatformAdmin<T>(
+  adminId: string,
+  fn: (tx: Tx) => Promise<T>,
+  tenantId?: string,
+): Promise<T> {
+  if (!UUID_RE.test(adminId)) {
+    throw new Error(`withPlatformAdmin recibio un adminId que no es UUID: ${adminId}`);
+  }
+  if (tenantId !== undefined && !UUID_RE.test(tenantId)) {
+    throw new Error(`withPlatformAdmin recibio un tenantId que no es UUID: ${tenantId}`);
+  }
+
+  return getDb().transaction(async (tx) => {
+    await tx.execute(
+      sql`select set_config('app.platform_admin_id', ${adminId}, true)`,
+    );
+    if (tenantId !== undefined) {
+      await tx.execute(
+        sql`select set_config('app.current_tenant_id', ${tenantId}, true)`,
+      );
+    }
+    return fn(tx);
+  });
+}
+
+/**
  * Verifica que la conexion de la app NO pueda saltarse RLS.
  *
  * Los roles `postgres` y `service_role` de Supabase tienen BYPASSRLS: si el

@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { withUser } from "@/lib/db/tenant";
 import { claimInvitation } from "./members";
+import { isPlatformAdmin } from "@/lib/admin/tenants";
 import { memberships, tenants, users } from "@/lib/db/schema";
 import type { MembershipRole } from "@/lib/db/schema";
 import { roleHas, ForbiddenError, type Capability } from "./roles";
@@ -20,6 +21,25 @@ export class NoMembershipError extends Error {
   constructor(userId: string) {
     super(`El usuario ${userId} no pertenece a ningun cliente.`);
     this.name = "NoMembershipError";
+  }
+}
+
+/**
+ * El negocio existe y la persona pertenece a el, pero un admin lo suspendio.
+ * Se distingue de NoMembershipError para no decirle "pide que te inviten" a
+ * alguien que ya esta invitado.
+ */
+export class TenantSuspendedError extends Error {
+  constructor(readonly tenantName: string) {
+    super(`El cliente "${tenantName}" esta suspendido.`);
+    this.name = "TenantSuspendedError";
+  }
+}
+
+export class NotPlatformAdminError extends Error {
+  constructor(userId: string) {
+    super(`El usuario ${userId} no es administrador de la plataforma.`);
+    this.name = "NotPlatformAdminError";
   }
 }
 
@@ -98,7 +118,13 @@ export const requireTenant = cache(async (): Promise<TenantContext> => {
 
   if (!row) throw new NoMembershipError(user.id);
 
-  const { fullName, ...tenant } = row;
+  /**
+   * Aqui y no en el layout: todo Server Action pasa por requireTenant(), asi
+   * que un negocio suspendido deja de poder escribir aunque alguien tenga la
+   * pantalla abierta desde antes.
+   */
+  const { fullName, suspendedAt, tenantName, ...tenant } = row;
+  if (suspendedAt) throw new TenantSuspendedError(tenantName);
 
   return {
     user: {
@@ -118,11 +144,13 @@ async function findMembership(userId: string) {
     tx
       .select({
         tenantId: tenants.id,
+        tenantName: tenants.name,
         tenantSlug: tenants.slug,
         timezone: tenants.timezone,
         primaryCurrency: tenants.primaryCurrency,
         role: memberships.role,
         fullName: users.fullName,
+        suspendedAt: tenants.suspendedAt,
       })
       .from(memberships)
       .innerJoin(tenants, eq(tenants.id, memberships.tenantId))
@@ -152,12 +180,25 @@ export async function requireCapability(
 }
 
 /**
- * Como `requireTenant()` pero sin lanzar: devuelve null si no hay sesion o si el
- * usuario no pertenece a ningun cliente.
+ * Exige ser administrador de la plataforma (tabla `platform_admins`).
  *
- * Para los layouts, que necesitan decidir a donde redirigir. No usar en Server
- * Actions: ahi se quiere que falle fuerte.
+ * No depende de pertenecer a ningun negocio: un admin puede no tener membresia.
+ * Cada Server Action de lib/admin empieza con esto, igual que las del negocio
+ * empiezan con requireCapability().
  */
+export const requirePlatformAdmin = cache(async (): Promise<SessionUser> => {
+  const user = await requireSession();
+  if (!(await isPlatformAdmin(user.id))) throw new NotPlatformAdminError(user.id);
+  return user;
+});
+
+/** Para la UI: decidir si se muestra el enlace a Administracion. */
+export const tryPlatformAdmin = cache(async (): Promise<SessionUser | null> => {
+  const user = await trySession();
+  if (!user) return null;
+  return (await isPlatformAdmin(user.id)) ? user : null;
+});
+
 /** Sesion sin lanzar. Distingue "no entro" de "entro pero no lo invitaron". */
 export const trySession = cache(async (): Promise<SessionUser | null> => {
   try {
@@ -168,16 +209,41 @@ export const trySession = cache(async (): Promise<SessionUser | null> => {
   }
 });
 
-export const tryGetTenant = cache(async (): Promise<TenantContext | null> => {
+/**
+ * En que situacion esta quien abre una pantalla, sin lanzar.
+ *
+ * Para layouts y pantallas publicas, que tienen que decidir a donde mandar a
+ * cada uno. No usar en Server Actions: ahi se quiere que falle fuerte.
+ */
+export type Access =
+  | { kind: "anonimo" }
+  | { kind: "sin-negocio"; session: SessionUser; isAdmin: boolean }
+  | { kind: "suspendido"; session: SessionUser; tenantName: string }
+  | { kind: "ok"; context: TenantContext };
+
+export const getAccess = cache(async (): Promise<Access> => {
+  const session = await trySession();
+  if (!session) return { kind: "anonimo" };
+
   try {
-    return await requireTenant();
+    return { kind: "ok", context: await requireTenant() };
   } catch (error) {
-    if (
-      error instanceof UnauthenticatedError ||
-      error instanceof NoMembershipError
-    ) {
-      return null;
+    if (error instanceof TenantSuspendedError) {
+      return { kind: "suspendido", session, tenantName: error.tenantName };
+    }
+    if (error instanceof NoMembershipError) {
+      return {
+        kind: "sin-negocio",
+        session,
+        isAdmin: await isPlatformAdmin(session.id),
+      };
     }
     throw error;
   }
+});
+
+/** El contexto del cliente si se puede entrar a la app, o null. */
+export const tryGetTenant = cache(async (): Promise<TenantContext | null> => {
+  const access = await getAccess();
+  return access.kind === "ok" ? access.context : null;
 });

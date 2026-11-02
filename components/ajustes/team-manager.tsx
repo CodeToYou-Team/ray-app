@@ -42,6 +42,7 @@ import {
   cancelInvitation,
   changeRole,
   removeMember,
+  type MemberResult,
 } from "@/lib/authz/member-actions";
 import { formatDate } from "@/lib/format";
 import type { MembershipRole } from "@/lib/db/schema";
@@ -61,6 +62,24 @@ export interface TeamInvitation {
   role: MembershipRole;
   createdAt: Date;
 }
+
+/**
+ * Las escrituras del equipo. Por defecto, las del propio negocio (exigen
+ * `member:manage`); /admin pasa las suyas con el tenantId ya ligado.
+ */
+export interface TeamActions {
+  inviteMember: (input: { email: string; role: string }) => Promise<MemberResult>;
+  cancelInvitation: (id: string) => Promise<MemberResult>;
+  changeRole: (userId: string, role: string) => Promise<MemberResult>;
+  removeMember: (userId: string) => Promise<MemberResult>;
+}
+
+const MEMBER_ACTIONS: TeamActions = {
+  inviteMember,
+  cancelInvitation,
+  changeRole,
+  removeMember,
+};
 
 /** Que puede hacer cada rol, en palabras del negocio. */
 const ROLES: { value: MembershipRole; label: string; descripcion: string }[] = [
@@ -87,11 +106,17 @@ export function TeamManager({
   members,
   invitations,
   signupUrl,
+  actions = MEMBER_ACTIONS,
+  title = "Equipo",
+  description = "Quién tiene acceso y con qué permisos.",
 }: {
   members: TeamMember[];
   invitations: TeamInvitation[];
   /** URL de registro que el dueño comparte con quien invita. */
   signupUrl: string;
+  actions?: TeamActions;
+  title?: string;
+  description?: string;
 }) {
   const [inviting, setInviting] = useState(false);
 
@@ -99,10 +124,8 @@ export function TeamManager({
     <div className="space-y-4 max-w-4xl mx-auto">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold">Equipo</h2>
-          <p className="text-sm text-muted-foreground">
-            Quién tiene acceso y con qué permisos.
-          </p>
+          <h2 className="text-lg font-bold">{title}</h2>
+          <p className="text-sm text-muted-foreground">{description}</p>
         </div>
         <Button size="sm" className="gap-1.5" onClick={() => setInviting(true)}>
           <IconUserPlus className="size-3.5" />
@@ -148,13 +171,13 @@ export function TeamManager({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <RoleCell member={m} />
+                    <RoleCell member={m} actions={actions} />
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {formatDate(m.joinedAt.toISOString())}
                   </TableCell>
                   <TableCell className="text-right">
-                    {!m.isSelf && <RemoveButton member={m} />}
+                    {!m.isSelf && <RemoveButton member={m} actions={actions} />}
                   </TableCell>
                 </TableRow>
               ))}
@@ -195,7 +218,7 @@ export function TeamManager({
                       {formatDate(inv.createdAt.toISOString())}
                     </TableCell>
                     <TableCell className="text-right">
-                      <CancelButton id={inv.id} email={inv.email} />
+                      <CancelButton id={inv.id} email={inv.email} actions={actions} />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -206,13 +229,23 @@ export function TeamManager({
       )}
 
       {inviting && (
-        <InviteDialog signupUrl={signupUrl} onClose={() => setInviting(false)} />
+        <InviteDialog
+          signupUrl={signupUrl}
+          actions={actions}
+          onClose={() => setInviting(false)}
+        />
       )}
     </div>
   );
 }
 
-function RoleCell({ member }: { member: TeamMember }) {
+function RoleCell({
+  member,
+  actions,
+}: {
+  member: TeamMember;
+  actions: TeamActions;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -235,7 +268,7 @@ function RoleCell({ member }: { member: TeamMember }) {
         onValueChange={(v) => {
           setError(null);
           start(async () => {
-            const r = await changeRole(member.userId, v);
+            const r = await actions.changeRole(member.userId, v);
             if (r.ok) router.refresh();
             else setError(r.error);
           });
@@ -257,7 +290,13 @@ function RoleCell({ member }: { member: TeamMember }) {
   );
 }
 
-function RemoveButton({ member }: { member: TeamMember }) {
+function RemoveButton({
+  member,
+  actions,
+}: {
+  member: TeamMember;
+  actions: TeamActions;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -311,7 +350,7 @@ function RemoveButton({ member }: { member: TeamMember }) {
                 onClick={() => {
                   setError(null);
                   start(async () => {
-                    const r = await removeMember(member.userId);
+                    const r = await actions.removeMember(member.userId);
                     if (r.ok) {
                       setConfirmando(false);
                       router.refresh();
@@ -329,7 +368,15 @@ function RemoveButton({ member }: { member: TeamMember }) {
   );
 }
 
-function CancelButton({ id, email }: { id: string; email: string }) {
+function CancelButton({
+  id,
+  email,
+  actions,
+}: {
+  id: string;
+  email: string;
+  actions: TeamActions;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
 
@@ -342,7 +389,7 @@ function CancelButton({ id, email }: { id: string; email: string }) {
       title="Cancelar invitación"
       onClick={() =>
         start(async () => {
-          await cancelInvitation(id);
+          await actions.cancelInvitation(id);
           router.refresh();
         })
       }
@@ -355,9 +402,11 @@ function CancelButton({ id, email }: { id: string; email: string }) {
 
 function InviteDialog({
   signupUrl,
+  actions,
   onClose,
 }: {
   signupUrl: string;
+  actions: TeamActions;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -461,7 +510,7 @@ function InviteDialog({
             onClick={() => {
               setError(null);
               start(async () => {
-                const r = await inviteMember({ email, role });
+                const r = await actions.inviteMember({ email, role });
                 if (r.ok) {
                   setListo(true);
                   router.refresh();

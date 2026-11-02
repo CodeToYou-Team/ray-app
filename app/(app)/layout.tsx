@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { Header } from "@/components/layout/header";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { tryGetTenant, trySession } from "@/lib/authz/session";
+import { getAccess } from "@/lib/authz/session";
+import { isPlatformAdmin } from "@/lib/admin/tenants";
 
 /**
  * Shell de la aplicacion. Reemplaza los cuatro layouts byte-identicos que habia
@@ -19,17 +20,24 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const context = await tryGetTenant();
+  const access = await getAccess();
 
-  if (!context) {
+  if (access.kind !== "ok") {
     /**
-     * Se distinguen los dos casos a proposito. Mandar a /login a alguien que YA
+     * Se distinguen los casos a proposito. Mandar a /login a alguien que YA
      * entro produce un bucle: inicia sesion bien, el layout lo rebota, y vuelve
      * a ver el formulario sin que nada explique por que.
+     *
+     * Un admin de la plataforma sin negocio propio no tiene nada que ver aqui:
+     * su pantalla es /admin.
      */
-    const session = await trySession();
-    redirect(session ? "/sin-acceso" : "/login");
+    if (access.kind === "anonimo") redirect("/login");
+    if (access.kind === "sin-negocio" && access.isAdmin) redirect("/admin");
+    redirect("/sin-acceso");
   }
+
+  const { context } = access;
+  const isAdmin = await isPlatformAdmin(context.user.id);
 
   return (
     <SidebarProvider>
@@ -39,6 +47,7 @@ export default async function AppLayout({
           name: context.user.displayName,
           email: context.user.email,
           role: context.role,
+          isPlatformAdmin: isAdmin,
         }}
       />
       <SidebarInset>

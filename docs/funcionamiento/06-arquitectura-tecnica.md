@@ -24,13 +24,15 @@ Supabase, en [`../setup.md`](../setup.md).
 ```
 app/
   (auth)/          login, registro, sin-acceso — sin barra lateral
+  (admin)/admin    administración de la plataforma: alta, edición y suspensión de negocios
   (app)/           todas las pantallas internas, bajo un único layout (barra lateral + cabecera)
-    layout.tsx     resuelve sesión y negocio; redirige a /login o /sin-acceso
+    layout.tsx     resuelve sesión y negocio; redirige a /login, /sin-acceso o /admin
     error.tsx      pantalla "Algo salió mal" con el código (digest) del error
 components/        UI por módulo (finanzas, productos, inventario, ajustes, catalogs, fields…)
 lib/
+  admin/           negocios vistos por el admin de la plataforma (núcleo + actions)
   authz/           sesión, roles/permisos, miembros e invitaciones
-  db/              esquema Drizzle, conexión, withTenant / withUser
+  db/              esquema Drizzle, conexión, withTenant / withUser / withPlatformAdmin
   finanzas/        registro de operaciones, consultas, reportes, dashboard
   productos/       alta/edición de productos y servicios, ajustes de stock
   inventario/      cálculo de stock
@@ -88,11 +90,20 @@ negocio. `withUser(userId, fn)` fija `app.current_user_id` y habilita solo polí
 sobre las propias membresías, los negocios a los que se pertenece, la propia fila de usuario y
 las invitaciones dirigidas al propio correo.
 
+**Administración de la plataforma.** `withPlatformAdmin(adminId, fn, tenantId?)` fija
+`app.platform_admin_id`, un GUC propio y distinto del de usuario, para que el arranque de sesión
+normal de un admin no vea nada de más. Las políticas de admin solo se activan si ese id está en
+`platform_admins`, y solo permiten **leer** `tenants`, `memberships`, `users` e `invitations` de
+todos los negocios: nada de operaciones, reservas, productos ni auditoría. Las escrituras del
+admin pasan por el contexto del negocio que modifican (`tenantId`), con las mismas políticas de
+siempre. `platform_admins` se llena solo por script: `app_user` no puede escribir en ella.
+
 ## Modelo de datos
 
 | Tabla | Para qué | Notas |
 |---|---|---|
-| `tenants` | Negocios | `slug`, `timezone` (por defecto America/Caracas), `primary_currency` |
+| `tenants` | Negocios | `slug`, `timezone` (por defecto America/Caracas), `primary_currency`, `suspended_at` (solo lo cambia un admin: trigger) |
+| `platform_admins` | Administradores de la plataforma | Solo se escribe por script (`pnpm admin:grant`) |
 | `users` | Espejo de `auth.users` | Lo mantiene un trigger sobre `auth.users` |
 | `memberships` | Usuario ↔ negocio + rol | Único por (usuario, negocio). Rol: owner/manager/staff |
 | `invitations` | Correos invitados con rol | Correo en minúsculas; una pendiente por correo y negocio |
@@ -172,6 +183,7 @@ En `drizzle/`, aplicadas con `pnpm db:migrate`:
 | `0018_booking_capacity` | capacidad, recursos compartidos, cobro por persona y el trigger de cupos |
 | `0019_service_schedules` | horarios fijos (turnos) de los servicios por hora |
 | `0020_booking_custom_fields` | columnas personalizadas en la reserva (`field_entity` + `bookings.custom`) |
+| `0021_platform_admin` | `platform_admins`, políticas de lectura del admin, `tenants.suspended_at` y el trigger que se lo niega al negocio |
 
 ## Scripts
 
@@ -183,10 +195,11 @@ En `drizzle/`, aplicadas con `pnpm db:migrate`:
 | `pnpm db:bootstrap` | Habilita la contraseña de `app_user` y escribe `DATABASE_URL` en `.env.local` |
 | `pnpm db:check` | Diagnóstico de conexión |
 | `pnpm seed:tenant --name … --slug … --email …` | Da de alta un negocio, su dueño (que debe estar registrado antes) y los catálogos iniciales. Idempotente |
+| `pnpm admin:grant --email … [--revoke]` | Da o quita acceso a `/admin`. Es la única forma de crear un admin |
 | `pnpm test` | Vitest |
 
-**No hay pantalla para crear negocios**: el alta de un cliente nuevo se hace con
-`seed:tenant`.
+Los negocios se dan de alta desde `/admin` (ver [Acceso](01-acceso-y-roles.md#administración-de-la-plataforma-admin)).
+`seed:tenant` sigue sirviendo para la primera instalación, cuando todavía no hay admin.
 
 ## Variables de entorno
 

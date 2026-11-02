@@ -1,10 +1,10 @@
-import { headers } from "next/headers";
 import { PageTransition } from "@/components/motion";
 import { TeamManager } from "@/components/ajustes/team-manager";
 import { requireTenant } from "@/lib/authz/session";
 import { roleHas } from "@/lib/authz/roles";
 import { SinPermiso } from "@/components/layout/sin-permiso";
 import { listMembers, listPendingInvitations } from "@/lib/authz/members";
+import { signupUrlFromHeaders } from "@/lib/authz/signup-url";
 
 /**
  * Gestion del equipo.
@@ -19,23 +19,18 @@ export default async function UsuariosPage() {
     return <SinPermiso role={role} explicacion={"Solo el dueño puede ver quién tiene acceso y cambiar permisos."} />;
   }
 
-  const [members, invitations, headerList] = await Promise.all([
+  const [members, invitations, signupUrl] = await Promise.all([
     listMembers(tenantId, user.id),
     listPendingInvitations(tenantId),
-    headers(),
+    signupUrlFromHeaders(),
   ]);
-
-  // Se arma desde el host real para que el enlace sirva tanto en local como en
-  // produccion sin configurar nada.
-  const host = headerList.get("x-forwarded-host") ?? headerList.get("host") ?? "";
-  const proto = headerList.get("x-forwarded-proto") ?? "http";
 
   return (
     <PageTransition>
       <TeamManager
         members={members}
         invitations={invitations}
-        signupUrl={`${proto}://${host}/registro`}
+        signupUrl={signupUrl}
       />
     </PageTransition>
   );

@@ -170,7 +170,16 @@ y servicio). Es idempotente y no pisa lo que el cliente haya editado despues.
 `--currency` es solo presentacion: define que moneda va en grande en los KPI.
 No se convierte nada — los totales van separados por moneda.
 
-**6.3 — Entrar:**
+**6.3 — (Opcional) Darte acceso a `/admin`:**
+
+```bash
+pnpm admin:grant --email yo@empresa.com
+```
+
+Desde ahí se dan de alta los siguientes negocios sin volver a la terminal, y sin que el dueño
+tenga que registrarse antes: queda una invitación que se canjea cuando lo haga.
+
+**6.4 — Entrar:**
 
 ```bash
 pnpm dev

@@ -91,7 +91,8 @@ Tras añadir la conversión de moneda en ventas, quedaron mensajes que ya no son
 - **Se puede vender sin stock**: una venta con más unidades de las disponibles se registra y el
   stock queda negativo.
 - **Un usuario, un negocio**: no se puede pertenecer a varios negocios a la vez.
-- **Alta de negocios solo por script** (`pnpm seed:tenant`), no desde la app.
+- **Sin "entrar como" un negocio**: el admin de la plataforma gestiona negocios y equipos, pero
+  no puede ver las pantallas de un negocio como lo vería su dueño (impersonación para soporte).
 - **La pantalla de login no enlaza al registro**: se llega con el enlace que da el dueño.
 - **No hay recuperación de contraseña** desde la app.
 
