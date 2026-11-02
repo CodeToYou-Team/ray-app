@@ -19,6 +19,7 @@ import {
   bookings,
   catalogItems,
   resources,
+  serviceSchedules,
   services,
   tenants,
   transactions,
@@ -39,9 +40,16 @@ import { bordesLocalesSql, periodoSql } from "./periodo";
 import {
   bordesLocales,
   cantidad,
+  diaSemanaIso,
+  encajaEnTurno,
   hoyEn,
+  losDias,
   totalReserva,
+  turnosDelDia,
+  DIAS_SEMANA,
   type Rango,
+  type RangoHoras,
+  type Turno,
 } from "./rango";
 
 export interface ActorContext {
@@ -108,6 +116,66 @@ export async function contarPendientes(
       ),
     );
   return n;
+}
+
+// ---------------------------------------------------------------------------
+// Horarios fijos
+// ---------------------------------------------------------------------------
+
+/** "18:00:00" de Postgres → "18:00". */
+function hhmm(t: string): string {
+  return t.slice(0, 5);
+}
+
+/** Los turnos publicados de un servicio. */
+async function turnosDe(tx: Tx, tenantId: string, serviceId: string): Promise<Turno[]> {
+  const rows = await tx
+    .select({
+      id: serviceSchedules.id,
+      weekday: serviceSchedules.weekday,
+      start: serviceSchedules.startTime,
+      end: serviceSchedules.endTime,
+    })
+    .from(serviceSchedules)
+    .where(
+      and(eq(serviceSchedules.tenantId, tenantId), eq(serviceSchedules.serviceId, serviceId)),
+    );
+  return rows.map((r) => ({ ...r, start: hhmm(r.start), end: hhmm(r.end) }));
+}
+
+/**
+ * Si el tramo pedido es uno de los turnos publicados del servicio.
+ *
+ * En la aplicación y no en un trigger, a propósito: a diferencia de la doble
+ * reserva o los cupos, aquí no hay carrera que cerrar. Es validar un dato de
+ * entrada, como que el tramo vaya en medias horas.
+ *
+ * El día de la semana sale de la FECHA local, no del instante: la clase de las
+ * 21:00 del martes en Caracas ya es miércoles en UTC.
+ */
+async function validarTurno(
+  tx: Tx,
+  tenantId: string,
+  servicio: { id: string; name: string },
+  rango: RangoHoras,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const turnos = await turnosDe(tx, tenantId, servicio.id);
+  if (encajaEnTurno(turnos, rango)) return { ok: true };
+
+  const delDia = turnosDelDia(turnos, rango.fecha);
+  const dia = diaSemanaIso(rango.fecha);
+  if (delDia.length === 0) {
+    return {
+      ok: false,
+      error: `"${servicio.name}" no tiene turnos ${losDias(dia)}.`,
+    };
+  }
+  return {
+    ok: false,
+    error: `"${servicio.name}" se reserva en sus turnos. El ${DIAS_SEMANA[dia - 1]} hay: ${delDia
+      .map((t) => `${t.start}–${t.end}`)
+      .join(", ")}.`,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -243,6 +311,11 @@ export async function createBooking(
 
       const unidades = cantidad(input.rango as Rango);
       if (!unidades.ok) return { ok: false as const, error: unidades.error };
+
+      if (input.rango.unidad === "hora") {
+        const turno = await validarTurno(tx, tenantId, servicio, input.rango);
+        if (!turno.ok) return { ok: false as const, error: turno.error };
+      }
 
       // La zona del negocio sale de la base, no de la sesión ni del servidor:
       // es la única fuente que no puede estar desactualizada.
@@ -439,6 +512,18 @@ export async function configureServiceBooking(
         unidad !== servicio.bookingUnit || compartido !== servicio.bookingShared;
       const cambiaCobro = porPersona !== servicio.bookingPerPerson;
       if (!cambiaForma && !cambiaCobro) return { ok: true as const };
+
+      // Los turnos son de servicios por hora: dejarlos colgando de uno por
+      // noche sería configuración que no hace nada y confunde al volver.
+      if (servicio.bookingUnit === "hora" && unidad !== "hora") {
+        const turnos = await turnosDe(tx, tenantId, servicio.id);
+        if (turnos.length > 0) {
+          return {
+            ok: false as const,
+            error: `"${servicio.name}" tiene horarios fijos. Quítalos primero para cambiar cómo se reserva.`,
+          };
+        }
+      }
 
       if (cambiaForma) {
         const [{ n }] = await tx
@@ -1360,6 +1445,20 @@ export async function updateBooking(
       if (!unidades.ok) return { ok: false as const, error: unidades.error };
 
       const nuevos = bordesLocales(rango);
+
+      // El horario solo se exige si cambian las horas. Una reserva hecha con
+      // el horario de antes tiene que poder corregir su teléfono aunque su
+      // turno ya no exista: cambiar el horario no invalida lo ya reservado.
+      const cambiaRango = nuevos.inicio !== r.inicio || nuevos.fin !== r.fin;
+      if (rango.unidad === "hora" && cambiaRango) {
+        const [servicio] = await tx
+          .select({ id: services.id, name: services.name })
+          .from(services)
+          .where(and(eq(services.id, r.serviceId), eq(services.tenantId, tenantId)));
+        const turno = await validarTurno(tx, tenantId, servicio, rango);
+        if (!turno.ok) return { ok: false as const, error: turno.error };
+      }
+
       if (r.status === "en_curso" && nuevos.inicio !== r.inicio) {
         return {
           ok: false as const,
@@ -1479,5 +1578,142 @@ export async function updateBooking(
       return { ok: false, error: "El grupo no cabe en ese recurso." };
     }
     return { ok: false, error: "No se pudo guardar el cambio." };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Publicar y quitar turnos
+// ---------------------------------------------------------------------------
+
+const HORA_EN_PUNTO = /^([01]\d|2[0-3]):(00|30)$/;
+
+const scheduleSchema = z.object({
+  serviceId: z.uuid(),
+  /** ISO, 1 = lunes. Se crea un turno por cada día elegido. */
+  dias: z
+    .array(z.number().int().min(1).max(7))
+    .min(1, "Elige al menos un día"),
+  inicio: z.string().regex(HORA_EN_PUNTO, "La hora de inicio va en punto o y media, como 18:00 o 18:30"),
+  fin: z.string().regex(HORA_EN_PUNTO, "La hora de fin va en punto o y media, como 19:00 o 19:30"),
+});
+
+/**
+ * Publica un turno en uno o varios días: "martes y jueves, 18:00 a 19:00".
+ *
+ * Todo o nada: si el turno del jueves se cruza con otro, tampoco se crea el
+ * del martes, para no dejar el horario a medias sin que se note.
+ */
+export async function addSchedule(
+  { tenantId, userId }: ActorContext,
+  raw: z.infer<typeof scheduleSchema>,
+): Promise<Result<{ creados: number }>> {
+  const parsed = scheduleSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const input = parsed.data;
+
+  if (input.fin <= input.inicio) {
+    return {
+      ok: false,
+      error: "La hora de fin tiene que ser después de la de inicio, el mismo día.",
+    };
+  }
+  const dias = [...new Set(input.dias)].sort();
+
+  try {
+    return await withTenant(tenantId, async (tx) => {
+      const [servicio] = await tx
+        .select()
+        .from(services)
+        .where(
+          and(
+            eq(services.id, input.serviceId),
+            eq(services.tenantId, tenantId),
+            isNull(services.deletedAt),
+          ),
+        );
+      if (!servicio) return { ok: false as const, error: "Ese servicio ya no existe." };
+      if (servicio.bookingUnit !== "hora") {
+        return {
+          ok: false as const,
+          error: "Los horarios fijos son para servicios que se reservan por hora.",
+        };
+      }
+
+      await tx.insert(serviceSchedules).values(
+        dias.map((weekday) => ({
+          id: uuidv7(),
+          tenantId,
+          serviceId: servicio.id,
+          weekday,
+          startTime: input.inicio,
+          endTime: input.fin,
+          createdBy: userId,
+        })),
+      );
+
+      await tx.insert(auditLog).values({
+        id: uuidv7(),
+        tenantId,
+        entity: "services",
+        entityId: servicio.id,
+        action: "update",
+        actorId: userId,
+        diff: { turnoAgregado: { dias, inicio: input.inicio, fin: input.fin } },
+      });
+
+      return { ok: true as const, creados: dias.length };
+    });
+  } catch (error) {
+    // 23P01: el EXCLUDE de turnos solapados el mismo día.
+    if (pgCode(error) === "23P01") {
+      return {
+        ok: false,
+        error: "Ese turno se cruza con otro del mismo día. Revisa el horario de esos días.",
+      };
+    }
+    return { ok: false, error: "No se pudo guardar el turno." };
+  }
+}
+
+/**
+ * Quita un turno. No toca ninguna reserva: las hechas en ese turno siguen
+ * como estaban, solo que ya no se ofrecen nuevas.
+ */
+export async function removeSchedule(
+  { tenantId, userId }: ActorContext,
+  input: { id: string },
+): Promise<Result> {
+  try {
+    return await withTenant(tenantId, async (tx) => {
+      const [turno] = await tx
+        .select()
+        .from(serviceSchedules)
+        .where(and(eq(serviceSchedules.id, input.id), eq(serviceSchedules.tenantId, tenantId)));
+      if (!turno) return { ok: false as const, error: "No se encontró ese turno." };
+
+      await tx
+        .delete(serviceSchedules)
+        .where(and(eq(serviceSchedules.id, turno.id), eq(serviceSchedules.tenantId, tenantId)));
+
+      await tx.insert(auditLog).values({
+        id: uuidv7(),
+        tenantId,
+        entity: "services",
+        entityId: turno.serviceId,
+        action: "update",
+        actorId: userId,
+        diff: {
+          turnoQuitado: {
+            dia: turno.weekday,
+            inicio: hhmm(turno.startTime),
+            fin: hhmm(turno.endTime),
+          },
+        },
+      });
+
+      return { ok: true as const };
+    });
+  } catch {
+    return { ok: false, error: "No se pudo quitar el turno." };
   }
 }

@@ -13,7 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatMoney } from "@/lib/format";
 import { compareMoney } from "@/lib/money";
-import { sumarDias, unidadLabel } from "@/lib/reservas/rango";
+import {
+  seCruzan,
+  sumarDias,
+  turnosDelDia,
+  unidadLabel,
+  type Turno,
+} from "@/lib/reservas/rango";
 import { cn } from "@/lib/utils";
 import {
   BookingDetail,
@@ -456,6 +462,7 @@ function GrupoServicio({
               <CeldasNoches
                 servicioId={servicio.id}
                 recursoId={r.id}
+                turnos={[]}
                 reservas={reservas.filter((b) => b.resourceId === r.id)}
                 fechas={fechas}
                 hoy={hoy}
@@ -467,6 +474,7 @@ function GrupoServicio({
               <CeldasHoras
                 servicioId={servicio.id}
                 recursoId={r.id}
+                turnos={servicio.turnos}
                 reservas={reservas.filter((b) => b.resourceId === r.id)}
                 fechas={fechas}
                 hoy={hoy}
@@ -485,6 +493,8 @@ function GrupoServicio({
 interface CeldasProps {
   servicioId: string;
   recursoId: string;
+  /** Horarios fijos del servicio. Vacío = se reserva libre. */
+  turnos: Turno[];
   reservas: BoardBooking[];
   fechas: string[];
   hoy: string;
@@ -603,6 +613,7 @@ function CeldasNoches({
 function CeldasHoras({
   servicioId,
   recursoId,
+  turnos,
   reservas,
   fechas,
   hoy,
@@ -615,6 +626,30 @@ function CeldasHoras({
       {fechas.map((f) => {
         const delDia = reservas.filter((r) => r.inicio.slice(0, 10) === f);
         const pasado = f < hoy;
+
+        if (turnos.length > 0) {
+          return (
+            <CeldaTurnosExclusiva
+              key={f}
+              fecha={f}
+              hoy={hoy}
+              turnos={turnosDelDia(turnos, f)}
+              delDia={delDia}
+              puedeReservar={canManage && !pasado}
+              onNueva={(t) =>
+                onNueva({
+                  serviceId: servicioId,
+                  resourceId: recursoId,
+                  fecha: f,
+                  inicio: t.start,
+                  fin: t.end,
+                })
+              }
+              onVer={onVer}
+            />
+          );
+        }
+
         return (
           <td
             key={f}
@@ -755,13 +790,20 @@ function CeldasCompartidas({
           );
         }
 
-        // Por hora: se agrupan por turno (mismo inicio y fin).
+        // Por hora: se agrupan por turno (mismo inicio y fin). Con horarios
+        // fijos, cada turno publicado del día aparece aunque esté vacío: es
+        // lo que se ofrece. Lo reservado fuera de ellos (antes de publicar el
+        // horario) se sigue mostrando aparte.
         const delDia = reservas.filter((b) => b.inicio.slice(0, 10) === f);
         const turnos = new Map<string, BoardBooking[]>();
+        for (const t of turnosDelDia(servicio.turnos, f)) {
+          turnos.set(`${f}T${t.start}|${f}T${t.end}`, []);
+        }
         for (const b of delDia) {
           const clave = `${b.inicio}|${b.fin}`;
           turnos.set(clave, [...(turnos.get(clave) ?? []), b]);
         }
+        const conHorario = servicio.turnos.length > 0;
 
         return (
           <td
@@ -769,35 +811,58 @@ function CeldasCompartidas({
             className={cn("min-h-10 p-0.5 align-top", f === hoy && "bg-primary/5")}
           >
             <div className="flex flex-col gap-0.5">
-              {[...turnos.entries()].map(([clave, grupo]) => {
+              {[...turnos.entries()]
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([clave, grupo]) => {
                 const ocupado = grupo.reduce((acc, b) => acc + b.partySize, 0);
                 const lleno = ocupado >= cap;
                 const [ini, fin] = clave.split("|");
+                const delTurno: Inicial = {
+                  ...inicial(f),
+                  inicio: ini.slice(11, 16),
+                  fin: fin.slice(11, 16),
+                };
+                // Un turno vacío pasado no ofrece nada que hacer.
+                if (grupo.length === 0 && (pasado || !canManage)) {
+                  return (
+                    <span
+                      key={clave}
+                      className="truncate rounded px-1 py-0.5 font-mono text-[10px] text-muted-foreground/60"
+                    >
+                      {ini.slice(11, 16)} · 0/{cap}
+                    </span>
+                  );
+                }
                 return (
                   <button
                     key={clave}
                     type="button"
                     onClick={() =>
-                      onLista({
-                        titulo: `${recurso.name} · ${f}`,
-                        subtitulo: `${ini.slice(11, 16)}–${fin.slice(11, 16)} · ${ocupado} de ${cap} cupos`,
-                        ids: grupo.map((b) => b.id),
-                        inicial: inicial(f),
-                        puedeAgregar: canManage && !pasado && !lleno,
-                      })
+                      grupo.length === 0
+                        ? onNueva(delTurno)
+                        : onLista({
+                            titulo: `${recurso.name} · ${f}`,
+                            subtitulo: `${ini.slice(11, 16)}–${fin.slice(11, 16)} · ${ocupado} de ${cap} cupos`,
+                            ids: grupo.map((b) => b.id),
+                            inicial: delTurno,
+                            puedeAgregar: canManage && !pasado && !lleno,
+                          })
                     }
                     className={cn(
                       "flex items-center gap-1 truncate rounded px-1 py-0.5 text-left font-mono text-[10px]",
-                      lleno
-                        ? "bg-destructive/15 text-destructive hover:bg-destructive/25"
-                        : "bg-primary/15 text-primary hover:bg-primary/25",
+                      grupo.length === 0
+                        ? "border border-dashed text-muted-foreground hover:bg-muted"
+                        : lleno
+                          ? "bg-destructive/15 text-destructive hover:bg-destructive/25"
+                          : "bg-primary/15 text-primary hover:bg-primary/25",
                     )}
                   >
                     {ini.slice(11, 16)} · {ocupado}/{cap}
                   </button>
                 );
               })}
-              {canManage && !pasado && (
+              {/* Con horario fijo, lo que se ofrece son los turnos: nada de "+" libre. */}
+              {canManage && !pasado && !conHorario && (
                 <button
                   type="button"
                   onClick={() => onNueva(inicial(f))}
@@ -812,5 +877,99 @@ function CeldasCompartidas({
         );
       })}
     </>
+  );
+}
+
+/**
+ * Un día de un recurso exclusivo por hora con horarios fijos: sus turnos.
+ *
+ * Un turno ocupado muestra la reserva; uno libre se toca para reservarlo con
+ * la hora ya puesta. Lo reservado fuera de los turnos (antes de publicar el
+ * horario) se sigue mostrando, para no esconder reservas válidas.
+ */
+function CeldaTurnosExclusiva({
+  fecha,
+  hoy,
+  turnos,
+  delDia,
+  puedeReservar,
+  onNueva,
+  onVer,
+}: {
+  fecha: string;
+  hoy: string;
+  turnos: Turno[];
+  delDia: BoardBooking[];
+  puedeReservar: boolean;
+  onNueva: (t: Turno) => void;
+  onVer: (b: BoardBooking) => void;
+}) {
+  const tramo = (t: Turno) => ({ inicio: `${fecha}T${t.start}`, fin: `${fecha}T${t.end}` });
+  // En un exclusivo, cualquier reserva que se cruce ocupa el turno, aunque no
+  // coincida exacto (una hecha antes de publicar el horario).
+  const fuera = delDia.filter((b) => !turnos.some((t) => seCruzan(tramo(t), b)));
+
+  return (
+    <td className={cn("min-h-10 p-0.5 align-top", fecha === hoy && "bg-primary/5")}>
+      <div className="flex flex-col gap-0.5">
+        {turnos.map((t) => {
+          const b = delDia.find((r) => seCruzan(tramo(t), r));
+          if (b) {
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => onVer(b)}
+                title={`${b.holderName} · ${t.start}–${t.end}${debe(b) ? ` · debe ${b.saldo} ${b.currency}` : ""}`}
+                className={cn(
+                  "flex items-center gap-1 truncate rounded px-1 py-0.5 text-left font-mono text-[10px]",
+                  claseReserva(b),
+                )}
+              >
+                {debe(b) && (
+                  <span
+                    aria-label="Con saldo pendiente"
+                    className="size-1.5 shrink-0 rounded-full bg-destructive"
+                  />
+                )}
+                {t.start}
+              </button>
+            );
+          }
+          return puedeReservar ? (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => onNueva(t)}
+              className="truncate rounded border border-dashed px-1 py-0.5 text-left font-mono text-[10px] text-muted-foreground hover:bg-muted"
+            >
+              {t.start}
+              <span className="sr-only"> libre, reservar</span>
+            </button>
+          ) : (
+            <span
+              key={t.id}
+              className="truncate px-1 py-0.5 font-mono text-[10px] text-muted-foreground/60"
+            >
+              {t.start}
+            </span>
+          );
+        })}
+        {fuera.map((b) => (
+          <button
+            key={b.id}
+            type="button"
+            onClick={() => onVer(b)}
+            title={`${b.holderName} · fuera del horario`}
+            className={cn(
+              "truncate rounded px-1 py-0.5 text-left font-mono text-[10px]",
+              claseReserva(b),
+            )}
+          >
+            {b.inicio.slice(11, 16)}
+          </button>
+        ))}
+      </div>
+    </td>
   );
 }

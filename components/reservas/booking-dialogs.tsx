@@ -40,10 +40,14 @@ import {
 import {
   bordesLocales,
   cantidad,
+  diaSemanaIso,
+  encajaEnTurno,
+  losDias,
   ocupacionMaxima,
   seCruzan,
   sumarDias,
   totalReserva,
+  turnosDelDia,
   TRAMO_MINUTOS,
   type Rango,
 } from "@/lib/reservas/rango";
@@ -58,6 +62,9 @@ export interface Inicial {
   /** "" si se abrió desde "Nueva reserva" y no desde una celda. */
   resourceId: string;
   fecha: string;
+  /** Si se tocó un turno en la cuadrícula: sus horas, "HH:MM". */
+  inicio?: string;
+  fin?: string;
 }
 
 function ErrorBox({ children }: { children: React.ReactNode }) {
@@ -120,8 +127,12 @@ export function BookingForm({
   );
   // Por hora
   const [fecha, setFecha] = useState(editing ? editing.inicio.slice(0, 10) : inicial.fecha);
-  const [inicio, setInicio] = useState(editing ? editing.inicio.slice(11, 16) : "09:00");
-  const [fin, setFin] = useState(editing ? editing.fin.slice(11, 16) : "10:00");
+  const [inicio, setInicio] = useState(
+    editing ? editing.inicio.slice(11, 16) : (inicial.inicio ?? "09:00"),
+  );
+  const [fin, setFin] = useState(
+    editing ? editing.fin.slice(11, 16) : (inicial.fin ?? "10:00"),
+  );
 
   const [personas, setPersonas] = useState(String(editing?.partySize ?? 1));
   const [holderName, setHolderName] = useState(editing?.holderName ?? "");
@@ -141,6 +152,26 @@ export function BookingForm({
       : { unidad, fecha, inicio, fin };
 
   const cant = cantidad(rango);
+
+  /**
+   * Con horarios fijos, el tramo se elige entre los turnos del día, no se
+   * escribe. Al modificar sin tocar las horas se admite aunque el turno ya no
+   * exista: cambiar el horario no invalida lo ya reservado (el servidor
+   * aplica la misma regla).
+   */
+  const turnosServicio = servicio?.turnos ?? [];
+  const conTurnos = unidad === "hora" && turnosServicio.length > 0;
+  const turnosHoy = conTurnos ? turnosDelDia(turnosServicio, fecha) : [];
+  const horasSinCambio = Boolean(
+    editing &&
+      editing.inicio === `${fecha}T${inicio}` &&
+      editing.fin === `${fecha}T${fin}`,
+  );
+  const turnoOk =
+    !conTurnos ||
+    horasSinCambio ||
+    encajaEnTurno(turnosServicio, { unidad: "hora", fecha, inicio, fin });
+
   const nPersonas = Number(personas);
   const personasValidas = Number.isInteger(nPersonas) && nPersonas >= 1;
   const shared = servicio?.shared ?? false;
@@ -216,7 +247,8 @@ export function BookingForm({
     holderName.trim() &&
     !recursoOcupado &&
     !noCabe &&
-    !pasaDeLoCobrado;
+    !pasaDeLoCobrado &&
+    turnoOk;
 
   function guardar() {
     if (!servicio) return;
@@ -359,27 +391,69 @@ export function BookingForm({
                   onChange={(e) => setFecha(e.target.value)}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="inicio">Desde</Label>
-                <Input
-                  id="inicio"
-                  type="time"
-                  step={TRAMO_MINUTOS * 60}
-                  value={inicio}
-                  disabled={entradaFija}
-                  onChange={(e) => setInicio(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="fin">Hasta</Label>
-                <Input
-                  id="fin"
-                  type="time"
-                  step={TRAMO_MINUTOS * 60}
-                  value={fin}
-                  onChange={(e) => setFin(e.target.value)}
-                />
-              </div>
+              {conTurnos ? (
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="turno">Turno</Label>
+                  {turnosHoy.length === 0 ? (
+                    <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                      No hay turnos {losDias(diaSemanaIso(fecha))}. Elige otra fecha.
+                    </p>
+                  ) : (
+                    <Select
+                      value={
+                        turnosHoy.some((t) => t.start === inicio && t.end === fin)
+                          ? `${inicio}|${fin}`
+                          : ""
+                      }
+                      disabled={entradaFija}
+                      onValueChange={(v) => {
+                        const [ini, f] = v.split("|");
+                        setInicio(ini);
+                        setFin(f);
+                      }}
+                    >
+                      <SelectTrigger id="turno" className="w-full">
+                        <SelectValue
+                          placeholder={
+                            horasSinCambio ? `${inicio}–${fin} (ya no es un turno)` : "Elige un turno"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {turnosHoy.map((t) => (
+                          <SelectItem key={t.id} value={`${t.start}|${t.end}`}>
+                            {t.start}–{t.end}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="inicio">Desde</Label>
+                    <Input
+                      id="inicio"
+                      type="time"
+                      step={TRAMO_MINUTOS * 60}
+                      value={inicio}
+                      disabled={entradaFija}
+                      onChange={(e) => setInicio(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="fin">Hasta</Label>
+                    <Input
+                      id="fin"
+                      type="time"
+                      step={TRAMO_MINUTOS * 60}
+                      value={fin}
+                      onChange={(e) => setFin(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
             </div>
           )}
 

@@ -105,6 +105,7 @@ las invitaciones dirigidas al propio correo.
 | `exchange_rates` | Tasa vigente por par | Solo sugerencia; único por (negocio, base, destino) |
 | `resources` | Lo que se reserva (habitación, cancha…) | Pertenece a un servicio; `capacity`; nombre único entre los activos; `archived_at` |
 | `bookings` | Reservas | `period` (`tstzrange` semiabierto), `status`, `party_size`; precio, moneda, `shared` y `per_person` copiados del servicio; horas de llegada y salida |
+| `service_schedules` | Turnos de un servicio por hora | Día ISO (1 = lunes), hora de inicio y fin; un `EXCLUDE` impide dos turnos solapados el mismo día. Nada los referencia: se borran sin perder historia |
 | `booking_payments` | Cobro ↔ reserva | Liga una transacción de ingreso con la reserva y guarda lo abonado **en la moneda de la reserva**. Append-only |
 | `field_config` | Configuración de columnas | `key` y `type` inmutables (trigger) |
 | `audit_log` | Auditoría | Append-only; sin FK al usuario para sobrevivir a su baja |
@@ -169,6 +170,7 @@ En `drizzle/`, aplicadas con `pnpm db:migrate`:
 | `0016_bookings` | recursos, reservas, `btree_gist` y el `EXCLUDE` contra la doble reserva |
 | `0017_booking_checkin_payments` | check-in/check-out, cobros de reservas y el trigger que protege su dinero |
 | `0018_booking_capacity` | capacidad, recursos compartidos, cobro por persona y el trigger de cupos |
+| `0019_service_schedules` | horarios fijos (turnos) de los servicios por hora |
 
 ## Scripts
 

@@ -134,6 +134,13 @@
       "when": 1791312597589,
       "tag": "0018_booking_capacity",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791312598589,
+      "tag": "0019_service_schedules",
+      "breakpoints": true
     }
   ]
 }

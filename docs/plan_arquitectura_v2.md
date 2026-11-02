@@ -530,8 +530,16 @@ reserva guardó cómo se calculó la suya).
    - **Pendiente:** salida anticipada. Hoy la reserva sigue ocupando sus noches hasta el
      final y el total no cambia. Liberarlas es una decisión de tarifa (¿se devuelve?).
 3. **Capacidad, cupos y cobro por persona.** Ver "Capacidad y cupos" arriba.
-4. **Horarios fijos.** Publicar los turnos de un servicio (yoga: martes y jueves a las
-   18:00) y que solo se pueda reservar en ellos.
+4. **Horarios fijos.** Tabla `service_schedules`: turnos por servicio (día ISO, inicio, fin),
+   válidos para todos sus recursos. Sin turnos se reserva libre; con turnos, solo en ellos.
+   - **La validación del turno va en la aplicación**, no en un trigger: no hay carrera que
+     cerrar, es validar un dato de entrada como los tramos de 30 minutos. Lo que sí impone la
+     base es que dos turnos del mismo día no se pisen (`EXCLUDE` sobre un `tsrange` de horas
+     anclado a una fecha fija).
+   - **Nada referencia un turno**: la reserva guarda su rango. Cambiar el horario no invalida
+     lo reservado, y modificar una reserva solo exige turno si cambian sus horas.
+   - **El día de la semana sale de la fecha local escrita**, no del instante: el turno de las
+     21:00 del martes en Caracas ya es miércoles en UTC.
 5. **Columnas personalizadas en la reserva**, con el mismo mecanismo que productos y
    servicios.
 

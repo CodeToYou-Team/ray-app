@@ -102,3 +102,4 @@ vista. Se detallan en cada documento.
 | Capacidad | En un exclusivo, personas por reserva; en un compartido, personas en total a la vez. |
 | Cobro de reserva | Un ingreso ligado a una reserva. Baja su saldo. |
 | Check-in / check-out | Registrar la llegada y la salida de una reserva. |
+| Turno | Un horario fijo publicado de un servicio por hora: "martes de 18:00 a 19:00". |

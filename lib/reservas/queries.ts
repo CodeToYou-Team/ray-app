@@ -21,6 +21,7 @@ import {
   bookings,
   catalogItems,
   resources,
+  serviceSchedules,
   services,
   transactions,
   type BookingStatus,
@@ -29,7 +30,7 @@ import {
 import { normalizeMoney, subtractMoney, sumMoney } from "@/lib/money";
 import { escapeLike } from "@/lib/finanzas/queries";
 import { bordesLocalesSql, periodoSql } from "./periodo";
-import { cantidad, totalReserva, type Rango } from "./rango";
+import { cantidad, totalReserva, type Rango, type Turno } from "./rango";
 
 export interface ResourceRow {
   id: string;
@@ -55,6 +56,8 @@ export interface BookableService {
   price: string;
   currency: string;
   resources: ResourceRow[];
+  /** Turnos publicados. Vacío = se reserva en cualquier tramo de 30 minutos. */
+  turnos: Turno[];
 }
 
 /**
@@ -118,14 +121,53 @@ export async function listBookableServices(
       // Orden "natural": 101, 102, 110 y no 101, 110, 102.
       .orderBy(sql`length(${resources.name})`, asc(resources.name));
 
+    const turnos = await turnosPorServicio(
+      tx,
+      tenantId,
+      servs.map((s) => s.id),
+    );
+
     return servs.map((s) => ({
       ...s,
       unidad: s.unidad!,
+      turnos: turnos.get(s.id) ?? [],
       resources: recs
         .filter((r) => r.serviceId === s.id)
         .map(({ id, name, notes, capacity }) => ({ id, name, notes, capacity })),
     }));
   });
+}
+
+/**
+ * Los turnos de varios servicios, en UNA consulta, ordenados por día y hora.
+ * Se pasan a "HH:MM": los segundos de Postgres no le dicen nada a nadie.
+ */
+async function turnosPorServicio(
+  tx: Parameters<Parameters<typeof withTenant>[1]>[0],
+  tenantId: string,
+  ids: string[],
+): Promise<Map<string, Turno[]>> {
+  const rows = await tx
+    .select({
+      id: serviceSchedules.id,
+      serviceId: serviceSchedules.serviceId,
+      weekday: serviceSchedules.weekday,
+      start: serviceSchedules.startTime,
+      end: serviceSchedules.endTime,
+    })
+    .from(serviceSchedules)
+    .where(
+      and(eq(serviceSchedules.tenantId, tenantId), inArray(serviceSchedules.serviceId, ids)),
+    )
+    .orderBy(asc(serviceSchedules.weekday), asc(serviceSchedules.startTime));
+
+  const porServicio = new Map<string, Turno[]>();
+  for (const r of rows) {
+    const lista = porServicio.get(r.serviceId) ?? [];
+    lista.push({ id: r.id, weekday: r.weekday, start: r.start.slice(0, 5), end: r.end.slice(0, 5) });
+    porServicio.set(r.serviceId, lista);
+  }
+  return porServicio;
 }
 
 export interface ServiceSetupRow {
@@ -138,6 +180,7 @@ export interface ServiceSetupRow {
   unidad: BookingUnit | null;
   shared: boolean;
   perPerson: boolean;
+  turnos: Turno[];
   /** Si ya tiene reservas, la unidad no se puede cambiar. */
   bookingCount: number;
   resources: ResourceRow[];
@@ -194,9 +237,11 @@ export async function listServicesForSetup(
     ];
 
     const porServicio = new Map(conteos.map((c) => [c.serviceId, c.n]));
+    const turnos = await turnosPorServicio(tx, tenantId, ids);
 
     return servs.map((s) => ({
       ...s,
+      turnos: turnos.get(s.id) ?? [],
       bookingCount: porServicio.get(s.id) ?? 0,
       resources: recs
         .filter((r) => r.serviceId === s.id)

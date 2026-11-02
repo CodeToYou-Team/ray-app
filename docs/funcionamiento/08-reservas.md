@@ -90,6 +90,36 @@ reservas, con un matiz:
 
 Encenderlo de nuevo reabre las reservas.
 
+### Horarios fijos (servicios por hora)
+
+Un servicio **por hora** puede publicar sus **turnos**: la clase de yoga los martes y jueves de
+18:00 a 19:00, o los turnos de hora y media de una cancha.
+
+- **Sin turnos**, el servicio se reserva como siempre: en cualquier tramo de 30 minutos.
+- **Con al menos un turno**, solo se reserva en ellos. Fuera de los turnos se rechaza diciendo
+  cuáles hay ese día ("el martes hay: 18:00–19:00, 19:00–20:00") o que ese día no hay ninguno.
+- Los turnos son **del servicio** y valen para todos sus recursos: las dos canchas comparten sus
+  turnos, las salas su horario.
+
+En la sección **Horarios fijos** de cada servicio por hora (en Recursos) se eligen los días (Lu a
+Do), la hora de inicio y la de fin, y **Agregar turno** crea uno por cada día elegido. La **×** de
+un turno lo quita.
+
+Reglas:
+
+- En punto o y media (18:00, 18:30), y el mismo día: no cruza la medianoche.
+- **Dos turnos del mismo día no se pisan** (18:00–19:00 y 18:30–19:30 no pueden convivir); que se
+  toquen sí (18:00–19:00 y 19:00–20:00). Lo impide la base de datos.
+- **Todo o nada**: si al publicar "martes y jueves" el del jueves choca con otro, no se crea
+  tampoco el del martes.
+- **Cambiar el horario no invalida lo ya reservado.** La reserva guarda sus horas, no el turno. Si
+  se quita el turno de las 19:00, las reservas de las 19:00 siguen en pie; solo dejan de ofrecerse
+  nuevas. Y se pueden modificar (el teléfono, las personas) sin que se les pida un turno, mientras
+  no se cambien sus horas.
+- **El día de la semana es el de la fecha en el negocio.** La clase de las 21:00 del martes es del
+  martes, aunque en UTC ya sea miércoles.
+- Un servicio con horarios no se puede pasar a "por noche": hay que quitarlos antes.
+
 ### Archivar un recurso o un servicio
 
 Archivar un recurso (icono de archivo en Recursos) o un servicio (en Productos) lo saca de la
@@ -130,8 +160,10 @@ Cómo se ve cada reserva:
 |---|---|---|
 | Exclusivo, por noche | Un bloque con el nombre del titular que abarca sus noches. `‹` o `›` si empieza antes o sigue después de la ventana | Detalle de la reserva |
 | Exclusivo, por hora | Una ficha con la hora de inicio dentro del día | Detalle de la reserva |
+| Exclusivo, con horarios fijos | Los turnos de ese día: ocupados con su reserva, libres con borde punteado | Ocupado: el detalle. Libre: nueva reserva en ese turno |
 | Compartido, por noche | La ocupación de cada noche, por ejemplo `5/8` | Lista de quiénes van esa noche |
 | Compartido, por hora | Una ficha por turno con hora y ocupación, por ejemplo `18:00 · 7/15` | Lista de quiénes van en ese turno |
+| Compartido, con horarios fijos | Cada turno del día, aunque esté vacío (`18:00 · 0/15`, con borde punteado) | Vacío: nueva reserva. Con gente: la lista |
 
 Colores en los **exclusivos** (cada bloque es una reserva):
 
@@ -162,6 +194,7 @@ Botón **Nueva reserva** arriba, o tocando una celda libre.
 | Habitación / Recurso | Cada opción dice cuánto le queda: "ocupado", "lleno", "hasta 3" o "4 de 15 cupos". Los que no tienen lugar para esas fechas aparecen deshabilitados |
 | Entrada y Salida (por noche) | La noche del día de salida **no se cobra**: del 10 al 12 son 2 noches. Si se mueve la entrada más allá de la salida, la salida se corre sola |
 | Fecha, Desde y Hasta (por hora) | En tramos de 30 minutos. El mismo día: no puede cruzar la medianoche |
+| Fecha y Turno (con horarios fijos) | En vez de escribir las horas, se elige uno de los turnos de ese día. Si no hay, lo dice |
 | Personas / Cupos | Por defecto 1. No puede pasar de la capacidad (exclusivo) ni de lo que queda libre (compartido) |
 | A nombre de | Obligatorio |
 | Cédula o documento, Teléfono, Notas | Opcionales |
@@ -377,6 +410,9 @@ Cada cobro **es un ingreso normal**:
 | Modificar moviéndola encima de otra | "Ese recurso ya tiene otra reserva que se cruza con esas fechas." |
 | Modificar la entrada de una en curso | "Ya llegó: la entrada no se puede mover. Sí se puede cambiar la salida, el recurso y las personas." |
 | Acortar por debajo de lo cobrado | "Con este cambio el total queda en 80.00 USD, y ya se cobraron 120.00. Para devolver la diferencia, anula un cobro en Finanzas y vuelve a cobrar lo que corresponda." |
+| Reservar fuera de los turnos | "\"Clase de yoga\" se reserva en sus turnos. El martes hay: 18:00–19:00, 19:00–20:00." |
+| Reservar un día sin turnos | "\"Clase de yoga\" no tiene turnos los miércoles." |
+| Publicar un turno que pisa otro | "Ese turno se cruza con otro del mismo día. Revisa el horario de esos días." |
 | Archivar un recurso con reservas pendientes | "\"101\" tiene reservas pendientes. Cancélalas o espera a que terminen." |
 | Archivar un servicio con reservas pendientes | "\"Habitación doble\" tiene 2 reservas pendientes. Cancélalas o espera a que terminen antes de archivarlo. Para dejar de aceptar reservas nuevas, apaga \"Disponible para vender\"." |
 
@@ -384,9 +420,6 @@ Cada cobro **es un ingreso normal**:
 
 Ver también [limitaciones](07-limitaciones-y-pendientes.md#reservas).
 
-- **Horarios fijos** (en desarrollo): publicar los turnos de un servicio (yoga, martes y jueves a
-  las 18:00) y que solo se pueda reservar en ellos. Hoy un servicio por hora acepta cualquier tramo
-  de 30 minutos.
 - **Cambiar de servicio** en una reserva (de Doble a Suite): hay que cancelarla y crear otra.
 - **Salida anticipada con devolución automática**: si el cliente ya pagó de más, acortar la
   reserva exige anular un cobro a mano antes.

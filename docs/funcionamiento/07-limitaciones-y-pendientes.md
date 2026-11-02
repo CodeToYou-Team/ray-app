@@ -128,10 +128,14 @@ cobrarlo en la nueva.
 - No hay "una doble cualquiera" (asignar la habitación al llegar), reservas con dos recursos ni
   reservas recurrentes.
 
+- **Horarios fijos solo por servicio**: todos los recursos de un servicio comparten turnos. Una
+  sala que abre otros días que la otra necesita ir en un servicio aparte.
+- **Reservas fuera del horario en compartidos**: una reserva hecha antes de publicar los turnos, a
+  una hora que se pisa con un turno pero no coincide con él, cuenta para los cupos de ese turno
+  (la base suma bien) pero en la cuadrícula aparece en una ficha aparte, no dentro del turno.
+
 ## Trabajo en curso
 
-- **Reservas con horarios fijos**: publicar los turnos de un servicio (yoga, martes y jueves a las
-  18:00) y que solo se pueda reservar en ellos.
 - **Columnas personalizadas en la reserva**, con el mismo mecanismo que productos y servicios.
 
 El plan completo está en la sección "Reservas" de

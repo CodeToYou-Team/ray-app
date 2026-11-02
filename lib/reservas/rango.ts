@@ -232,3 +232,68 @@ export function ocupacionMaxima(
   }
   return pico;
 }
+
+// ---------------------------------------------------------------------------
+// Horarios fijos
+// ---------------------------------------------------------------------------
+
+/** Un turno publicado de un servicio por hora. Horas locales "HH:MM". */
+export interface Turno {
+  id: string;
+  /** ISO: 1 = lunes … 7 = domingo. */
+  weekday: number;
+  start: string;
+  end: string;
+}
+
+/** Índice 0 = lunes (ISO 1). */
+export const DIAS_SEMANA = [
+  "lunes",
+  "martes",
+  "miércoles",
+  "jueves",
+  "viernes",
+  "sábado",
+  "domingo",
+] as const;
+
+/** "los lunes", "los sábados": para mensajes como "no tiene turnos los domingos". */
+export function losDias(weekday: number): string {
+  const dia = DIAS_SEMANA[weekday - 1];
+  // "lunes", "martes"… ya terminan en s; "sábado" y "domingo" no.
+  return `los ${dia.endsWith("s") ? dia : `${dia}s`}`;
+}
+
+/**
+ * El día de la semana ISO (1 = lunes) de una fecha LOCAL escrita.
+ *
+ * Sale de la fecha, no de un instante: una clase a las 21:00 de un martes en
+ * Caracas ya es miércoles en UTC. Calcularlo desde el timestamp en el servidor
+ * (que corre en UTC) la mandaría al día equivocado.
+ */
+export function diaSemanaIso(fecha: string): number {
+  const [y, m, d] = fecha.split("-").map(Number);
+  const w = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return w === 0 ? 7 : w;
+}
+
+/** Los turnos de un día concreto, en orden. */
+export function turnosDelDia(turnos: Turno[], fecha: string): Turno[] {
+  const dia = diaSemanaIso(fecha);
+  return turnos
+    .filter((t) => t.weekday === dia)
+    .sort((a, b) => a.start.localeCompare(b.start));
+}
+
+/**
+ * Si un tramo por hora coincide con un turno publicado.
+ *
+ * Sin turnos, todo tramo vale (el servicio se reserva libre). Con turnos, solo
+ * uno exactamente igual: misma fecha de la semana, misma hora de inicio y fin.
+ */
+export function encajaEnTurno(turnos: Turno[], rango: RangoHoras): boolean {
+  if (turnos.length === 0) return true;
+  return turnosDelDia(turnos, rango.fecha).some(
+    (t) => t.start === rango.inicio && t.end === rango.fin,
+  );
+}

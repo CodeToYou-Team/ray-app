@@ -16,6 +16,8 @@ import {
   date,
   foreignKey,
   customType,
+  smallint,
+  time,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -1010,6 +1012,43 @@ export const bookingPayments = pgTable(
       columns: [table.tenantId, table.transactionId],
       foreignColumns: [transactions.tenantId, transactions.id],
       name: "booking_payments_transaction_fk",
+    }),
+  ],
+);
+
+/**
+ * Turnos de un servicio por hora: "martes de 18:00 a 19:00".
+ *
+ * Sin turnos, el servicio se reserva en cualquier tramo de 30 minutos; con al
+ * menos uno, solo en ellos. Valen para todos los recursos del servicio.
+ *
+ * Nada los referencia: la reserva guarda su rango, no el turno. Cambiar el
+ * horario no invalida lo ya reservado. El EXCLUDE que impide dos turnos
+ * solapados el mismo dia vive en drizzle/0019_service_schedules.sql.
+ */
+export const serviceSchedules = pgTable(
+  "service_schedules",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    serviceId: uuid("service_id").notNull(),
+    /** ISO: 1 = lunes … 7 = domingo. */
+    weekday: smallint("weekday").notNull(),
+    /** "18:00:00", hora local del negocio. */
+    startTime: time("start_time").notNull(),
+    endTime: time("end_time").notNull(),
+    createdBy: uuid("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.serviceId],
+      foreignColumns: [services.tenantId, services.id],
+      name: "service_schedules_service_fk",
     }),
   ],
 );

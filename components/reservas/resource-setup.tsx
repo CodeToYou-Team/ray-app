@@ -8,6 +8,7 @@ import {
   IconArchive,
   IconPlus,
   IconTool,
+  IconX,
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,13 +22,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  addSchedule,
   archiveResource,
   configureServiceBooking,
   createResource,
+  removeSchedule,
   updateResourceCapacity,
 } from "@/lib/reservas/actions";
 import { formatMoney } from "@/lib/format";
-import type { Unidad } from "@/lib/reservas/rango";
+import { DIAS_SEMANA, type Turno, type Unidad } from "@/lib/reservas/rango";
+import { cn } from "@/lib/utils";
 
 export interface SetupService {
   id: string;
@@ -40,6 +44,7 @@ export interface SetupService {
   perPerson: boolean;
   bookingCount: number;
   resources: { id: string; name: string; notes: string | null; capacity: number }[];
+  turnos: Turno[];
 }
 
 /**
@@ -295,6 +300,15 @@ function ServiceCard({ service }: { service: SetupService }) {
             Archivar un recurso lo saca de la disponibilidad sin borrar las
             reservas que ya tuvo. No se puede mientras tenga reservas pendientes.
           </p>
+
+          {service.unidad === "hora" && (
+            <Horarios
+              serviceId={service.id}
+              turnos={service.turnos}
+              pending={pending}
+              correr={correr}
+            />
+          )}
         </CardContent>
       )}
 
@@ -380,5 +394,156 @@ function FilaRecurso({
         </Button>
       </div>
     </li>
+  );
+}
+
+/** Lunes primero, como se lee la semana en español. Índice + 1 = día ISO. */
+const DIAS_CORTOS = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"];
+
+/**
+ * Horarios fijos de un servicio por hora.
+ *
+ * Sin turnos se reserva en cualquier tramo de 30 minutos. Con al menos uno,
+ * solo en ellos: la clase de los martes a las 18:00, los turnos de hora y
+ * media de una cancha. Valen para todos los recursos del servicio.
+ */
+function Horarios({
+  serviceId,
+  turnos,
+  pending,
+  correr,
+}: {
+  serviceId: string;
+  turnos: Turno[];
+  pending: boolean;
+  correr: (accion: () => Promise<{ ok: boolean; error?: string }>, despues?: () => void) => void;
+}) {
+  const [dias, setDias] = useState<number[]>([]);
+  const [inicio, setInicio] = useState("18:00");
+  const [fin, setFin] = useState("19:00");
+
+  const porDia = DIAS_SEMANA.map((_, i) => turnos.filter((t) => t.weekday === i + 1));
+  const valido = dias.length > 0 && inicio && fin && fin > inicio;
+
+  function alternar(dia: number) {
+    setDias((ds) => (ds.includes(dia) ? ds.filter((d) => d !== dia) : [...ds, dia]));
+  }
+
+  return (
+    <div className="space-y-3 border-t pt-4">
+      <div>
+        <p className="text-sm font-medium">Horarios fijos</p>
+        <p className="text-[11px] text-muted-foreground">
+          {turnos.length === 0
+            ? "Sin horarios: se reserva en cualquier tramo de 30 minutos. Publica turnos si solo se puede reservar en ciertas horas (una clase los martes a las 18:00, turnos de hora y media)."
+            : "Solo se puede reservar en estos turnos. Quitar uno no toca las reservas que ya se hicieron en él."}
+        </p>
+      </div>
+
+      {turnos.length > 0 && (
+        <ul className="divide-y rounded-md border">
+          {porDia.map((delDia, i) =>
+            delDia.length === 0 ? null : (
+              <li key={i} className="flex flex-wrap items-center gap-2 px-3 py-2">
+                <span className="w-20 text-xs font-medium capitalize">{DIAS_SEMANA[i]}</span>
+                {delDia.map((t) => (
+                  <span
+                    key={t.id}
+                    className="flex items-center gap-1 rounded-full bg-muted py-0.5 pl-2.5 pr-1 font-mono text-xs"
+                  >
+                    {t.start}–{t.end}
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => correr(() => removeSchedule({ id: t.id }))}
+                      className="rounded-full p-0.5 text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-50"
+                    >
+                      <IconX className="size-3" />
+                      <span className="sr-only">
+                        Quitar el turno del {DIAS_SEMANA[i]} de {t.start} a {t.end}
+                      </span>
+                    </button>
+                  </span>
+                ))}
+              </li>
+            ),
+          )}
+        </ul>
+      )}
+
+      <form
+        className="space-y-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!valido) return;
+          correr(
+            () => addSchedule({ serviceId, dias, inicio, fin }),
+            () => setDias([]),
+          );
+        }}
+      >
+        <div className="flex flex-wrap gap-1" role="group" aria-label="Días del turno">
+          {DIAS_CORTOS.map((d, i) => {
+            const dia = i + 1;
+            const activo = dias.includes(dia);
+            return (
+              <button
+                key={dia}
+                type="button"
+                aria-pressed={activo}
+                onClick={() => alternar(dia)}
+                className={cn(
+                  "size-8 rounded-md border text-xs font-medium transition-colors",
+                  activo
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "hover:bg-muted",
+                )}
+              >
+                {d}
+                <span className="sr-only"> {DIAS_SEMANA[i]}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="space-y-1.5">
+            <Label htmlFor={`t-ini-${serviceId}`} className="text-xs text-muted-foreground">
+              Desde
+            </Label>
+            <Input
+              id={`t-ini-${serviceId}`}
+              type="time"
+              step={1800}
+              value={inicio}
+              onChange={(e) => setInicio(e.target.value)}
+              className="w-28 font-mono"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`t-fin-${serviceId}`} className="text-xs text-muted-foreground">
+              Hasta
+            </Label>
+            <Input
+              id={`t-fin-${serviceId}`}
+              type="time"
+              step={1800}
+              value={fin}
+              onChange={(e) => setFin(e.target.value)}
+              className="w-28 font-mono"
+            />
+          </div>
+          <Button type="submit" variant="outline" size="sm" disabled={pending || !valido}>
+            <IconPlus className="size-3.5" />
+            Agregar turno
+          </Button>
+        </div>
+        {fin && inicio && fin <= inicio && (
+          <p className="text-xs text-destructive">
+            La hora de fin tiene que ser después de la de inicio, el mismo día.
+          </p>
+        )}
+      </form>
+    </div>
   );
 }

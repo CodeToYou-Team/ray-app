@@ -70,6 +70,11 @@
   `RS001` (no room left) and `RS002` (party larger than an exclusive resource);
   `createBooking` translates both. Totals go through `totalReserva()` in
   `rango.ts` — never multiply price by people by hand in a fourth place.
+  Fixed schedules (`service_schedules`) are validated in app code on purpose:
+  there is no race to close. `updateBooking` only checks the schedule when the
+  hours change, so editing an old booking whose slot was removed still works.
+  The weekday comes from the local date string (`diaSemanaIso`), never from the
+  stored instant.
 - `/lib/money.ts`, `/lib/currencies.ts` - Exact decimal arithmetic and the closed
   currency list. Currency columns are `varchar(10)`: stablecoin tickers (USDT, USDC)
   are 4 characters, not 3.

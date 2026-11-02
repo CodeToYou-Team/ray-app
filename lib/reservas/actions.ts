@@ -12,6 +12,8 @@ import {
   markNoShow as markNoShowCore,
   registerPayment as registerPaymentCore,
   configureServiceBooking as configureServiceBookingCore,
+  addSchedule as addScheduleCore,
+  removeSchedule as removeScheduleCore,
   updateBooking as updateBookingCore,
   updateResourceCapacity as updateResourceCapacityCore,
   type BookingResult,
@@ -180,6 +182,34 @@ export async function updateBooking(
   const { tenantId, user } = await requireCapability("booking:manage");
   try {
     return await updateBookingCore({ tenantId, userId: user.id }, input);
+  } finally {
+    revalidateReservas();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Horarios fijos
+// ---------------------------------------------------------------------------
+
+/** Qué turnos se ofrecen es configuración del servicio, como sus recursos. */
+export async function addSchedule(input: {
+  serviceId: string;
+  dias: number[];
+  inicio: string;
+  fin: string;
+}): Promise<Result<{ creados: number }>> {
+  const { tenantId, user } = await requireCapability("resource:manage");
+  try {
+    return await addScheduleCore({ tenantId, userId: user.id }, input);
+  } finally {
+    revalidateReservas();
+  }
+}
+
+export async function removeSchedule(input: { id: string }): Promise<Result> {
+  const { tenantId, user } = await requireCapability("resource:manage");
+  try {
+    return await removeScheduleCore({ tenantId, userId: user.id }, input);
   } finally {
     revalidateReservas();
   }
