@@ -18,6 +18,7 @@ import { resolveFields } from "@/lib/fields/resolve";
 import { validateCustomValues } from "@/lib/fields/validate";
 import type { Tx } from "@/lib/db";
 import type { FieldEntity } from "@/lib/db/schema";
+import { contarPendientes } from "@/lib/reservas/register";
 
 /**
  * Alta y edicion de productos y servicios, sin autorizacion.
@@ -525,6 +526,33 @@ export async function archiveService(
 ): Promise<ItemResult> {
   try {
     return await withTenant(tenantId, async (tx) => {
+      /**
+       * Un servicio con reservas pendientes no se archiva.
+       *
+       * Archivado, el servicio sale de la cuadrícula de reservas, y con él sus
+       * reservas: el huésped que llega mañana, o el que está adentro, se
+       * quedaría sin dónde registrar su llegada, cobrarle ni darle la salida.
+       * Es la misma regla que ya rige para archivar un recurso.
+       *
+       * Restaurar no tiene esta restricción. Y para dejar de aceptar reservas
+       * nuevas sin tocar las existentes está "Disponible para vender".
+       */
+      if (archived) {
+        const [servicio] = await tx
+          .select({ name: services.name })
+          .from(services)
+          .where(and(eq(services.id, id), eq(services.tenantId, tenantId)));
+        if (!servicio) return { ok: false as const, error: "No se encontró ese servicio." };
+
+        const n = await contarPendientes(tx, tenantId, { serviceId: id });
+        if (n > 0) {
+          return {
+            ok: false as const,
+            error: `"${servicio.name}" tiene ${n} ${n === 1 ? "reserva pendiente" : "reservas pendientes"}. Cancélalas o espera a que terminen antes de archivarlo. Para dejar de aceptar reservas nuevas, apaga "Disponible para vender".`,
+          };
+        }
+      }
+
       await tx
         .update(services)
         .set({ deletedAt: archived ? new Date() : null })

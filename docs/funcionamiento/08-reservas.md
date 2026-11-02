@@ -90,11 +90,24 @@ reservas, con un matiz:
 
 Encenderlo de nuevo reabre las reservas.
 
-### Archivar un recurso
+### Archivar un recurso o un servicio
 
-El icono de archivo saca el recurso de la disponibilidad sin borrar las reservas que tuvo. **No se
-puede mientras tenga reservas pendientes** (activas que todavía no terminaron). Archivar libera el
-nombre para un recurso nuevo.
+Archivar un recurso (icono de archivo en Recursos) o un servicio (en Productos) lo saca de la
+disponibilidad sin borrar las reservas que tuvo. Archivar un recurso además libera su nombre para
+uno nuevo.
+
+**No se puede mientras tenga reservas pendientes**, porque desaparecerían de la cuadrícula y no
+habría dónde registrar la llegada, cobrar ni dar la salida. Pendiente es:
+
+- una reserva **en curso**, siempre, aunque su fecha de salida ya haya pasado (quien se quedó más
+  de lo previsto sigue adentro hasta que se registre su salida);
+- una reserva **reservada** que todavía no terminó.
+
+No cuentan las canceladas, las no presentadas, las finalizadas, ni las reservadas cuya fecha ya
+pasó sin que nadie registrara la llegada.
+
+Para dejar de aceptar reservas nuevas **sin** esperar a que terminen las existentes, está
+[Disponible para vender](#servicios-no-disponibles-para-vender).
 
 ## Disponibilidad (`/reservas`)
 
@@ -292,7 +305,8 @@ Cada cobro **es un ingreso normal**:
 | Cobro en otra moneda sin tasa | "La reserva es en USD y el pago en VES. Escribe la tasa que aplicaste." |
 | Cambiar la forma de reservar con reservas | "\"Habitación doble\" ya tiene reservas. Para reservar de otra forma, crea otro servicio." |
 | Bajar la capacidad por debajo de lo ocupado | "\"Sala\" ya tiene momentos con 12 cupos ocupados. No se puede bajar a 10." |
-| Archivar con reservas pendientes | "\"101\" tiene reservas pendientes. Cancélalas o espera a que terminen." |
+| Archivar un recurso con reservas pendientes | "\"101\" tiene reservas pendientes. Cancélalas o espera a que terminen." |
+| Archivar un servicio con reservas pendientes | "\"Habitación doble\" tiene 2 reservas pendientes. Cancélalas o espera a que terminen antes de archivarlo. Para dejar de aceptar reservas nuevas, apaga \"Disponible para vender\"." |
 
 ## Lo que todavía no hace
 

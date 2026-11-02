@@ -8,7 +8,7 @@ import "server-only";
  * llamar estas funciones desde una ruta o un componente: el punto de entrada
  * es actions.ts, que exige el permiso primero.
  */
-import { and, count, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, count, eq, isNull, ne, or, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { z } from "zod";
 import { type Tx } from "@/lib/db";
@@ -54,6 +54,54 @@ function pgCode(error: unknown): string | undefined {
     current = (current as { cause?: unknown }).cause;
   }
   return undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Reservas pendientes
+// ---------------------------------------------------------------------------
+
+/**
+ * Cuántas reservas PENDIENTES tiene un recurso o un servicio.
+ *
+ * Pendiente es lo que todavía va a necesitar a alguien en la recepción:
+ * - en curso: el huésped está adentro. Cuenta SIEMPRE, aunque su rango ya
+ *   haya vencido: quien se quedó más de lo previsto sigue ahí hasta que se
+ *   registre su salida;
+ * - reservada y sin terminar: alguien va a llegar.
+ *
+ * NO cuentan las canceladas, las no presentadas, las finalizadas, ni las
+ * reservadas cuyo rango ya pasó. Estas últimas son estadías de antes de que
+ * existiera el check-out, o llegadas que nadie registró: contarlas haría
+ * imposible archivar cualquier cosa que se haya reservado alguna vez.
+ *
+ * Es la regla para archivar un recurso o un servicio: archivar algo con
+ * reservas pendientes las dejaría fuera de la cuadrícula, sin dónde
+ * registrar la llegada, cobrar ni dar la salida.
+ */
+export async function contarPendientes(
+  tx: Tx,
+  tenantId: string,
+  de: { resourceId: string } | { serviceId: string },
+): Promise<number> {
+  const [{ n }] = await tx
+    .select({ n: count() })
+    .from(bookings)
+    .where(
+      and(
+        eq(bookings.tenantId, tenantId),
+        "resourceId" in de
+          ? eq(bookings.resourceId, de.resourceId)
+          : eq(bookings.serviceId, de.serviceId),
+        or(
+          eq(bookings.status, "en_curso"),
+          and(
+            eq(bookings.status, "reservada"),
+            sql`upper(${bookings.period}) > now()`,
+          ),
+        ),
+      ),
+    );
+  return n;
 }
 
 // ---------------------------------------------------------------------------
@@ -509,13 +557,10 @@ export async function createResource(
 /**
  * Archiva un recurso.
  *
- * Solo si no tiene reservas activas que todavía no terminaron: archivar la 101
- * con huéspedes llegando la semana que viene los dejaría con una reserva de
- * una habitación que ya no aparece en ninguna pantalla.
- *
- * "Que no terminaron" importa: en la fase 1 no hay check-out, así que toda
- * estadía pasada se queda en `reservada` para siempre. Contar solo el estado
- * haría imposible archivar cualquier habitación que se haya usado alguna vez.
+ * Solo si no tiene reservas pendientes (ver `contarPendientes`): archivar la
+ * 101 con huéspedes llegando la semana que viene, o con uno adentro, los
+ * dejaría con una reserva de una habitación que ya no aparece en ninguna
+ * pantalla.
  */
 export async function archiveResource(
   { tenantId, userId }: ActorContext,
@@ -530,19 +575,7 @@ export async function archiveResource(
       if (!recurso) return { ok: false as const, error: "No se encontró ese recurso." };
       if (recurso.archivedAt) return { ok: true as const };
 
-      const [{ n }] = await tx
-        .select({ n: count() })
-        .from(bookings)
-        .where(
-          and(
-            eq(bookings.tenantId, tenantId),
-            eq(bookings.resourceId, recurso.id),
-            ne(bookings.status, "cancelada"),
-            ne(bookings.status, "no_show"),
-            ne(bookings.status, "finalizada"),
-            sql`upper(${bookings.period}) > now()`,
-          ),
-        );
+      const n = await contarPendientes(tx, tenantId, { resourceId: recurso.id });
       if (n > 0) {
         return {
           ok: false as const,

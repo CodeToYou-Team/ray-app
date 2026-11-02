@@ -435,36 +435,63 @@ export function CatalogView({
   );
 }
 
+/**
+ * Archivar o restaurar al primer clic.
+ *
+ * Muestra el motivo si el servidor dice que no: antes la respuesta se
+ * ignoraba, y un rechazo (un servicio con reservas pendientes) no hacía nada
+ * visible, como si el botón no funcionara.
+ */
 function ArchiveButton({
   archived,
   onToggle,
 }: {
   archived: boolean;
-  onToggle: () => Promise<unknown>;
+  onToggle: () => Promise<{ ok: boolean; error?: string }>;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="size-8"
-      disabled={pending}
-      title={archived ? "Restaurar" : "Archivar"}
-      onClick={() =>
-        start(async () => {
-          await onToggle();
-          router.refresh();
-        })
-      }
-    >
-      {archived ? (
-        <IconArchiveOff className="size-4" />
-      ) : (
-        <IconArchive className="size-4" />
+    <div className="relative">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-8"
+        disabled={pending}
+        title={archived ? "Restaurar" : "Archivar"}
+        onClick={() => {
+          setError(null);
+          start(async () => {
+            const result = await onToggle();
+            if (result.ok) router.refresh();
+            else setError(result.error ?? "No se pudo completar.");
+          });
+        }}
+      >
+        {archived ? (
+          <IconArchiveOff className="size-4" />
+        ) : (
+          <IconArchive className="size-4" />
+        )}
+      </Button>
+      {error && (
+        <p
+          role="alert"
+          className="absolute right-0 top-full z-10 mt-1 w-72 rounded-md border bg-popover p-2 text-left text-xs text-destructive shadow-md"
+        >
+          {error}
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="mt-1 block text-[11px] text-muted-foreground underline underline-offset-2"
+          >
+            Entendido
+          </button>
+        </p>
       )}
-    </Button>
+    </div>
   );
 }
 

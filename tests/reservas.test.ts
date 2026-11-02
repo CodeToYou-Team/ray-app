@@ -10,6 +10,7 @@ import {
   configureServiceBooking,
 } from "@/lib/reservas/register";
 import { bookingsInWindow, listBookableServices } from "@/lib/reservas/queries";
+import { archiveService } from "@/lib/productos/register";
 import { cantidad, hoyEn, seCruzan, sumarDias } from "@/lib/reservas/rango";
 
 /**
@@ -546,5 +547,77 @@ describe.skipIf(!hasDb)("reservas", () => {
   it("un servicio activo viene marcado como activo", async () => {
     const servicios = await listBookableServices(tenant);
     expect(servicios.find((x) => x.id === doble)).toMatchObject({ active: true });
+  });
+
+  // -------------------------------------------------------------------------
+  // Archivar con reservas pendientes
+  // -------------------------------------------------------------------------
+
+  /** Un servicio y un recurso propios, para no depender de los de arriba. */
+  async function servicioConRecurso(nombre: string) {
+    const servicio = uuidv7();
+    const recurso = uuidv7();
+    await sql`insert into services (id, tenant_id, name, category_id, price, currency, booking_unit) values
+      (${servicio}, ${tenant}, ${nombre}, ${catServ}, '50.00', 'USD', 'noche')`;
+    await sql`insert into resources (id, tenant_id, service_id, name) values
+      (${recurso}, ${tenant}, ${servicio}, ${nombre + " 1"})`;
+    return { servicio, recurso };
+  }
+
+  /** Inserta una reserva directo, con el rango y estado que haga falta. */
+  async function reservaCruda(
+    servicio: string,
+    recurso: string,
+    desde: string,
+    hasta: string,
+    estado: "reservada" | "en_curso" | "cancelada" = "reservada",
+  ) {
+    await sql`insert into bookings
+      (id, tenant_id, service_id, resource_id, period, status, unit_price, currency, holder_name, created_by,
+       checked_in_at, cancelled_at)
+      values (${uuidv7()}, ${tenant}, ${servicio}, ${recurso}, tstzrange(${desde}, ${hasta}), ${estado},
+              '50.00', 'USD', 'X', ${user},
+              ${estado === "en_curso" ? sql`now() - interval '5 days'` : null},
+              ${estado === "cancelada" ? sql`now()` : null})`;
+  }
+
+  it("no se archiva un servicio con reservas futuras", async () => {
+    const { servicio, recurso } = await servicioConRecurso("Bungalow");
+    await reservaCruda(servicio, recurso, "2031-03-01", "2031-03-03");
+
+    const r = await archiveService(ctx, servicio, true);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toMatch(/1 reserva pendiente/i);
+    // Y le dice cuál es la alternativa.
+    expect(r.error).toMatch(/disponible para vender/i);
+
+    const [fila] = await sql`select deleted_at from services where id = ${servicio}`;
+    expect(fila.deleted_at).toBeNull();
+  });
+
+  it("sí se archiva uno con reservas pasadas o canceladas", async () => {
+    const { servicio, recurso } = await servicioConRecurso("Cabaña");
+    await reservaCruda(servicio, recurso, "2020-01-01", "2020-01-03");
+    await reservaCruda(servicio, recurso, "2031-04-01", "2031-04-03", "cancelada");
+
+    expect((await archiveService(ctx, servicio, true)).ok).toBe(true);
+    // Restaurar no tiene restricción.
+    expect((await archiveService(ctx, servicio, false)).ok).toBe(true);
+  });
+
+  it("quien se quedó de más bloquea archivar su recurso y su servicio", async () => {
+    // En curso, con el rango ya vencido: hizo check-in y no se ha registrado
+    // su salida. Sigue adentro. Contar solo rangos sin terminar lo dejaba
+    // pasar, y su habitación desaparecía de la cuadrícula con él dentro.
+    const { servicio, recurso } = await servicioConRecurso("Loft");
+    await reservaCruda(servicio, recurso, "2020-02-01", "2020-02-03", "en_curso");
+
+    const rr = await archiveResource(ctx, { id: recurso });
+    expect(rr.ok).toBe(false);
+    if (rr.ok) return;
+    expect(rr.error).toMatch(/pendientes/i);
+
+    expect((await archiveService(ctx, servicio, true)).ok).toBe(false);
   });
 });

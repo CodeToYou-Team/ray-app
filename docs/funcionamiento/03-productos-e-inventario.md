@@ -67,6 +67,10 @@ Errores frecuentes traducidos: "Ya existe otro producto con ese SKU.", "Esa cate
 Archivar **no borra**: el producto o servicio deja de ofrecerse en ventas, compras e inventario,
 pero las operaciones antiguas lo siguen mostrando. Se puede restaurar.
 
+Un **servicio con reservas pendientes no se puede archivar**: saldría de la cuadrícula de reservas
+junto con ellas. El botón muestra el motivo debajo. Ver
+[Reservas](08-reservas.md#archivar-un-recurso-o-un-servicio).
+
 ## Inventario
 
 ### Cómo se calcula el stock
