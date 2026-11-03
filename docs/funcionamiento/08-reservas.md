@@ -3,7 +3,8 @@
 ## Resumen
 
 - Una **reserva** ocupa un **recurso** (una habitación, una cancha, una sala, un equipo) durante
-  un **rango de tiempo**, por noches o por horas.
+  un **rango de tiempo**, por fechas o por horas, y se cobra con una de las **tarifas** del
+  servicio (por noche, por semana, por tanda de 4 horas…).
 - Un servicio se vuelve reservable desde **Servicios › Recursos**. Hasta entonces se vende como
   siempre, como renglón de una venta.
 - Cada servicio reservable es **exclusivo** (una reserva a la vez, como una habitación) o
@@ -14,25 +15,49 @@
 - La reserva **no es una venta**. Los cobros se registran aparte, cuando entra el dinero, y la
   reserva lleva su **saldo**.
 
-## Cómo se configura (`/reservas/recursos`)
+## Cómo se configura (`/reservas/recursos`, en el menú Servicios › Recursos)
 
 Solo **dueño y encargado** (`resource:manage`). El personal puede reservar, pero no decide qué se
 reserva ni con qué recursos.
 
-Paso previo: el servicio tiene que existir en **Productos › Servicios** (nombre, precio,
+Paso previo: el servicio tiene que existir en **Servicios › Catálogo** (nombre, precio,
 categoría). La pantalla lista todos los servicios del negocio; si no hay ninguno, lleva a
-Productos.
+Servicios.
 
 ### Las tres decisiones de cada servicio
 
 | Opción | Valores | Qué significa |
 |---|---|---|
-| **Unidad** | No se reserva · Por noche · Por hora | Si se reserva y en qué unidad se cobra el tiempo |
+| **Cómo se reserva** | No se reserva · Por fechas · Por horas | Si se reserva, y si el tiempo se elige en días o en horas. Decide qué tarifas admite |
 | **Modo** | Exclusivo · Compartido | Si una reserva ocupa el recurso entero o comparte cupos con otras |
 | **Cobro** | Por reserva · Por persona | Si el precio es por la reserva entera o por cada persona |
 
 El modo y el cobro solo aparecen cuando el servicio se reserva. Al activarlo, queda **exclusivo** y
-**por reserva**.
+**por reserva**, con una tarifa por noche (o por hora) al precio del servicio.
+
+### Tarifas
+
+Cada servicio reservable tiene una o más tarifas, y **cada reserva usa una**:
+
+| Se reserva | Tarifa | Cómo se cuenta | Ejemplo |
+|---|---|---|---|
+| Por fechas | Por noche | Noches: del 10 al 12 son 2, la de salida no se cobra | Habitación, 40 USD / noche |
+| Por fechas | Por día | Días **incluidos**: del 10 al 12 son 3 | Alquiler de equipo, 15 USD / día |
+| Por fechas | Por semana | Semanas completas (7, 14, 21 días) | Cabaña, 230 USD / semana |
+| Por fechas | Por mes | Meses de calendario, del 10 al 10. Del 31 de enero, al 28 de febrero | Apartamento, 800 USD / mes |
+| Por horas | Por hora | Horas en tramos de 30 minutos; 1,5 horas se cobran 1,5 | Cancha, 10 USD / hora |
+| Por horas | Por bloque | Bloques completos de la duración elegida | Tanda de 4 horas, 35 USD |
+
+- Se agregan en la sección **Tarifas** de cada servicio: unidad, duración (solo los bloques),
+  nombre opcional ("Temporada alta"), precio y moneda (por defecto, la del servicio).
+- **El precio, el nombre y la moneda se editan** con el lápiz; **la unidad no**: para eso se
+  archiva y se crea otra.
+- **Cambiar o archivar una tarifa no toca las reservas hechas**: cada una guardó su tarifa, su
+  precio y su cantidad al reservar.
+- **Un servicio reservable no se queda sin tarifas**: la última no se puede archivar.
+- No se combinan tarifas en una reserva (1 semana + 3 noches): se elige una.
+- Un servicio por horas no tiene tarifa por semana, ni uno por fechas tarifa por hora. Un "día
+  completo" en un servicio por horas se arma como un bloque (una jornada de 12 horas).
 
 ### Recursos y capacidad
 
@@ -49,13 +74,14 @@ Sala A de 10 y una Sala B de 20.
 
 Ejemplos de configuración:
 
-| Negocio | Servicio | Unidad | Modo | Cobro | Recursos |
-|---|---|---|---|---|---|
-| Hotel | Habitación doble | Por noche | Exclusivo | Por reserva | 101, 102… (capacidad 2) |
-| Canchas | Cancha de pádel | Por hora | Exclusivo | Por reserva | Cancha 1, Cancha 2 (capacidad 4) |
-| Academia | Clase de yoga | Por hora | Compartido | Por persona | Sala (capacidad 15) |
-| Hostal | Cama en dormitorio | Por noche | Compartido | Por persona | Dorm A (capacidad 8) |
-| Estacionamiento | Puesto por hora | Por hora | Compartido | Por persona | Planta baja (capacidad 50) |
+| Negocio | Servicio | Se reserva | Tarifas | Modo | Cobro | Recursos |
+|---|---|---|---|---|---|---|
+| Hotel | Habitación doble | Por fechas | Por noche | Exclusivo | Por reserva | 101, 102… (capacidad 2) |
+| Cabañas | Cabaña | Por fechas | Por noche · por semana · por mes | Exclusivo | Por reserva | Cabaña 1, Cabaña 2 |
+| Canchas | Cancha de pádel | Por horas | Por hora · tanda de 4 horas | Exclusivo | Por reserva | Cancha 1, Cancha 2 (capacidad 4) |
+| Academia | Clase de yoga | Por horas | Por hora | Compartido | Por persona | Sala (capacidad 15) |
+| Hostal | Cama en dormitorio | Por fechas | Por noche | Compartido | Por persona | Dorm A (capacidad 8) |
+| Estacionamiento | Puesto por hora | Por horas | Por hora | Compartido | Por persona | Planta baja (capacidad 50) |
 
 ### Qué se puede cambiar y qué no
 
@@ -195,8 +221,12 @@ Botón **Nueva reserva** arriba, o tocando una celda libre.
 |---|---|
 | Qué se reserva | Los servicios reservables que tienen al menos un recurso |
 | Recurso, con el nombre que le dio el servicio (Habitación, Cancha…) | Cada opción dice cuánto le queda: "ocupado", "lleno", "hasta 3" o "4 de 15 cupos". Los que no tienen lugar para esas fechas aparecen deshabilitados |
+| Tarifa | Solo si el servicio tiene más de una. Cada opción muestra su precio |
 | Entrada y Salida (por noche) | La noche del día de salida **no se cobra**: del 10 al 12 son 2 noches. Si se mueve la entrada más allá de la salida, la salida se corre sola |
+| Primer día y Último día (por día) | Los dos incluidos |
+| Desde y Semanas / Meses | La salida se calcula sola y se muestra debajo ("Hasta el 15/03/2030") |
 | Fecha, Desde y Hasta (por hora) | En tramos de 30 minutos. El mismo día: no puede cruzar la medianoche |
+| Fecha, Desde y Bloques (por bloque) | El fin se calcula solo ("Hasta las 16:00"); no puede pasar de la medianoche |
 | Fecha y Turno (con horarios fijos) | En vez de escribir las horas, se elige uno de los turnos de ese día. Si no hay, lo dice |
 | Personas / Cupos | Por defecto 1. No puede pasar de la capacidad (exclusivo) ni de lo que queda libre (compartido) |
 | Titular | Obligatorio |
@@ -447,6 +477,11 @@ Cada cobro **es un ingreso normal**:
 Ver también [limitaciones](07-limitaciones-y-pendientes.md#reservas).
 
 - **Cambiar de servicio** en una reserva (de Doble a Suite): hay que cancelarla y crear otra.
+- **Cambiar de tarifa** en una reserva (de "por noche" a "por semana"): lo mismo, porque es otro
+  precio. Modificar recalcula la cantidad con la tarifa que ya tenía.
+- **Combinar tarifas** en una reserva (1 semana + 3 noches) o elegir sola la más barata.
+- **Tarifas por temporada** automáticas: hoy se crea una tarifa "Temporada alta" y se elige a mano.
+- **Horas y fechas en el mismo servicio** (una cancha por hora y también por semana).
 - **Salida anticipada con devolución automática**: si el cliente ya pagó de más, acortar la
   reserva exige anular un cobro a mano antes.
 - **Columnas personalizadas por servicio**: las de la reserva valen para todas, sea hotel o

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import postgres from "postgres";
+import { tarifasDeSiempre } from "./tarifas-fixture";
 import { uuidv7 } from "uuidv7";
 import {
   configureServiceBooking,
@@ -152,6 +153,7 @@ describe.skipIf(!hasDb)("cupos en la base", () => {
       (${habitacion}, ${tenant}, 'Habitación triple', ${catServ}, '40.00', 'USD', 'noche', false, false),
       (${yoga},       ${tenant}, 'Clase de yoga',     ${catServ}, '10.00', 'USD', 'hora',  true,  true),
       (${dorm},       ${tenant}, 'Cama en dormitorio', ${catServ}, '15.00', 'USD', 'noche', true,  true)`;
+    await tarifasDeSiempre(sql, tenant);
     await sql`insert into resources (id, tenant_id, service_id, name, capacity) values
       (${h301},  ${tenant}, ${habitacion}, '301',    3),
       (${sala},  ${tenant}, ${yoga},       'Sala',   5),
@@ -199,9 +201,9 @@ describe.skipIf(!hasDb)("cupos en la base", () => {
 
   it("la base tampoco acepta un grupo que no cabe", async () => {
     const code = await pgErrorCode(() => sql`
-      insert into bookings (id, tenant_id, service_id, resource_id, period, party_size, unit_price, currency, holder_name, created_by)
+      insert into bookings (id, tenant_id, service_id, resource_id, period, party_size, unit_price, currency, holder_name, created_by, rate_id, rate_unit, qty)
       values (${uuidv7()}, ${tenant}, ${habitacion}, ${h301},
-              tstzrange('2030-01-01', '2030-01-02'), 4, '40.00', 'USD', 'X', ${user})`);
+              tstzrange('2030-01-01', '2030-01-02'), 4, '40.00', 'USD', 'X', ${user}, (select id from service_rates where service_id = ${habitacion} and archived_at is null limit 1), 'noche', 1)`);
     expect(code).toBe("RS002");
   });
 

@@ -13,6 +13,9 @@ import {
   registerPayment as registerPaymentCore,
   configureServiceBooking as configureServiceBookingCore,
   setResourceLabel as setResourceLabelCore,
+  addRate as addRateCore,
+  updateRate as updateRateCore,
+  archiveRate as archiveRateCore,
   addSchedule as addScheduleCore,
   removeSchedule as removeScheduleCore,
   updateBooking as updateBookingCore,
@@ -95,6 +98,37 @@ export async function setResourceLabel(input: {
   const { tenantId, user } = await requireCapability("resource:manage");
   try {
     return await setResourceLabelCore({ tenantId, userId: user.id }, input);
+  } finally {
+    revalidateReservas();
+  }
+}
+
+export async function addRate(
+  input: Parameters<typeof addRateCore>[1],
+): Promise<Result<{ id: string }>> {
+  const { tenantId, user } = await requireCapability("resource:manage");
+  try {
+    return await addRateCore({ tenantId, userId: user.id }, input);
+  } finally {
+    revalidateReservas();
+  }
+}
+
+export async function updateRate(
+  input: Parameters<typeof updateRateCore>[1],
+): Promise<Result> {
+  const { tenantId, user } = await requireCapability("resource:manage");
+  try {
+    return await updateRateCore({ tenantId, userId: user.id }, input);
+  } finally {
+    revalidateReservas();
+  }
+}
+
+export async function archiveRate(input: { id: string }): Promise<Result> {
+  const { tenantId, user } = await requireCapability("resource:manage");
+  try {
+    return await archiveRateCore({ tenantId, userId: user.id }, input);
   } finally {
     revalidateReservas();
   }

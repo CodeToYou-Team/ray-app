@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import postgres from "postgres";
+import { tarifasDeSiempre } from "./tarifas-fixture";
 import { uuidv7 } from "uuidv7";
 import { cancelBooking, createBooking, registerPayment } from "@/lib/reservas/register";
 import { LISTADO_POR_PAGINA, listBookings } from "@/lib/reservas/queries";
@@ -87,6 +88,7 @@ describe.skipIf(!hasDb)("listado de reservas", () => {
       (${suiteVes}, ${tenant}, 'Suite Bs',  ${catServ}, '2000.00', 'VES', 'noche', false, false),
       (${taller},   ${tenant}, 'Taller',    ${catServ}, '3.33',    'USD', 'hora',  true,  true),
       (${box},      ${tenant}, 'Box',       ${catServ}, '5.00',    'USD', 'hora',  false, false)`;
+    await tarifasDeSiempre(sql, tenant);
     await sql`insert into resources (id, tenant_id, service_id, name, capacity) values
       (${h101},  ${tenant}, ${doble},    '101',   2),
       (${h102},  ${tenant}, ${doble},    '102',   2),
@@ -257,10 +259,10 @@ describe.skipIf(!hasDb)("listado de reservas", () => {
     // 22 turnos de Box, directo en la base: más de una página.
     for (let i = 0; i < 22; i++) {
       const dia = String(1 + i).padStart(2, "0");
-      await sql`insert into bookings (id, tenant_id, service_id, resource_id, period, unit_price, currency, holder_name, created_by)
+      await sql`insert into bookings (id, tenant_id, service_id, resource_id, period, unit_price, currency, holder_name, created_by, rate_id, rate_unit, qty)
         values (${uuidv7()}, ${tenant}, ${box}, ${box1},
                 tstzrange(${`2030-03-${dia} 14:00-04`}, ${`2030-03-${dia} 15:00-04`}),
-                '5.00', 'USD', ${`Turno ${i}`}, ${user})`;
+                '5.00', 'USD', ${`Turno ${i}`}, ${user}, (select id from service_rates where service_id = ${box} and archived_at is null limit 1), 'hora', 1)`;
     }
 
     const p0 = await listBookings(tenant, TZ, { serviceId: box, page: 0 });

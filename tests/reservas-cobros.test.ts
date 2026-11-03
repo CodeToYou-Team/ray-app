@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import postgres from "postgres";
+import { tarifasDeSiempre } from "./tarifas-fixture";
 import { uuidv7 } from "uuidv7";
 import {
   cancelBooking,
@@ -101,6 +102,7 @@ describe.skipIf(!hasDb)("reservas: check-in, check-out y cobros", () => {
       (${payVes},     ${tenant}, 'payment_method',   'pm',   'Pago móvil',   'VES')`;
     await sql`insert into services (id, tenant_id, name, category_id, price, currency, booking_unit) values
       (${doble}, ${tenant}, 'Doble', ${catServ}, '40.00', 'USD', 'noche')`;
+    await tarifasDeSiempre(sql, tenant);
     await sql`insert into resources (id, tenant_id, service_id, name) values
       (${r201}, ${tenant}, ${doble}, '201'),
       (${r202}, ${tenant}, ${doble}, '202'),

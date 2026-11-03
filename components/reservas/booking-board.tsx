@@ -17,7 +17,7 @@ import {
   seCruzan,
   sumarDias,
   turnosDelDia,
-  unidadLabel,
+  porUnidad,
   type Turno,
 } from "@/lib/reservas/rango";
 import { cn } from "@/lib/utils";
@@ -139,8 +139,10 @@ export function BookingBoard({
     setAperturas((n) => n + 1);
   }
 
-  /** Lo que se puede reservar de nuevo: activo y con al menos un recurso. */
-  const reservables = servicios.filter((s) => s.active && s.resources.length > 0);
+  /** Lo que se puede reservar de nuevo: activo, con al menos un recurso y una tarifa. */
+  const reservables = servicios.filter(
+    (s) => s.active && s.resources.length > 0 && s.tarifas.length > 0,
+  );
 
   /**
    * Lo que se pinta en la cuadrícula. Un servicio no disponible para vender
@@ -406,7 +408,7 @@ function GrupoServicio({
 }) {
   // Las reservas ya hechas se ven y se manejan igual (llegada, cobros,
   // salida: eso vive en el detalle). Lo que se apaga es ofrecer lugar nuevo.
-  const puedeReservar = canManage && servicio.active;
+  const puedeReservar = canManage && servicio.active && servicio.tarifas.length > 0;
 
   return (
     <>
@@ -417,7 +419,9 @@ function GrupoServicio({
         >
           {servicio.name}
           <span className="ml-2 font-mono font-normal text-muted-foreground">
-            {formatMoney(servicio.price, servicio.currency)} {unidadLabel(servicio.unidad)}
+            {servicio.tarifas
+              .map((t) => `${formatMoney(t.price, t.currency)} ${porUnidad(t)}`)
+              .join(" · ")}
             {servicio.perPerson && " por persona"}
             {servicio.shared && " · con cupos"}
           </span>

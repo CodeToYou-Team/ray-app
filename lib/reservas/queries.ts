@@ -21,16 +21,18 @@ import {
   bookings,
   catalogItems,
   resources,
+  serviceRates,
   serviceSchedules,
   services,
   transactions,
   type BookingStatus,
   type BookingUnit,
+  type RateUnit,
 } from "@/lib/db/schema";
 import { normalizeMoney, subtractMoney, sumMoney } from "@/lib/money";
 import { escapeLike } from "@/lib/finanzas/queries";
 import { bordesLocalesSql, periodoSql } from "./periodo";
-import { cantidad, totalReserva, type Rango, type Turno } from "./rango";
+import { describirCantidad, sinCeros, totalReserva, type Tarifa, type Turno } from "./rango";
 
 export interface ResourceRow {
   id: string;
@@ -38,6 +40,49 @@ export interface ResourceRow {
   notes: string | null;
   /** Exclusivo: personas por reserva. Compartido: cupos en total a la vez. */
   capacity: number;
+}
+
+/** Una tarifa activa de un servicio, como la ven el formulario y la configuración. */
+export interface TarifaRow {
+  id: string;
+  unit: RateUnit;
+  minutes: number | null;
+  label: string | null;
+  price: string;
+  currency: string;
+}
+
+/** Las tarifas ACTIVAS de varios servicios, por servicio, en orden de creación. */
+async function tarifasPorServicio(
+  tx: Parameters<Parameters<typeof withTenant>[1]>[0],
+  tenantId: string,
+  serviceIds: string[],
+): Promise<Map<string, TarifaRow[]>> {
+  const filas = await tx
+    .select({
+      id: serviceRates.id,
+      serviceId: serviceRates.serviceId,
+      unit: serviceRates.unit,
+      minutes: serviceRates.minutes,
+      label: serviceRates.label,
+      price: serviceRates.price,
+      currency: serviceRates.currency,
+    })
+    .from(serviceRates)
+    .where(
+      and(
+        eq(serviceRates.tenantId, tenantId),
+        isNull(serviceRates.archivedAt),
+        inArray(serviceRates.serviceId, serviceIds),
+      ),
+    )
+    .orderBy(asc(serviceRates.createdAt));
+
+  const porServicio = new Map<string, TarifaRow[]>();
+  for (const { serviceId, ...t } of filas) {
+    porServicio.set(serviceId, [...(porServicio.get(serviceId) ?? []), t]);
+  }
+  return porServicio;
 }
 
 export interface BookableService {
@@ -58,6 +103,8 @@ export interface BookableService {
   price: string;
   currency: string;
   resources: ResourceRow[];
+  /** Tarifas activas. Sin ninguna no se puede reservar. */
+  tarifas: TarifaRow[];
   /** Turnos publicados. Vacío = se reserva en cualquier tramo de 30 minutos. */
   turnos: Turno[];
 }
@@ -129,11 +176,17 @@ export async function listBookableServices(
       tenantId,
       servs.map((s) => s.id),
     );
+    const tarifas = await tarifasPorServicio(
+      tx,
+      tenantId,
+      servs.map((s) => s.id),
+    );
 
     return servs.map((s) => ({
       ...s,
       unidad: s.unidad!,
       turnos: turnos.get(s.id) ?? [],
+      tarifas: tarifas.get(s.id) ?? [],
       resources: recs
         .filter((r) => r.serviceId === s.id)
         .map(({ id, name, notes, capacity }) => ({ id, name, notes, capacity })),
@@ -185,6 +238,7 @@ export interface ServiceSetupRow {
   perPerson: boolean;
   resourceLabel: string | null;
   turnos: Turno[];
+  tarifas: TarifaRow[];
   /** Si ya tiene reservas, la unidad no se puede cambiar. */
   bookingCount: number;
   resources: ResourceRow[];
@@ -243,10 +297,12 @@ export async function listServicesForSetup(
 
     const porServicio = new Map(conteos.map((c) => [c.serviceId, c.n]));
     const turnos = await turnosPorServicio(tx, tenantId, ids);
+    const tarifas = await tarifasPorServicio(tx, tenantId, ids);
 
     return servs.map((s) => ({
       ...s,
       turnos: turnos.get(s.id) ?? [],
+      tarifas: tarifas.get(s.id) ?? [],
       bookingCount: porServicio.get(s.id) ?? 0,
       resources: recs
         .filter((r) => r.serviceId === s.id)
@@ -292,6 +348,9 @@ export interface BookingRow {
   /** Hora LOCAL del negocio, "YYYY-MM-DDTHH:MI". Comparables como texto. */
   inicio: string;
   fin: string;
+  /** La tarifa congelada al reservar; el nombre es el de hoy. */
+  tarifa: Tarifa & { label: string | null };
+  /** Guardada al reservar, como el precio. */
   qty: string;
   descripcion: string;
   unitPrice: string;
@@ -367,6 +426,10 @@ async function consultarReservas(
         fin: bordes.fin,
         unitPrice: bookings.unitPrice,
         currency: bookings.currency,
+        qty: bookings.qty,
+        rateUnit: bookings.rateUnit,
+        rateMinutes: bookings.rateMinutes,
+        rateLabel: serviceRates.label,
         holderName: bookings.holderName,
         holderDocument: bookings.holderDocument,
         holderPhone: bookings.holderPhone,
@@ -382,6 +445,10 @@ async function consultarReservas(
         resources,
         and(eq(resources.id, bookings.resourceId), eq(resources.tenantId, bookings.tenantId)),
       )
+      .innerJoin(
+        serviceRates,
+        and(eq(serviceRates.id, bookings.rateId), eq(serviceRates.tenantId, bookings.tenantId)),
+      )
       .where(and(eq(bookings.tenantId, tenantId), ...opciones.where))
       .orderBy(...opciones.orderBy);
 
@@ -395,19 +462,11 @@ async function consultarReservas(
     rows.map((r) => r.id),
   );
 
-  return rows.map((r) => {
+  return rows.map(({ rateUnit, rateMinutes, rateLabel, ...r }) => {
     const unidad = r.unidad ?? "noche";
-    const rango: Rango =
-      unidad === "noche"
-        ? { unidad, desde: r.inicio.slice(0, 10), hasta: r.fin.slice(0, 10) }
-        : {
-            unidad,
-            fecha: r.inicio.slice(0, 10),
-            inicio: r.inicio.slice(11, 16),
-            fin: r.fin.slice(11, 16),
-          };
-    const c = cantidad(rango);
-    const qty = c.ok ? c.qty : "0";
+    const tarifa = { unit: rateUnit, minutes: rateMinutes, label: rateLabel };
+    // Guardada al reservar: no se vuelve a derivar del período.
+    const qty = sinCeros(r.qty);
     const total = totalReserva({
       qty,
       partySize: r.partySize,
@@ -420,8 +479,9 @@ async function consultarReservas(
     return {
       ...r,
       unidad,
+      tarifa,
       qty,
-      descripcion: c.ok ? c.descripcion : "",
+      descripcion: describirCantidad(qty, tarifa),
       total,
       pagado,
       saldo: subtractMoney(total, pagado),
@@ -461,17 +521,11 @@ export interface BookingFilters {
  * esta tiene que dar EXACTAMENTE lo mismo, y hay una prueba que lo compara
  * (tests/reservas-listado.test.ts) para que no se separen en silencio.
  *
- * Unidades: noches = días entre las fechas LOCALES de entrada y salida; horas
- * = duración en horas (con tramos de 30 minutos, exacta en numeric). Un solo
- * redondeo al final, como `lineSubtotal`.
+ * La cantidad es `bookings.qty`, guardada al reservar con su tarifa: noches,
+ * semanas, meses o bloques. Un solo redondeo al final, como `lineSubtotal`.
  */
-function totalSql(timezone: string): SQL {
-  const unidades = sql`CASE WHEN ${services.bookingUnit} = 'noche'
-    THEN ((upper(${bookings.period}) AT TIME ZONE ${timezone})::date
-          - (lower(${bookings.period}) AT TIME ZONE ${timezone})::date)::numeric
-    ELSE extract(epoch FROM (upper(${bookings.period}) - lower(${bookings.period}))) / 3600
-  END`;
-  return sql`round(${unidades}
+function totalSql(): SQL {
+  return sql`round(${bookings.qty}
     * CASE WHEN ${bookings.perPerson} THEN ${bookings.partySize} ELSE 1 END
     * ${bookings.unitPrice}, 2)`;
 }
@@ -523,7 +577,7 @@ function condiciones(timezone: string, f: BookingFilters): (SQL | undefined)[] {
     f.conSaldo
       ? and(
           inArray(bookings.status, DEBEN),
-          sql`${totalSql(timezone)} - ${pagadoSql} > 0`,
+          sql`${totalSql()} - ${pagadoSql} > 0`,
         )
       : undefined,
   ];
@@ -570,7 +624,7 @@ export async function listBookings(
         .where(and(eq(bookings.tenantId, tenantId), ...where)),
     ),
     withTenant(tenantId, (tx) => {
-      const saldo = sql`${totalSql(timezone)} - ${pagadoSql}`;
+      const saldo = sql`${totalSql()} - ${pagadoSql}`;
       return tx
         .select({
           currency: bookings.currency,

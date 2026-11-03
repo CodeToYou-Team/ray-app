@@ -29,9 +29,7 @@ import {
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -52,11 +50,7 @@ import {
   editService,
   setServiceArchived,
 } from "@/lib/productos/actions";
-import {
-  PRIMARY_CURRENCIES,
-  STABLECOINS,
-  OTHER_CURRENCIES,
-} from "@/lib/currencies";
+import { CurrencySelect } from "@/components/currency-select";
 import { formatMoney } from "@/lib/format";
 import { isMoney, isQuantity } from "@/lib/money";
 import { cn } from "@/lib/utils";
@@ -492,51 +486,6 @@ function ArchiveButton({
         </p>
       )}
     </div>
-  );
-}
-
-function CurrencySelect({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="w-full">
-        <SelectValue placeholder="Moneda" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectGroup>
-          <SelectLabel>Frecuentes</SelectLabel>
-          {PRIMARY_CURRENCIES.map((c) => (
-            <SelectItem key={c.code} value={c.code}>
-              <span className="font-mono text-xs">{c.code}</span>
-              <span className="text-muted-foreground"> · {c.name}</span>
-            </SelectItem>
-          ))}
-        </SelectGroup>
-        <SelectGroup>
-          <SelectLabel>Stablecoins</SelectLabel>
-          {STABLECOINS.map((c) => (
-            <SelectItem key={c.code} value={c.code}>
-              <span className="font-mono text-xs">{c.code}</span>
-              <span className="text-muted-foreground"> · {c.name}</span>
-            </SelectItem>
-          ))}
-        </SelectGroup>
-        <SelectGroup>
-          <SelectLabel>Otras</SelectLabel>
-          {OTHER_CURRENCIES.map((c) => (
-            <SelectItem key={c.code} value={c.code}>
-              <span className="font-mono text-xs">{c.code}</span>
-              <span className="text-muted-foreground"> · {c.name}</span>
-            </SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
   );
 }
 

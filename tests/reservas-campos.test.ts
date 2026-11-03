@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import postgres from "postgres";
+import { tarifasDeSiempre } from "./tarifas-fixture";
 import { uuidv7 } from "uuidv7";
 import { archiveField, createField, updateField, upsertFixedOverride } from "@/lib/fields/register";
 import { getFields } from "@/lib/fields/queries";
@@ -60,6 +61,7 @@ describe.skipIf(!hasDb)("columnas personalizadas en la reserva", () => {
       (${uuidv7()}, ${tenant}, 'service_category', 'viejo',    'Viejo',     now())`;
     await sql`insert into services (id, tenant_id, name, category_id, price, currency, booking_unit) values
       (${doble}, ${tenant}, 'Doble', ${catServ}, '40.00', 'USD', 'noche')`;
+    await tarifasDeSiempre(sql, tenant);
     await sql`insert into resources (id, tenant_id, service_id, name, capacity) values
       (${h101}, ${tenant}, ${doble}, '101', 2),
       (${h102}, ${tenant}, ${doble}, '102', 2),

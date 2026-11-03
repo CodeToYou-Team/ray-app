@@ -19,12 +19,15 @@ import {
   bookings,
   catalogItems,
   resources,
+  serviceRates,
   serviceSchedules,
   services,
   tenants,
   transactions,
   type BookingStatus,
+  type RateUnit,
 } from "@/lib/db/schema";
+import { isKnownCurrency } from "@/lib/currencies";
 import {
   compareMoney,
   convertMoney,
@@ -46,12 +49,18 @@ import {
   encajaEnTurno,
   hoyEn,
   losDias,
+  nombreTarifa,
+  sinCeros,
+  tarifaBase,
   totalReserva,
   turnosDelDia,
   DIAS_SEMANA,
+  TARIFAS_DEL_GRANO,
   type Rango,
   type RangoHoras,
+  type Tarifa,
   type Turno,
+  type Unidad,
 } from "./rango";
 
 export interface ActorContext {
@@ -181,6 +190,102 @@ async function validarTurno(
 }
 
 // ---------------------------------------------------------------------------
+// Tarifas
+// ---------------------------------------------------------------------------
+
+interface TarifaFila extends Tarifa {
+  id: string;
+  label: string | null;
+  price: string;
+  currency: string;
+}
+
+/** Las tarifas activas de un servicio, en el orden en que se crearon. */
+async function tarifasActivas(tx: Tx, tenantId: string, serviceId: string): Promise<TarifaFila[]> {
+  return tx
+    .select({
+      id: serviceRates.id,
+      unit: serviceRates.unit,
+      minutes: serviceRates.minutes,
+      label: serviceRates.label,
+      price: serviceRates.price,
+      currency: serviceRates.currency,
+    })
+    .from(serviceRates)
+    .where(
+      and(
+        eq(serviceRates.tenantId, tenantId),
+        eq(serviceRates.serviceId, serviceId),
+        isNull(serviceRates.archivedAt),
+      ),
+    )
+    .orderBy(serviceRates.createdAt);
+}
+
+/**
+ * La tarifa con la que se reserva. Si el servicio tiene una sola activa no
+ * hace falta elegirla; con varias, sí: adivinar cuál quería la recepcionista
+ * sería cobrar algo que nadie eligió.
+ */
+async function elegirTarifa(
+  tx: Tx,
+  tenantId: string,
+  servicio: { id: string; name: string },
+  rateId: string | undefined,
+): Promise<{ ok: true; tarifa: TarifaFila } | { ok: false; error: string }> {
+  const activas = await tarifasActivas(tx, tenantId, servicio.id);
+  if (rateId) {
+    const tarifa = activas.find((t) => t.id === rateId);
+    return tarifa
+      ? { ok: true, tarifa }
+      : { ok: false, error: "Esa tarifa ya no está disponible. Elige otra." };
+  }
+  if (activas.length === 1) return { ok: true, tarifa: activas[0] };
+  if (activas.length === 0) {
+    return {
+      ok: false,
+      error: `"${servicio.name}" no tiene tarifas. Agrégale una en Servicios › Recursos.`,
+    };
+  }
+  return { ok: false, error: "Elige una tarifa." };
+}
+
+/**
+ * Deja al servicio con tarifas de su grano: archiva las que no corresponden
+ * (un "por hora" en un servicio que pasó a reservarse por fechas) y, si no
+ * queda ninguna, crea la de siempre con el precio del servicio. Solo se llama
+ * al cambiar el grano, que exige que el servicio no tenga reservas.
+ */
+async function asegurarTarifas(
+  tx: Tx,
+  tenantId: string,
+  userId: string,
+  servicio: { id: string; price: string; currency: string },
+  grano: Unidad,
+): Promise<void> {
+  const activas = await tarifasActivas(tx, tenantId, servicio.id);
+  const sobran = activas.filter((t) => !TARIFAS_DEL_GRANO[grano].includes(t.unit));
+  for (const t of sobran) {
+    await tx
+      .update(serviceRates)
+      .set({ archivedAt: new Date() })
+      .where(and(eq(serviceRates.id, t.id), eq(serviceRates.tenantId, tenantId)));
+  }
+  if (activas.length > sobran.length) return;
+
+  const base = tarifaBase(grano);
+  await tx.insert(serviceRates).values({
+    id: uuidv7(),
+    tenantId,
+    serviceId: servicio.id,
+    unit: base.unit,
+    price: normalizeMoney(servicio.price),
+    currency: servicio.currency,
+    createdBy: userId,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Reservas
 // ---------------------------------------------------------------------------
 
@@ -201,6 +306,8 @@ const rangoSchema = z.discriminatedUnion("unidad", [
 const bookingSchema = z.object({
   serviceId: z.uuid("Elige qué se reserva"),
   resourceId: z.uuid("Elige el recurso"),
+  /** Con una sola tarifa activa se puede omitir. Ver `elegirTarifa()`. */
+  rateId: z.uuid("Elige una tarifa").optional(),
   rango: rangoSchema,
   holderName: z.string().trim().min(1, "Escribe a nombre de quién va").max(200),
   /** Cuántas personas o cupos ocupa. Por defecto, una. */
@@ -274,7 +381,7 @@ export async function createBooking(
       if (!servicio.bookingUnit) {
         return {
           ok: false as const,
-          error: `"${servicio.name}" no se reserva. Actívalo en Reservas › Recursos.`,
+          error: `"${servicio.name}" no se reserva. Actívalo en Servicios › Recursos.`,
         };
       }
       // El rango tiene que venir en la unidad del servicio: una habitación por
@@ -317,7 +424,11 @@ export async function createBooking(
         };
       }
 
-      const unidades = cantidad(input.rango as Rango);
+      const elegida = await elegirTarifa(tx, tenantId, servicio, input.rateId);
+      if (!elegida.ok) return { ok: false as const, error: elegida.error };
+      const tarifa = elegida.tarifa;
+
+      const unidades = cantidad(input.rango as Rango, tarifa);
       if (!unidades.ok) return { ok: false as const, error: unidades.error };
 
       if (input.rango.unidad === "hora") {
@@ -335,8 +446,9 @@ export async function createBooking(
         .from(tenants)
         .where(eq(tenants.id, tenantId));
 
-      // Snapshot de precio y moneda: si mañana sube la tarifa, esta reserva no.
-      const unitPrice = normalizeMoney(servicio.price);
+      // Snapshot de la tarifa: si mañana sube, o se archiva, esta reserva no
+      // cambia. La cantidad también se guarda (ver bookings.qty).
+      const unitPrice = normalizeMoney(tarifa.price);
       const id = uuidv7();
 
       await tx.insert(bookings).values({
@@ -351,7 +463,11 @@ export async function createBooking(
         shared: servicio.bookingShared,
         perPerson: servicio.bookingPerPerson,
         unitPrice,
-        currency: servicio.currency,
+        currency: tarifa.currency,
+        rateId: tarifa.id,
+        rateUnit: tarifa.unit,
+        rateMinutes: tarifa.minutes,
+        qty: unidades.qty,
         holderName: input.holderName,
         holderDocument: input.holderDocument || null,
         holderPhone: input.holderPhone || null,
@@ -369,6 +485,7 @@ export async function createBooking(
         actorId: userId,
         diff: {
           recurso: recurso.name,
+          tarifa: nombreTarifa(tarifa),
           rango: input.rango,
           titular: input.holderName,
           personas,
@@ -387,7 +504,7 @@ export async function createBooking(
           perPerson: servicio.bookingPerPerson,
           unitPrice,
         }),
-        currency: servicio.currency,
+        currency: tarifa.currency,
       };
     });
   } catch (error) {
@@ -576,6 +693,12 @@ export async function configureServiceBooking(
         },
       });
 
+      // Recién reservable, o con otro grano: sin tarifas no se podría
+      // reservar, y las del grano anterior no sirven.
+      if (unidad && unidad !== servicio.bookingUnit) {
+        await asegurarTarifas(tx, tenantId, userId, servicio, unidad);
+      }
+
       return { ok: true as const };
     });
   } catch {
@@ -638,6 +761,248 @@ export async function setResourceLabel(
     });
   } catch {
     return { ok: false, error: "No se pudo guardar el nombre." };
+  }
+}
+
+const RATE_UNITS = ["hora", "bloque", "dia", "noche", "semana", "mes"] as const satisfies readonly RateUnit[];
+
+const precioSchema = z.string().refine(isMoney, "Precio inválido");
+const monedaSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .refine(isKnownCurrency, "Moneda no disponible");
+const nombreTarifaSchema = z
+  .string()
+  .trim()
+  .max(60, "Usa un nombre corto, como Temporada alta")
+  .optional();
+
+const addRateSchema = z.object({
+  serviceId: z.uuid(),
+  unit: z.enum(RATE_UNITS),
+  /** Solo para `bloque`. */
+  minutes: z.number().int().optional(),
+  label: nombreTarifaSchema,
+  price: precioSchema,
+  currency: monedaSchema,
+});
+
+/**
+ * Agrega una tarifa a un servicio reservable: "por semana, 230 USD", "tanda
+ * de 4 horas, 35 USD". Tiene que ser del grano del servicio.
+ */
+export async function addRate(
+  { tenantId, userId }: ActorContext,
+  raw: z.infer<typeof addRateSchema>,
+): Promise<Result<{ id: string }>> {
+  const parsed = addRateSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const input = parsed.data;
+
+  const minutes = input.unit === "bloque" ? (input.minutes ?? 0) : null;
+  if (minutes !== null && (minutes < 30 || minutes > 1440 || minutes % 30 !== 0)) {
+    return {
+      ok: false,
+      error: "Un bloque dura de 30 minutos a 24 horas, en tramos de 30 minutos.",
+    };
+  }
+
+  try {
+    return await withTenant(tenantId, async (tx) => {
+      const [servicio] = await tx
+        .select({ id: services.id, name: services.name, grano: services.bookingUnit })
+        .from(services)
+        .where(
+          and(
+            eq(services.id, input.serviceId),
+            eq(services.tenantId, tenantId),
+            isNull(services.deletedAt),
+          ),
+        );
+      if (!servicio) return { ok: false as const, error: "Ese servicio ya no existe." };
+      if (!servicio.grano) {
+        return { ok: false as const, error: `"${servicio.name}" no se reserva.` };
+      }
+      if (!TARIFAS_DEL_GRANO[servicio.grano].includes(input.unit)) {
+        return {
+          ok: false as const,
+          error:
+            servicio.grano === "hora"
+              ? `"${servicio.name}" se reserva por horas: sus tarifas van por hora o por bloques.`
+              : `"${servicio.name}" se reserva por fechas: sus tarifas van por día, noche, semana o mes.`,
+        };
+      }
+
+      const id = uuidv7();
+      const label = input.label || null;
+      await tx.insert(serviceRates).values({
+        id,
+        tenantId,
+        serviceId: servicio.id,
+        unit: input.unit,
+        minutes,
+        label,
+        price: normalizeMoney(input.price),
+        currency: input.currency,
+        createdBy: userId,
+      });
+
+      await tx.insert(auditLog).values({
+        id: uuidv7(),
+        tenantId,
+        entity: "service_rates",
+        entityId: id,
+        action: "create",
+        actorId: userId,
+        diff: {
+          servicio: servicio.name,
+          tarifa: nombreTarifa({ unit: input.unit, minutes, label }),
+          precio: normalizeMoney(input.price),
+          moneda: input.currency,
+        },
+      });
+
+      return { ok: true as const, id };
+    });
+  } catch {
+    return { ok: false, error: "No se pudo guardar la tarifa." };
+  }
+}
+
+const updateRateSchema = z.object({
+  id: z.uuid(),
+  label: nombreTarifaSchema,
+  price: precioSchema,
+  currency: monedaSchema,
+});
+
+/**
+ * Cambia el precio, la moneda o el nombre de una tarifa. Solo afecta a las
+ * reservas nuevas: las hechas copiaron los suyos. La unidad y los minutos no
+ * se cambian; para eso se archiva y se crea otra.
+ */
+export async function updateRate(
+  { tenantId, userId }: ActorContext,
+  raw: z.infer<typeof updateRateSchema>,
+): Promise<Result> {
+  const parsed = updateRateSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const input = parsed.data;
+
+  try {
+    return await withTenant(tenantId, async (tx) => {
+      const [antes] = await tx
+        .select()
+        .from(serviceRates)
+        .where(and(eq(serviceRates.id, input.id), eq(serviceRates.tenantId, tenantId)));
+      if (!antes || antes.archivedAt) {
+        return { ok: false as const, error: "Esa tarifa ya no existe." };
+      }
+
+      const despues = {
+        label: input.label || null,
+        price: normalizeMoney(input.price),
+        currency: input.currency,
+      };
+      const diff: Record<string, { from: unknown; to: unknown }> = {};
+      if (despues.label !== antes.label) diff.nombre = { from: antes.label, to: despues.label };
+      if (compareMoney(despues.price, antes.price) !== 0) {
+        diff.precio = { from: normalizeMoney(antes.price), to: despues.price };
+      }
+      if (despues.currency !== antes.currency) {
+        diff.moneda = { from: antes.currency, to: despues.currency };
+      }
+      if (Object.keys(diff).length === 0) return { ok: true as const };
+
+      await tx
+        .update(serviceRates)
+        .set(despues)
+        .where(and(eq(serviceRates.id, antes.id), eq(serviceRates.tenantId, tenantId)));
+
+      await tx.insert(auditLog).values({
+        id: uuidv7(),
+        tenantId,
+        entity: "service_rates",
+        entityId: antes.id,
+        action: "update",
+        actorId: userId,
+        diff,
+      });
+
+      return { ok: true as const };
+    });
+  } catch {
+    return { ok: false, error: "No se pudo guardar la tarifa." };
+  }
+}
+
+/**
+ * Archiva una tarifa: deja de ofrecerse, y las reservas que la usaron siguen
+ * igual. Un servicio reservable no se queda sin tarifas: no se podría
+ * reservar, y no diría por qué.
+ */
+export async function archiveRate(
+  { tenantId, userId }: ActorContext,
+  raw: { id: string },
+): Promise<Result> {
+  const parsed = z.object({ id: z.uuid() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, error: "Tarifa inválida." };
+
+  try {
+    return await withTenant(tenantId, async (tx) => {
+      const [tarifa] = await tx
+        .select({
+          id: serviceRates.id,
+          serviceId: serviceRates.serviceId,
+          unit: serviceRates.unit,
+          minutes: serviceRates.minutes,
+          label: serviceRates.label,
+          archivedAt: serviceRates.archivedAt,
+          servicio: services.name,
+          grano: services.bookingUnit,
+        })
+        .from(serviceRates)
+        .innerJoin(
+          services,
+          and(eq(services.id, serviceRates.serviceId), eq(services.tenantId, serviceRates.tenantId)),
+        )
+        .where(and(eq(serviceRates.id, parsed.data.id), eq(serviceRates.tenantId, tenantId)))
+        // La fila del servicio: dos archivos simultáneos de sus dos últimas
+        // tarifas no pueden pasar los dos el "queda otra".
+        .for("update", { of: services });
+      if (!tarifa) return { ok: false as const, error: "Esa tarifa ya no existe." };
+      if (tarifa.archivedAt) return { ok: true as const };
+
+      const otras = (await tarifasActivas(tx, tenantId, tarifa.serviceId)).filter(
+        (t) => t.id !== tarifa.id,
+      );
+      if (tarifa.grano && otras.length === 0) {
+        return {
+          ok: false as const,
+          error: `Es la única tarifa de "${tarifa.servicio}". Agrega otra antes de archivarla.`,
+        };
+      }
+
+      await tx
+        .update(serviceRates)
+        .set({ archivedAt: new Date() })
+        .where(and(eq(serviceRates.id, tarifa.id), eq(serviceRates.tenantId, tenantId)));
+
+      await tx.insert(auditLog).values({
+        id: uuidv7(),
+        tenantId,
+        entity: "service_rates",
+        entityId: tarifa.id,
+        action: "delete",
+        actorId: userId,
+        diff: { servicio: tarifa.servicio, tarifa: nombreTarifa(tarifa) },
+      });
+
+      return { ok: true as const };
+    });
+  } catch {
+    return { ok: false, error: "No se pudo archivar la tarifa." };
   }
 }
 
@@ -777,6 +1142,9 @@ interface ReservaCargada {
   serviceId: string;
   resourceId: string;
   unidad: "noche" | "hora";
+  /** La tarifa congelada al reservar. */
+  tarifa: Tarifa;
+  qty: string;
   shared: boolean;
   perPerson: boolean;
   partySize: number;
@@ -830,6 +1198,9 @@ async function cargarReserva(
       resourceId: bookings.resourceId,
       currency: bookings.currency,
       unitPrice: bookings.unitPrice,
+      rateUnit: bookings.rateUnit,
+      rateMinutes: bookings.rateMinutes,
+      qty: bookings.qty,
       partySize: bookings.partySize,
       perPerson: bookings.perPerson,
       shared: bookings.shared,
@@ -861,18 +1232,10 @@ async function cargarReserva(
     .where(and(eq(resources.id, b.resourceId), eq(resources.tenantId, tenantId)));
 
   const unidad = extra?.unidad ?? "noche";
-  const rango: Rango =
-    unidad === "noche"
-      ? { unidad, desde: b.inicio.slice(0, 10), hasta: b.fin.slice(0, 10) }
-      : {
-          unidad,
-          fecha: b.inicio.slice(0, 10),
-          inicio: b.inicio.slice(11, 16),
-          fin: b.fin.slice(11, 16),
-        };
-  const c = cantidad(rango);
+  // La cantidad se guardó al reservar con la tarifa de entonces; no se vuelve
+  // a derivar del período.
   const total = totalReserva({
-    qty: c.ok ? c.qty : "0",
+    qty: b.qty,
     partySize: b.partySize,
     perPerson: b.perPerson,
     unitPrice: b.unitPrice,
@@ -905,6 +1268,8 @@ async function cargarReserva(
     serviceId: b.serviceId,
     resourceId: b.resourceId,
     unidad,
+    tarifa: { unit: b.rateUnit, minutes: b.rateMinutes },
+    qty: sinCeros(b.qty),
     shared: b.shared,
     perPerson: b.perPerson,
     partySize: b.partySize,
@@ -1530,7 +1895,9 @@ export async function updateBooking(
         return { ok: false as const, error: `Esta reserva va por ${r.unidad}.` };
       }
 
-      const unidades = cantidad(rango);
+      // Con la tarifa congelada: modificar no cambia de "por noche" a "por
+      // semana"; eso es otro precio, y se hace cancelando y reservando.
+      const unidades = cantidad(rango, r.tarifa);
       if (!unidades.ok) return { ok: false as const, error: unidades.error };
 
       const nuevos = bordesLocales(rango);
@@ -1644,6 +2011,7 @@ export async function updateBooking(
         .set({
           resourceId: recurso.id,
           period: periodoSql(rango, r.timezone),
+          qty: unidades.qty,
           partySize: personas,
           holderName: input.holderName,
           holderDocument,

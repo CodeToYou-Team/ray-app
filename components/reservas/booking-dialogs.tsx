@@ -43,10 +43,13 @@ import {
   diaSemanaIso,
   encajaEnTurno,
   losDias,
+  nombreTarifa,
   ocupacionMaxima,
+  porUnidad,
   recursoLabel,
   seCruzan,
   sumarDias,
+  sumarMeses,
   totalReserva,
   turnosDelDia,
   TRAMO_MINUTOS,
@@ -75,6 +78,18 @@ export interface Inicial {
 export function valorCampo(campos: BookingFields, field: ResolvedField, value: unknown): string {
   const labels = field.catalogKey ? campos.catalogos[field.catalogKey]?.labels : undefined;
   return formatFieldValue(field, value, labels ? new Map(Object.entries(labels)) : undefined);
+}
+
+/** "14:30" → 870. */
+function horaAMinutos(hora: string): number {
+  const [h, m] = hora.split(":").map(Number);
+  return h * 60 + m;
+}
+
+/** 870 → "14:30"; null si se pasa de la medianoche (o no es un número). */
+function minutosAHora(minutos: number): string | null {
+  if (!Number.isFinite(minutos) || minutos > 24 * 60 - 1) return null;
+  return `${String(Math.floor(minutos / 60)).padStart(2, "0")}:${String(minutos % 60).padStart(2, "0")}`;
 }
 
 function ErrorBox({ children }: { children: React.ReactNode }) {
@@ -132,6 +147,10 @@ export function BookingForm({
 
   const [serviceId, setServiceId] = useState(editing?.serviceId ?? inicial.serviceId);
   const [resourceId, setResourceId] = useState(editing?.resourceId ?? inicial.resourceId);
+  /** La tarifa elegida. Al modificar no se usa: manda la congelada. */
+  const [rateId, setRateId] = useState(
+    () => servicios.find((s) => s.id === inicial.serviceId)?.tarifas[0]?.id ?? "",
+  );
 
   // Por noche
   const [desde, setDesde] = useState(editing ? editing.inicio.slice(0, 10) : inicial.fecha);
@@ -146,6 +165,11 @@ export function BookingForm({
   const [fin, setFin] = useState(
     editing ? editing.fin.slice(11, 16) : (inicial.fin ?? "10:00"),
   );
+  /**
+   * Cuántas semanas, meses o bloques, para las tarifas que no se escriben con
+   * dos fechas u horas: el final sale de aquí y del comienzo.
+   */
+  const [cuantas, setCuantas] = useState(editing ? editing.qty : "1");
 
   const [personas, setPersonas] = useState(String(editing?.partySize ?? 1));
   const [holderName, setHolderName] = useState(editing?.holderName ?? "");
@@ -166,12 +190,50 @@ export function BookingForm({
   const servicio = servicios.find((s) => s.id === serviceId);
   const unidad = servicio?.unidad ?? "noche";
 
+  /**
+   * Al modificar, la tarifa es la CONGELADA en la reserva: cambiarla sería
+   * otro precio, y eso se hace cancelando y reservando de nuevo.
+   */
+  const tarifaElegida = servicio?.tarifas.find((t) => t.id === rateId);
+  const tarifa = editing?.tarifa ?? tarifaElegida;
+  const unidadTarifa = tarifa?.unit ?? unidad;
+
+  const nCuantas = Number(cuantas);
+  const cuantasValidas = Number.isInteger(nCuantas) && nCuantas >= 1;
+
+  /**
+   * El turno manda sobre los bloques: con horarios fijos el tramo se elige
+   * entero, y el servidor comprueba que sea de bloques completos.
+   */
+  const turnosServicio = servicio?.turnos ?? [];
+  const conTurnos = unidad === "hora" && turnosServicio.length > 0;
+  const porBloques = unidadTarifa === "bloque" && !conTurnos;
+  const finBloques = porBloques
+    ? minutosAHora(horaAMinutos(inicio) + nCuantas * (tarifa?.minutes ?? 0))
+    : null;
+
+  // Semanas y meses se piden como "desde + cuántas"; la salida sale de ahí.
+  // Por día, el último día se muestra incluido y se guarda el siguiente.
+  const hastaFechas =
+    unidadTarifa === "semana"
+      ? sumarDias(desde, 7 * nCuantas)
+      : unidadTarifa === "mes"
+        ? sumarMeses(desde, nCuantas)
+        : hasta;
+
   const rango: Rango =
     unidad === "noche"
-      ? { unidad, desde, hasta }
-      : { unidad, fecha, inicio, fin };
+      ? { unidad, desde, hasta: hastaFechas }
+      : { unidad, fecha, inicio, fin: finBloques ?? fin };
 
-  const cant = cantidad(rango);
+  const cant: ReturnType<typeof cantidad> =
+    (unidadTarifa === "semana" || unidadTarifa === "mes" || porBloques) && !cuantasValidas
+      ? { ok: false, error: "Escribe cuántas, en números enteros." }
+      : porBloques && finBloques === null
+        ? { ok: false, error: "Esos bloques pasan de la medianoche." }
+        : !tarifa
+          ? { ok: false, error: "Elige una tarifa." }
+          : cantidad(rango, tarifa);
 
   /**
    * Con horarios fijos, el tramo se elige entre los turnos del día, no se
@@ -179,8 +241,6 @@ export function BookingForm({
    * exista: cambiar el horario no invalida lo ya reservado (el servidor
    * aplica la misma regla).
    */
-  const turnosServicio = servicio?.turnos ?? [];
-  const conTurnos = unidad === "hora" && turnosServicio.length > 0;
   const turnosHoy = conTurnos ? turnosDelDia(turnosServicio, fecha) : [];
   const horasSinCambio = Boolean(
     editing &&
@@ -201,8 +261,8 @@ export function BookingForm({
    * del servicio hoy: extender una estadía no la revalúa. Lo mismo para la
    * moneda y para si cobra por persona.
    */
-  const precio = editing?.unitPrice ?? servicio?.price ?? "0";
-  const moneda = editing?.currency ?? servicio?.currency ?? "";
+  const precio = editing?.unitPrice ?? tarifaElegida?.price ?? "0";
+  const moneda = editing?.currency ?? tarifaElegida?.currency ?? "";
   const porPersona = editing?.perPerson ?? servicio?.perPerson ?? false;
 
   const total =
@@ -286,7 +346,7 @@ export function BookingForm({
     start(async () => {
       const r = editing
         ? await updateBooking({ id: editing.id, ...comun })
-        : await createBooking({ serviceId: servicio.id, ...comun });
+        : await createBooking({ serviceId: servicio.id, rateId, ...comun });
       if (r.ok) {
         onOpenChange(false);
         router.refresh();
@@ -322,8 +382,9 @@ export function BookingForm({
                 disabled={Boolean(editing)}
                 onValueChange={(v) => {
                   setServiceId(v);
-                  // Los recursos son de cada servicio.
+                  // Los recursos y las tarifas son de cada servicio.
                   setResourceId("");
+                  setRateId(servicios.find((s) => s.id === v)?.tarifas[0]?.id ?? "");
                 }}
               >
                 <SelectTrigger id="servicio" className="w-full">
@@ -371,7 +432,96 @@ export function BookingForm({
             </div>
           </div>
 
-          {unidad === "noche" ? (
+          {editing ? (
+            <p className="text-xs text-muted-foreground">
+              Tarifa: {nombreTarifa(editing.tarifa)}, {formatMoney(precio, moneda)}{" "}
+              {porUnidad(editing.tarifa)}
+            </p>
+          ) : (
+            servicio &&
+            servicio.tarifas.length > 1 && (
+              <div className="space-y-2">
+                <Label htmlFor="tarifa">Tarifa</Label>
+                <Select value={rateId} onValueChange={setRateId}>
+                  <SelectTrigger id="tarifa" className="w-full">
+                    <SelectValue placeholder="Elige" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {servicio.tarifas.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {nombreTarifa(t)}
+                        <span className="ml-1.5 text-[10px] text-muted-foreground">
+                          {formatMoney(t.price, t.currency)} {porUnidad(t)}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )
+          )}
+
+          {unidad === "noche" && (unidadTarifa === "semana" || unidadTarifa === "mes") ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="desde">Desde</Label>
+                <Input
+                  id="desde"
+                  type="date"
+                  value={desde}
+                  disabled={entradaFija}
+                  onChange={(e) => setDesde(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cuantas">
+                  {unidadTarifa === "semana" ? "Semanas" : "Meses"}
+                </Label>
+                <Input
+                  id="cuantas"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={cuantas}
+                  onChange={(e) => setCuantas(e.target.value)}
+                  className="font-mono"
+                />
+                {cant.ok && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Hasta el {formatDate(hastaFechas)}
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : unidad === "noche" && unidadTarifa === "dia" ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="desde">Primer día</Label>
+                <Input
+                  id="desde"
+                  type="date"
+                  value={desde}
+                  disabled={entradaFija}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setDesde(v);
+                    if (v && hasta <= v) setHasta(sumarDias(v, 1));
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="hasta">Último día (incluido)</Label>
+                {/* Se muestra el último día; se guarda el siguiente, como una salida. */}
+                <Input
+                  id="hasta"
+                  type="date"
+                  value={sumarDias(hasta, -1)}
+                  min={desde || undefined}
+                  onChange={(e) => e.target.value && setHasta(sumarDias(e.target.value, 1))}
+                />
+              </div>
+            </div>
+          ) : unidad === "noche" ? (
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="desde">Entrada</Label>
@@ -463,16 +613,34 @@ export function BookingForm({
                       onChange={(e) => setInicio(e.target.value)}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="fin">Hasta</Label>
-                    <Input
-                      id="fin"
-                      type="time"
-                      step={TRAMO_MINUTOS * 60}
-                      value={fin}
-                      onChange={(e) => setFin(e.target.value)}
-                    />
-                  </div>
+                  {porBloques ? (
+                    <div className="space-y-2">
+                      <Label htmlFor="cuantas">Bloques</Label>
+                      <Input
+                        id="cuantas"
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={cuantas}
+                        onChange={(e) => setCuantas(e.target.value)}
+                        className="font-mono"
+                      />
+                      {finBloques && (
+                        <p className="text-[11px] text-muted-foreground">Hasta las {finBloques}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label htmlFor="fin">Hasta</Label>
+                      <Input
+                        id="fin"
+                        type="time"
+                        step={TRAMO_MINUTOS * 60}
+                        value={fin}
+                        onChange={(e) => setFin(e.target.value)}
+                      />
+                    </div>
+                  )}
                 </>
               )}
             </div>

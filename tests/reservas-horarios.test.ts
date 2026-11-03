@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import postgres from "postgres";
+import { tarifasDeSiempre } from "./tarifas-fixture";
 import { uuidv7 } from "uuidv7";
 import {
   addSchedule,
@@ -130,6 +131,7 @@ describe.skipIf(!hasDb)("horarios fijos en la base", () => {
       (${yoga},  ${tenant}, 'Clase de yoga', ${catServ}, '10.00', 'USD', 'hora',  true,  true),
       (${libre}, ${tenant}, 'Box libre',     ${catServ}, '5.00',  'USD', 'hora',  false, false),
       (${noche}, ${tenant}, 'Habitación',    ${catServ}, '40.00', 'USD', 'noche', false, false)`;
+    await tarifasDeSiempre(sql, tenant);
     await sql`insert into resources (id, tenant_id, service_id, name, capacity) values
       (${sala}, ${tenant}, ${yoga},  'Sala',  15),
       (${box},  ${tenant}, ${libre}, 'Box 1', 1),
@@ -301,6 +303,7 @@ describe.skipIf(!hasDb)("horarios fijos en la base", () => {
     const nuevo = uuidv7();
     await sql`insert into services (id, tenant_id, name, category_id, price, currency, booking_unit) values
       (${nuevo}, ${tenant}, 'Sin reservas', ${catServ}, '5.00', 'USD', 'hora')`;
+    await tarifasDeSiempre(sql, tenant);
     expect((await addSchedule(ctx, { serviceId: nuevo, dias: [1], inicio: "08:00", fin: "09:00" })).ok).toBe(true);
 
     const r = await configureServiceBooking(ctx, { serviceId: nuevo, unidad: "noche" });

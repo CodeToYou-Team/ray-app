@@ -391,6 +391,14 @@ export const products = pgTable(
 export const bookingUnit = pgEnum("booking_unit", ["noche", "hora"]);
 export type BookingUnit = (typeof bookingUnit.enumValues)[number];
 
+/**
+ * En que se cobra una tarifa. `noche` en `services.bookingUnit` es el GRANO
+ * (se reserva por fechas) y admite `dia`, `noche`, `semana` y `mes`; `hora`
+ * admite `hora` y `bloque`. Ver `TARIFAS_DEL_GRANO` en lib/reservas/rango.ts.
+ */
+export const rateUnit = pgEnum("rate_unit", ["hora", "bloque", "dia", "noche", "semana", "mes"]);
+export type RateUnit = (typeof rateUnit.enumValues)[number];
+
 export const services = pgTable(
   "services",
   {
@@ -994,6 +1002,47 @@ export const resources = pgTable(
   ],
 );
 
+/**
+ * Las tarifas de un servicio reservable: por noche, por semana, por tanda de
+ * 4 horas. Cada reserva usa una y la congela (`bookings.rate*`, `unit_price`,
+ * `qty`). Se archivan, nunca se borran. Los CHECK viven en
+ * drizzle/0025_service_rates.sql.
+ */
+export const serviceRates = pgTable(
+  "service_rates",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    serviceId: uuid("service_id").notNull(),
+    unit: rateUnit("unit").notNull(),
+    /** Solo para `bloque`: cuanto dura uno, en tramos de 30 minutos. */
+    minutes: integer("minutes"),
+    /** Opcional. Sin nombre, la pantalla lo arma con la unidad. */
+    label: text("label"),
+    price: numeric("price", { precision: 14, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 10 }).notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdBy: uuid("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("service_rates_tenant_service_id_key").on(
+      table.tenantId,
+      table.serviceId,
+      table.id,
+    ),
+    foreignKey({
+      columns: [table.tenantId, table.serviceId],
+      foreignColumns: [services.tenantId, services.id],
+      name: "service_rates_service_fk",
+    }),
+  ],
+);
+
 export const bookings = pgTable(
   "bookings",
   {
@@ -1014,9 +1063,20 @@ export const bookings = pgTable(
      */
     shared: boolean("shared").notNull().default(false),
     perPerson: boolean("per_person").notNull().default(false),
-    /** SNAPSHOT del servicio al reservar: si sube la tarifa, esta no cambia. */
+    /** SNAPSHOT de la tarifa al reservar: si sube, esta reserva no cambia. */
     unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
     currency: varchar("currency", { length: 10 }).notNull(),
+    /** La tarifa con la que se reservó. Su unidad y minutos van copiados. */
+    rateId: uuid("rate_id").notNull(),
+    rateUnit: rateUnit("rate_unit").notNull(),
+    /** Solo para `bloque`. */
+    rateMinutes: integer("rate_minutes"),
+    /**
+     * Cuántas unidades de la tarifa se cobran. Se guarda, no se deriva del
+     * período: ver drizzle/0025_service_rates.sql. Total = qty × precio
+     * (× personas si es por persona), con `totalReserva()`.
+     */
+    qty: numeric("qty", { precision: 12, scale: 3 }).notNull(),
     holderName: text("holder_name").notNull(),
     holderDocument: text("holder_document"),
     holderPhone: text("holder_phone"),
@@ -1050,6 +1110,11 @@ export const bookings = pgTable(
       columns: [table.tenantId, table.serviceId, table.resourceId],
       foreignColumns: [resources.tenantId, resources.serviceId, resources.id],
       name: "bookings_resource_fk",
+    }),
+    foreignKey({
+      columns: [table.tenantId, table.serviceId, table.rateId],
+      foreignColumns: [serviceRates.tenantId, serviceRates.serviceId, serviceRates.id],
+      name: "bookings_rate_fk",
     }),
   ],
 );

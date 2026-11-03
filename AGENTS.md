@@ -113,6 +113,13 @@
   every booking screen reads their label and visibility from `campos.fijos`
   (`loadBookingFields()`), never a hardcoded string. What a service's resources are
   called ("Habitación", "Cancha") is `services.resource_label`, shown via `recursoLabel()`.
+  Rates: a bookable service has one or more `service_rates` (hora, bloque, dia, noche,
+  semana, mes); `services.booking_unit` is only the GRAIN (`noche` = by dates, `hora` =
+  by hours) and `TARIFAS_DEL_GRANO` says which rates each allows. A booking uses one
+  rate and freezes `rate_id`, `rate_unit`, `rate_minutes`, `unit_price`, `currency` and
+  `qty`. `qty` is STORED, not derived from the period (month arithmetic can't be undone
+  in SQL): totals, in TS and in `totalSql()`, are `qty × price (× people)`. Count with
+  `cantidad(rango, tarifa)`; `services.price` is only the line-item sale price.
 - `/lib/money.ts`, `/lib/currencies.ts` - Exact decimal arithmetic and the closed
   currency list. Currency columns are `varchar(10)`: stablecoin tickers (USDT, USDC)
   are 4 characters, not 3.

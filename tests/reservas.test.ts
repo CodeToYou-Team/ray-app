@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import postgres from "postgres";
+import { tarifasDeSiempre } from "./tarifas-fixture";
 import { uuidv7 } from "uuidv7";
 import {
   archiveResource,
@@ -144,6 +145,7 @@ describe.skipIf(!hasDb)("reservas", () => {
       (${doble},       ${tenant}, 'Habitación doble', ${catServ}, '40.00', 'USD', 'noche'),
       (${cancha},      ${tenant}, 'Cancha de pádel',  ${catServ}, '25.00', 'USD', 'hora'),
       (${instalacion}, ${tenant}, 'Instalación',      ${catServ}, '15.00', 'USD', null)`;
+    await tarifasDeSiempre(sql, tenant);
     await sql`insert into resources (id, tenant_id, service_id, name) values
       (${h101},    ${tenant}, ${doble},  '101'),
       (${h102},    ${tenant}, ${doble},  '102'),
@@ -343,25 +345,25 @@ describe.skipIf(!hasDb)("reservas", () => {
   it("la base tampoco acepta un recurso de otro servicio", async () => {
     // La FK compuesta (tenant, servicio, recurso), por si algo se salta la app.
     const code = await pgErrorCode(() => sql`
-      insert into bookings (id, tenant_id, service_id, resource_id, period, unit_price, currency, holder_name, created_by)
+      insert into bookings (id, tenant_id, service_id, resource_id, period, unit_price, currency, holder_name, created_by, rate_id, rate_unit, qty)
       values (${uuidv7()}, ${tenant}, ${doble}, ${cancha1},
-              tstzrange('2030-01-01', '2030-01-02'), '40.00', 'USD', 'X', ${user})`);
+              tstzrange('2030-01-01', '2030-01-02'), '40.00', 'USD', 'X', ${user}, (select id from service_rates where service_id = ${doble} and archived_at is null limit 1), 'noche', 1)`);
     expect(code).toBe("23503");
   });
 
   it("la base rechaza un periodo vacío", async () => {
     const code = await pgErrorCode(() => sql`
-      insert into bookings (id, tenant_id, service_id, resource_id, period, unit_price, currency, holder_name, created_by)
+      insert into bookings (id, tenant_id, service_id, resource_id, period, unit_price, currency, holder_name, created_by, rate_id, rate_unit, qty)
       values (${uuidv7()}, ${tenant}, ${doble}, ${h101},
-              tstzrange('2030-01-01', '2030-01-01'), '40.00', 'USD', 'X', ${user})`);
+              tstzrange('2030-01-01', '2030-01-01'), '40.00', 'USD', 'X', ${user}, (select id from service_rates where service_id = ${doble} and archived_at is null limit 1), 'noche', 1)`);
     expect(code).toBe("23514");
   });
 
   it("la base rechaza una cancelada sin fecha de cancelación", async () => {
     const code = await pgErrorCode(() => sql`
-      insert into bookings (id, tenant_id, service_id, resource_id, period, status, unit_price, currency, holder_name, created_by)
+      insert into bookings (id, tenant_id, service_id, resource_id, period, status, unit_price, currency, holder_name, created_by, rate_id, rate_unit, qty)
       values (${uuidv7()}, ${tenant}, ${doble}, ${h101},
-              tstzrange('2031-01-01', '2031-01-02'), 'cancelada', '40.00', 'USD', 'X', ${user})`);
+              tstzrange('2031-01-01', '2031-01-02'), 'cancelada', '40.00', 'USD', 'X', ${user}, (select id from service_rates where service_id = ${doble} and archived_at is null limit 1), 'noche', 1)`);
     expect(code).toBe("23514");
   });
 
@@ -383,9 +385,9 @@ describe.skipIf(!hasDb)("reservas", () => {
     const creado = await createResource(ctx, { serviceId: doble, name: "103" });
     expect(creado.ok).toBe(true);
     if (!creado.ok) return;
-    await sql`insert into bookings (id, tenant_id, service_id, resource_id, period, unit_price, currency, holder_name, created_by)
+    await sql`insert into bookings (id, tenant_id, service_id, resource_id, period, unit_price, currency, holder_name, created_by, rate_id, rate_unit, qty)
               values (${uuidv7()}, ${tenant}, ${doble}, ${creado.id},
-                      tstzrange('2020-01-01', '2020-01-03'), '40.00', 'USD', 'Antiguo', ${user})`;
+                      tstzrange('2020-01-01', '2020-01-03'), '40.00', 'USD', 'Antiguo', ${user}, (select id from service_rates where service_id = ${doble} and archived_at is null limit 1), 'noche', 1)`;
 
     expect((await archiveResource(ctx, { id: creado.id })).ok).toBe(true);
 
@@ -490,6 +492,7 @@ describe.skipIf(!hasDb)("reservas", () => {
     const s501 = uuidv7();
     await sql`insert into services (id, tenant_id, name, category_id, price, currency, booking_unit) values
       (${suite}, ${tenant}, 'Suite', ${catServ}, '90.00', 'USD', 'noche')`;
+    await tarifasDeSiempre(sql, tenant);
     await sql`insert into resources (id, tenant_id, service_id, name) values
       (${s501}, ${tenant}, ${suite}, '501')`;
 
@@ -559,6 +562,7 @@ describe.skipIf(!hasDb)("reservas", () => {
     const recurso = uuidv7();
     await sql`insert into services (id, tenant_id, name, category_id, price, currency, booking_unit) values
       (${servicio}, ${tenant}, ${nombre}, ${catServ}, '50.00', 'USD', 'noche')`;
+    await tarifasDeSiempre(sql, tenant);
     await sql`insert into resources (id, tenant_id, service_id, name) values
       (${recurso}, ${tenant}, ${servicio}, ${nombre + " 1"})`;
     return { servicio, recurso };
@@ -574,9 +578,9 @@ describe.skipIf(!hasDb)("reservas", () => {
   ) {
     await sql`insert into bookings
       (id, tenant_id, service_id, resource_id, period, status, unit_price, currency, holder_name, created_by,
-       checked_in_at, cancelled_at)
+       rate_id, rate_unit, qty, checked_in_at, cancelled_at)
       values (${uuidv7()}, ${tenant}, ${servicio}, ${recurso}, tstzrange(${desde}, ${hasta}), ${estado},
-              '50.00', 'USD', 'X', ${user},
+              '50.00', 'USD', 'X', ${user}, (select id from service_rates where service_id = ${servicio} and archived_at is null limit 1), 'noche', 1,
               ${estado === "en_curso" ? sql`now() - interval '5 days'` : null},
               ${estado === "cancelada" ? sql`now()` : null})`;
   }

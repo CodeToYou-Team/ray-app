@@ -123,6 +123,7 @@ incluido el script (actor nulo). `app_user` solo lee ese log, y solo si es super
 | `exchange_rates` | Tasa vigente por par | Solo sugerencia; único por (negocio, base, destino) |
 | `resources` | Lo que se reserva (habitación, cancha…) | Pertenece a un servicio; `capacity`; nombre único entre los activos; `archived_at` |
 | `bookings` | Reservas | `period` (`tstzrange` semiabierto), `status`, `party_size`; precio, moneda, `shared` y `per_person` copiados del servicio; horas de llegada y salida; `custom` jsonb |
+| `service_rates` | Tarifas de un servicio reservable (por noche, semana, mes, hora, bloque) | Precio y moneda propios; `minutes` solo para bloques; se archivan, nunca se borran. Las reservas la referencian y copian su unidad, precio y `qty` |
 | `service_schedules` | Turnos de un servicio por hora | Día ISO (1 = lunes), hora de inicio y fin; un `EXCLUDE` impide dos turnos solapados el mismo día. Nada los referencia: se borran sin perder historia |
 | `booking_payments` | Cobro ↔ reserva | Liga una transacción de ingreso con la reserva y guarda lo abonado **en la moneda de la reserva**. Append-only |
 | `field_config` | Configuración de columnas | `key` y `type` inmutables (trigger) |
@@ -192,6 +193,9 @@ En `drizzle/`, aplicadas con `pnpm db:migrate`:
 | `0020_booking_custom_fields` | columnas personalizadas en la reserva (`field_entity` + `bookings.custom`) |
 | `0021_platform_admin` | `platform_admins`, políticas de lectura del admin, `tenants.suspended_at` y el trigger que se lo niega al negocio |
 | `0022_platform_superadmin` | nivel superadmin, sus políticas de escritura, "al menos un superadmin" y `platform_audit_log` |
+| `0023_stock_no_negativo` | el trigger que impide que un movimiento deje el stock en negativo |
+| `0024_service_resource_label` | cómo se llaman los recursos de cada servicio (`services.resource_label`) |
+| `0025_service_rates` | tarifas por servicio, y la tarifa y la `qty` congeladas en cada reserva |
 
 ## Scripts
 

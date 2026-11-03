@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   IconAlertCircle,
   IconArchive,
+  IconPencil,
   IconPlus,
   IconTool,
   IconX,
@@ -21,17 +22,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CurrencySelect } from "@/components/currency-select";
 import {
+  addRate,
   addSchedule,
+  archiveRate,
   archiveResource,
   configureServiceBooking,
   createResource,
   removeSchedule,
   setResourceLabel,
+  updateRate,
   updateResourceCapacity,
 } from "@/lib/reservas/actions";
+import type { TarifaRow } from "@/lib/reservas/queries";
+import { isMoney } from "@/lib/money";
 import { formatMoney } from "@/lib/format";
-import { DIAS_SEMANA, recursoLabel, type Turno, type Unidad } from "@/lib/reservas/rango";
+import {
+  DIAS_SEMANA,
+  nombreTarifa,
+  porUnidad,
+  recursoLabel,
+  TARIFAS_DEL_GRANO,
+  type Turno,
+  type Unidad,
+  type UnidadTarifa,
+} from "@/lib/reservas/rango";
 import { cn } from "@/lib/utils";
 
 export interface SetupService {
@@ -48,6 +64,8 @@ export interface SetupService {
   bookingCount: number;
   resources: { id: string; name: string; notes: string | null; capacity: number }[];
   turnos: Turno[];
+  /** Activas. Un servicio reservable tiene al menos una. */
+  tarifas: TarifaRow[];
 }
 
 /**
@@ -152,8 +170,11 @@ function ServiceCard({ service }: { service: SetupService }) {
           <div>
             <CardTitle className="text-sm">{service.name}</CardTitle>
             <p className="mt-0.5 font-mono text-xs text-muted-foreground">
-              {formatMoney(service.price, service.currency)}
-              {service.unidad && ` / ${service.unidad}`}
+              {service.unidad && service.tarifas.length > 0
+                ? service.tarifas
+                    .map((t) => `${formatMoney(t.price, t.currency)} ${porUnidad(t)}`)
+                    .join(" · ")
+                : formatMoney(service.price, service.currency)}
               {service.unidad && service.perPerson && " / persona"}
             </p>
             {/*
@@ -180,8 +201,8 @@ function ServiceCard({ service }: { service: SetupService }) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={SIN_RESERVA}>No se reserva</SelectItem>
-              <SelectItem value="noche">Se reserva por noche</SelectItem>
-              <SelectItem value="hora">Se reserva por hora</SelectItem>
+              <SelectItem value="noche">Se reserva por fechas</SelectItem>
+              <SelectItem value="hora">Se reserva por horas</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -230,8 +251,18 @@ function ServiceCard({ service }: { service: SetupService }) {
               ? "Compartido: cada recurso tiene un total de cupos, y se aceptan reservas hasta llenarlo. Sirve para clases, tours o estacionamientos."
               : "Exclusivo: una reserva ocupa el recurso entero, y la capacidad es cuántas personas caben en ella. Sirve para habitaciones o canchas."}
             {bloqueada &&
-              ` Ya tiene ${service.bookingCount} ${service.bookingCount === 1 ? "reserva" : "reservas"}: la unidad y el modo no se pueden cambiar. El cobro sí, y solo afecta a las reservas nuevas.`}
+              ` Ya tiene ${service.bookingCount} ${service.bookingCount === 1 ? "reserva" : "reservas"}: si se reserva por fechas u horas, y el modo, no se pueden cambiar. El cobro y las tarifas sí, y solo afectan a las reservas nuevas.`}
           </p>
+
+          <Tarifas
+            key={service.unidad}
+            serviceId={service.id}
+            grano={service.unidad}
+            tarifas={service.tarifas}
+            monedaServicio={service.currency}
+            pending={pending}
+            correr={correr}
+          />
 
           <NombreRecursos
             key={service.resourceLabel ?? ""}
@@ -335,6 +366,271 @@ function ServiceCard({ service }: { service: SetupService }) {
         </CardContent>
       )}
     </Card>
+  );
+}
+
+const UNIDAD_TARIFA: Record<UnidadTarifa, string> = {
+  hora: "Por hora",
+  bloque: "Por bloque de horas",
+  dia: "Por día",
+  noche: "Por noche",
+  semana: "Por semana",
+  mes: "Por mes",
+};
+
+type Correr = (
+  accion: () => Promise<{ ok: boolean; error?: string }>,
+  despues?: () => void,
+) => void;
+
+/**
+ * Las tarifas del servicio: con cuál se puede reservar y a qué precio. Cada
+ * reserva usa una y la congela, así que cambiar un precio o archivar una
+ * tarifa solo afecta a las reservas nuevas.
+ */
+function Tarifas({
+  serviceId,
+  grano,
+  tarifas,
+  monedaServicio,
+  pending,
+  correr,
+}: {
+  serviceId: string;
+  grano: Unidad;
+  tarifas: TarifaRow[];
+  monedaServicio: string;
+  pending: boolean;
+  correr: Correr;
+}) {
+  const opciones = TARIFAS_DEL_GRANO[grano];
+  const [unit, setUnit] = useState<UnidadTarifa>(opciones[0]);
+  const [horas, setHoras] = useState("4");
+  const [label, setLabel] = useState("");
+  const [price, setPrice] = useState("");
+  const [currency, setCurrency] = useState(monedaServicio);
+  const [editando, setEditando] = useState<string | null>(null);
+
+  const minutos = Math.round(Number(horas.replace(",", ".")) * 60);
+  const bloqueValido =
+    unit !== "bloque" || (minutos >= 30 && minutos <= 1440 && minutos % 30 === 0);
+  const valido = isMoney(price) && bloqueValido;
+
+  return (
+    <div className="space-y-3 border-t pt-4">
+      <div>
+        <p className="text-sm font-medium">Tarifas</p>
+        <p className="text-[11px] text-muted-foreground">
+          {grano === "noche"
+            ? "Por noche, por día (días incluidos), por semana o por mes. Al reservar se elige una."
+            : "Por hora (se cobra la fracción: 1,5 horas) o por bloques completos, como una tanda de 4 horas. Al reservar se elige una."}{" "}
+          Cambiar un precio no toca las reservas ya hechas.
+        </p>
+      </div>
+
+      <ul className="divide-y rounded-md border">
+        {tarifas.map((t) =>
+          editando === t.id ? (
+            <FilaTarifaEditable
+              key={t.id}
+              tarifa={t}
+              pending={pending}
+              onCancelar={() => setEditando(null)}
+              onGuardar={(cambios) =>
+                correr(
+                  () => updateRate({ id: t.id, ...cambios }),
+                  () => setEditando(null),
+                )
+              }
+            />
+          ) : (
+            <li key={t.id} className="flex items-center justify-between gap-2 px-3 py-2">
+              <span className="text-sm">
+                {nombreTarifa(t)}
+                <span className="ml-2 font-mono text-xs text-muted-foreground">
+                  {formatMoney(t.price, t.currency)} {porUnidad(t)}
+                </span>
+              </span>
+              <span className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  disabled={pending}
+                  onClick={() => setEditando(t.id)}
+                >
+                  <IconPencil className="size-4" />
+                  <span className="sr-only">Editar {nombreTarifa(t)}</span>
+                </Button>
+                {/* La única no se archiva: sin tarifas no se podría reservar. */}
+                {tarifas.length > 1 && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    disabled={pending}
+                    onClick={() => correr(() => archiveRate({ id: t.id }))}
+                  >
+                    <IconArchive className="size-4" />
+                    <span className="sr-only">Archivar {nombreTarifa(t)}</span>
+                  </Button>
+                )}
+              </span>
+            </li>
+          ),
+        )}
+      </ul>
+
+      <form
+        className="flex flex-wrap items-end gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!valido) return;
+          correr(
+            () =>
+              addRate({
+                serviceId,
+                unit,
+                minutes: unit === "bloque" ? minutos : undefined,
+                label: label || undefined,
+                price,
+                currency,
+              }),
+            () => {
+              setLabel("");
+              setPrice("");
+            },
+          );
+        }}
+      >
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Nueva tarifa</Label>
+          <Select value={unit} onValueChange={(v) => setUnit(v as UnidadTarifa)}>
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {opciones.map((u) => (
+                <SelectItem key={u} value={u}>
+                  {UNIDAD_TARIFA[u]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {unit === "bloque" && (
+          <div className="space-y-1.5">
+            <Label htmlFor={`r-horas-${serviceId}`} className="text-xs text-muted-foreground">
+              Horas
+            </Label>
+            <Input
+              id={`r-horas-${serviceId}`}
+              type="number"
+              min={0.5}
+              max={24}
+              step={0.5}
+              value={horas}
+              onChange={(e) => setHoras(e.target.value)}
+              className="w-20 font-mono"
+            />
+          </div>
+        )}
+        <div className="space-y-1.5">
+          <Label htmlFor={`r-nombre-${serviceId}`} className="text-xs text-muted-foreground">
+            Nombre (opcional)
+          </Label>
+          <Input
+            id={`r-nombre-${serviceId}`}
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder={nombreTarifa({ unit, minutes: unit === "bloque" ? minutos : null })}
+            maxLength={60}
+            className="w-40"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`r-precio-${serviceId}`} className="text-xs text-muted-foreground">
+            Precio
+          </Label>
+          <Input
+            id={`r-precio-${serviceId}`}
+            inputMode="decimal"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            placeholder="0.00"
+            className="w-24 font-mono"
+          />
+        </div>
+        <div className="w-36 space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Moneda</Label>
+          <CurrencySelect value={currency} onChange={setCurrency} />
+        </div>
+        <Button type="submit" variant="outline" size="sm" disabled={pending || !valido}>
+          <IconPlus className="size-3.5" />
+          Agregar
+        </Button>
+      </form>
+      {!bloqueValido && (
+        <p className="text-xs text-destructive">
+          Un bloque dura de media hora a 24 horas, en tramos de media hora.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Una tarifa en edición: nombre, precio y moneda. La unidad no se cambia. */
+function FilaTarifaEditable({
+  tarifa,
+  pending,
+  onCancelar,
+  onGuardar,
+}: {
+  tarifa: TarifaRow;
+  pending: boolean;
+  onCancelar: () => void;
+  onGuardar: (cambios: { label?: string; price: string; currency: string }) => void;
+}) {
+  const [label, setLabel] = useState(tarifa.label ?? "");
+  const [price, setPrice] = useState(tarifa.price);
+  const [currency, setCurrency] = useState(tarifa.currency);
+
+  return (
+    <li className="flex flex-wrap items-end gap-2 bg-muted/30 px-3 py-2">
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">Nombre</Label>
+        <Input
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder={nombreTarifa({ ...tarifa, label: null })}
+          maxLength={60}
+          className="h-8 w-40"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">Precio {porUnidad(tarifa)}</Label>
+        <Input
+          inputMode="decimal"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          className="h-8 w-24 font-mono"
+        />
+      </div>
+      <div className="w-36 space-y-1.5">
+        <Label className="text-xs text-muted-foreground">Moneda</Label>
+        <CurrencySelect value={currency} onChange={setCurrency} />
+      </div>
+      <Button
+        size="sm"
+        disabled={pending || !isMoney(price)}
+        onClick={() => onGuardar({ label: label || undefined, price, currency })}
+      >
+        Guardar
+      </Button>
+      <Button size="sm" variant="ghost" disabled={pending} onClick={onCancelar}>
+        Cancelar
+      </Button>
+    </li>
   );
 }
 

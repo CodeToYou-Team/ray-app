@@ -510,7 +510,7 @@ reserva guardó cómo se calculó la suya).
   habitación está cada uno; para hoteles conviene seguir asignando al reservar.
 - **Dos recursos por reserva** (masaje: terapeuta y cabina).
 - **Reservas recurrentes** (la cancha todos los martes).
-- **Tarifas por temporada o por persona.**
+- **Tarifas por temporada.** (Por persona ya existe; varias tarifas por servicio, en la fase 6.)
 
 ### Fases
 
@@ -555,6 +555,57 @@ reserva guardó cómo se calculó la suya).
    - **Modificar sin mandar `custom` no lo toca**: corregir el teléfono no borra la placa.
    - **Valen para todas las reservas.** Columnas por servicio (la placa solo en el
      estacionamiento) quedan para cuando alguien las pida.
+6. **Tarifas por servicio.** Un servicio se reserva por hora, por tandas, por día, por noche,
+   por semana o por mes, cada una con su precio. Tabla `service_rates`.
+
+   | Servicio | Tarifa | Precio |
+   |---|---|---|
+   | Cancha | Por hora | 10 USD |
+   | Cancha | Tanda de 4 horas | 35 USD |
+   | Cabaña | Por noche | 40 USD |
+   | Cabaña | Por semana | 230 USD |
+   | Cabaña | Por mes | 800 USD |
+
+   - **Una tarifa por reserva.** Se elige al reservar; no se combinan (1 semana + 3 noches) ni
+     se busca la más barata. Si el servicio tiene una sola tarifa activa, no se pregunta.
+   - **El grano sigue siendo del servicio** (`services.booking_unit`): `noche` = se reserva
+     por fechas, `hora` = por horas. Decide la forma de la cuadrícula, del formulario y si
+     hay turnos. Cada grano admite sus tarifas:
+
+     | Grano | Tarifas | Cantidad que se cobra |
+     |---|---|---|
+     | Por fechas | `noche` | Días entre entrada y salida; la noche de salida no se cobra |
+     | Por fechas | `dia` | Días **incluidos** (del 10 al 12 son 3). Se guarda igual: `[10, 13)` |
+     | Por fechas | `semana` | Días ÷ 7, exacto |
+     | Por fechas | `mes` | Meses de calendario: del 10 al 10. Del 31 de enero, al 28 de febrero |
+     | Por horas | `hora` | Horas en tramos de 30 minutos (1,5 se cobra 1,5), como siempre |
+     | Por horas | `bloque` | Bloques enteros de N minutos (tanda de 4 horas = 240) |
+
+     Una cancha por hora y además por semana no se puede: serían dos granos en el mismo
+     recurso, y la cuadrícula tendría que pintar los dos. Queda fuera hasta que alguien lo
+     pida; "día completo" en un servicio por horas se modela como un bloque (una jornada de
+     12 horas).
+   - **La garantía no cambia.** Toda tarifa termina en un `tstzrange`; el `EXCLUDE` y el
+     trigger de capacidad no saben de tarifas. Una semana y una noche de la misma cabaña
+     chocan igual que dos noches.
+   - **La reserva congela su tarifa**: `rate_id`, `rate_unit`, `rate_minutes`, `unit_price`,
+     `currency` y **`qty`**. Cambiar o archivar una tarifa no mueve ninguna reserva hecha.
+   - **`qty` se guarda**, ya no se deriva del período. Con semanas y meses, derivarla en SQL
+     (para el saldo del listado) exigía repetir la aritmética de meses en Postgres, y el 31 de
+     enero + 1 mes no se deshace con `age()`. Guardada, el total en SQL es
+     `round(qty × personas × precio, 2)` y no puede separarse del de TypeScript. Modificar la
+     reserva la recalcula con la tarifa congelada.
+   - **Modificar no cambia la tarifa.** Cambiar de "noche" a "semana" es otro precio: se
+     cancela y se reserva de nuevo, como al cambiar de servicio.
+   - **Las tarifas se archivan, no se borran**, y un servicio reservable no puede quedarse sin
+     ninguna activa. El precio y el nombre de una tarifa se editan (las reservas ya copiaron
+     el suyo); la unidad y los minutos no.
+   - **Cada tarifa tiene su moneda**, por defecto la del servicio. La reserva copia la de su
+     tarifa.
+   - **`services.price` no se toca**: sigue siendo el precio de vender el servicio como renglón
+     en Finanzas. Al marcar un servicio como reservable se crea su primera tarifa con ese
+     precio; la migración hace lo mismo con los que ya se reservaban, y les copia su tarifa y
+     su `qty` a las reservas existentes.
 
 ---
 

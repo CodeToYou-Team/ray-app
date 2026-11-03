@@ -70,31 +70,145 @@ export type Cantidad =
   | { ok: true; qty: string; descripcion: string }
   | { ok: false; error: string };
 
+// ---------------------------------------------------------------------------
+// Tarifas
+// ---------------------------------------------------------------------------
+
+/** Espejo de `rate_unit` en la base. Ver drizzle/0025_service_rates.sql. */
+export type UnidadTarifa = "hora" | "bloque" | "dia" | "noche" | "semana" | "mes";
+
+/** Lo que hace falta de una tarifa para contar y describir. */
+export interface Tarifa {
+  unit: UnidadTarifa;
+  /** Solo para `bloque`. */
+  minutes: number | null;
+}
+
 /**
- * Cuántas unidades se cobran, validando el rango de paso.
+ * Qué tarifas admite cada grano. El grano (`services.booking_unit`) decide si
+ * se reserva por fechas o por horas; una tarifa de otro grano dejaría un
+ * rango que la cuadrícula no sabe pintar.
+ */
+export const TARIFAS_DEL_GRANO: Record<Unidad, UnidadTarifa[]> = {
+  noche: ["noche", "dia", "semana", "mes"],
+  hora: ["hora", "bloque"],
+};
+
+/** La tarifa de siempre de un grano: por noche o por hora. */
+export function tarifaBase(grano: Unidad): Tarifa {
+  return { unit: grano, minutes: null };
+}
+
+/** Topes por unidad. Más que esto ya es un alquiler, no una reserva. */
+const MAXIMO = { noche: MAX_NOCHES, dia: MAX_NOCHES, semana: 52, mes: 12 } as const;
+
+/**
+ * La misma fecha `n` meses después. Si ese mes no tiene el día (31 de enero
+ * + 1 mes), cae en el último: 28 o 29 de febrero, igual que `fecha + interval
+ * '1 month'` en Postgres.
+ */
+export function sumarMeses(fecha: string, n: number): string {
+  const [y, m, d] = fecha.split("-").map(Number);
+  const indice = y * 12 + (m - 1) + n;
+  const anio = Math.floor(indice / 12);
+  const mes = indice - anio * 12;
+  const ultimo = new Date(Date.UTC(anio, mes + 1, 0)).getUTCDate();
+  const dia = Math.min(d, ultimo);
+  return `${String(anio).padStart(4, "0")}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+}
+
+/** Cuántos meses de calendario hay de `desde` a `hasta`, o null si no son exactos. */
+function mesesEntre(desde: string, hasta: string): number | null {
+  for (let n = 1; n <= MAXIMO.mes; n++) {
+    const fin = sumarMeses(desde, n);
+    if (fin === hasta) return n;
+    if (fin > hasta) return null;
+  }
+  return null;
+}
+
+/** "4 h", "1,5 h", "30 min". */
+export function duracionTexto(minutos: number): string {
+  if (minutos < 60) return `${minutos} min`;
+  const horas = minutos / 60;
+  return `${Number.isInteger(horas) ? horas : horas.toFixed(1).replace(".", ",")} h`;
+}
+
+function plural(n: string, uno: string, varios: string): string {
+  return n === "1" ? `1 ${uno}` : `${n.replace(".", ",")} ${varios}`;
+}
+
+/**
+ * Cuántas unidades de la tarifa se cobran, validando el rango de paso.
  *
  * Devuelve `qty` como texto para que entre directo en la aritmética de
- * `lib/money.ts` (y, en la fase 2, en `transaction_items.qty`).
+ * `lib/money.ts` y se guarde en `bookings.qty`. Sin tarifa, cuenta en la
+ * unidad base del grano (noches u horas), que es como se cobraba antes de
+ * que existieran las tarifas.
+ *
+ * El rango por fechas siempre llega con la salida EXCLUSIVA: "por día, del 10
+ * al 12" llega como `hasta: 13`. Pasar de días incluidos a esa forma es
+ * trabajo del formulario; aquí todas las tarifas por fechas se miden igual.
  */
-export function cantidad(rango: Rango): Cantidad {
+export function cantidad(rango: Rango, tarifa: Tarifa = tarifaBase(rango.unidad)): Cantidad {
+  if (!TARIFAS_DEL_GRANO[rango.unidad].includes(tarifa.unit)) {
+    return { ok: false, error: "Esa tarifa no corresponde a cómo se reserva este servicio." };
+  }
+
   if (rango.unidad === "noche") {
     if (!fechaValida(rango.desde) || !fechaValida(rango.hasta)) {
       return { ok: false, error: "Alguna de las dos fechas no es válida." };
     }
-    const noches = diaAbsoluto(rango.hasta) - diaAbsoluto(rango.desde);
-    if (noches <= 0) {
+    const dias = diaAbsoluto(rango.hasta) - diaAbsoluto(rango.desde);
+    if (dias <= 0) {
       return {
         ok: false,
-        error: "La salida tiene que ser al menos un día después de la entrada.",
+        error:
+          tarifa.unit === "noche"
+            ? "La salida tiene que ser al menos un día después de la entrada."
+            : "El último día no puede ser anterior al primero.",
       };
     }
-    if (noches > MAX_NOCHES) {
-      return { ok: false, error: `Una reserva no puede pasar de ${MAX_NOCHES} noches.` };
+
+    if (tarifa.unit === "semana") {
+      if (dias % 7 !== 0) {
+        return {
+          ok: false,
+          error: "Por semana, la reserva va en semanas completas: 7, 14 o 21 días.",
+        };
+      }
+      const semanas = dias / 7;
+      if (semanas > MAXIMO.semana) {
+        return { ok: false, error: `Una reserva no puede pasar de ${MAXIMO.semana} semanas.` };
+      }
+      const qty = String(semanas);
+      return { ok: true, qty, descripcion: plural(qty, "semana", "semanas") };
     }
+
+    if (tarifa.unit === "mes") {
+      const meses = mesesEntre(rango.desde, rango.hasta);
+      if (meses === null) {
+        return {
+          ok: false,
+          error: `Por mes, la reserva va en meses completos (del 10 al 10), hasta ${MAXIMO.mes}.`,
+        };
+      }
+      const qty = String(meses);
+      return { ok: true, qty, descripcion: plural(qty, "mes", "meses") };
+    }
+
+    const porNoche = tarifa.unit === "noche";
+    if (dias > MAX_NOCHES) {
+      return {
+        ok: false,
+        error: `Una reserva no puede pasar de ${MAX_NOCHES} ${porNoche ? "noches" : "días"}.`,
+      };
+    }
+    const qty = String(dias);
     return {
       ok: true,
-      qty: String(noches),
-      descripcion: noches === 1 ? "1 noche" : `${noches} noches`,
+      qty,
+      descripcion: porNoche ? plural(qty, "noche", "noches") : plural(qty, "día", "días"),
     };
   }
 
@@ -121,6 +235,23 @@ export function cantidad(rango: Rango): Cantidad {
       error: `La duración tiene que ir en tramos de ${TRAMO_MINUTOS} minutos.`,
     };
   }
+
+  if (tarifa.unit === "bloque") {
+    const bloque = tarifa.minutes ?? 0;
+    if (bloque <= 0 || duracion % bloque !== 0) {
+      return {
+        ok: false,
+        error: `Esta tarifa va en bloques completos de ${duracionTexto(bloque)}.`,
+      };
+    }
+    const qty = String(duracion / bloque);
+    return {
+      ok: true,
+      qty,
+      descripcion: `${plural(qty, "bloque", "bloques")} de ${duracionTexto(bloque)}`,
+    };
+  }
+
   // Exacto: con tramos de 30 minutos solo salen enteros o ,5, que la
   // aritmética de cantidades (3 decimales) representa sin pérdida.
   const horas = duracion / 60;
@@ -132,6 +263,65 @@ export function cantidad(rango: Rango): Cantidad {
   };
 }
 
+/** "2.000" (como la devuelve `numeric(12,3)`) → "2"; "1.500" → "1.5". */
+export function sinCeros(qty: string): string {
+  return qty.includes(".") ? qty.replace(/\.?0+$/, "") : qty;
+}
+
+/**
+ * Cómo se describe una cantidad ya guardada: "3 noches", "2 bloques de 4 h".
+ * La misma redacción que `cantidad()`, para una reserva que ya tiene su `qty`
+ * ("2.000" en la base).
+ */
+export function describirCantidad(qty: string, tarifa: Tarifa): string {
+  const n = sinCeros(qty);
+  switch (tarifa.unit) {
+    case "noche":
+      return plural(n, "noche", "noches");
+    case "dia":
+      return plural(n, "día", "días");
+    case "semana":
+      return plural(n, "semana", "semanas");
+    case "mes":
+      return plural(n, "mes", "meses");
+    case "bloque":
+      return `${plural(n, "bloque", "bloques")} de ${duracionTexto(tarifa.minutes ?? 0)}`;
+    case "hora":
+      return plural(n, "hora", "horas");
+  }
+}
+
+/** El nombre de una tarifa: el que le dieron, o uno armado con su unidad. */
+export function nombreTarifa(t: Tarifa & { label?: string | null }): string {
+  if (t.label?.trim()) return t.label.trim();
+  switch (t.unit) {
+    case "hora":
+      return "Por hora";
+    case "bloque":
+      return `Bloque de ${duracionTexto(t.minutes ?? 0)}`;
+    case "dia":
+      return "Por día";
+    case "noche":
+      return "Por noche";
+    case "semana":
+      return "Por semana";
+    case "mes":
+      return "Por mes";
+  }
+}
+
+/** "/ noche", "/ bloque de 4 h": lo que va después del precio. */
+export function porUnidad(t: Tarifa): string {
+  switch (t.unit) {
+    case "bloque":
+      return `/ bloque de ${duracionTexto(t.minutes ?? 0)}`;
+    case "dia":
+      return "/ día";
+    default:
+      return `/ ${t.unit}`;
+  }
+}
+
 /**
  * Como se llaman los recursos de un servicio: el nombre que le dio el negocio
  * o, sin nombre, el generico. Antes el formulario decia "Habitacion" a todo lo
@@ -139,11 +329,6 @@ export function cantidad(rango: Rango): Cantidad {
  */
 export function recursoLabel(label: string | null | undefined): string {
   return label?.trim() || "Recurso";
-}
-
-/** La unidad, como se dice en pantalla. */
-export function unidadLabel(unidad: Unidad): string {
-  return unidad === "noche" ? "por noche" : "por hora";
 }
 
 // Viven en lib/fechas.ts porque Finanzas también las necesita; se reexportan

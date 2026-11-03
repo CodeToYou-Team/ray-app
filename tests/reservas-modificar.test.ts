@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import postgres from "postgres";
+import { tarifasDeSiempre } from "./tarifas-fixture";
 import { uuidv7 } from "uuidv7";
 import {
   cancelBooking,
@@ -85,6 +86,7 @@ describe.skipIf(!hasDb)("modificar una reserva", () => {
       (${doble}, ${tenant}, 'Doble', ${catServ}, '40.00', 'USD', 'noche', false, false),
       (${suite}, ${tenant}, 'Suite', ${catServ}, '90.00', 'USD', 'noche', false, false),
       (${clase}, ${tenant}, 'Clase', ${catServ}, '10.00', 'USD', 'hora',  true,  true)`;
+    await tarifasDeSiempre(sql, tenant);
     await sql`insert into resources (id, tenant_id, service_id, name, capacity) values
       (${h601}, ${tenant}, ${doble}, '601', 2),
       (${h602}, ${tenant}, ${doble}, '602', 2),
