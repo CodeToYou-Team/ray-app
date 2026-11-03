@@ -132,6 +132,15 @@ export function cantidad(rango: Rango): Cantidad {
   };
 }
 
+/**
+ * Como se llaman los recursos de un servicio: el nombre que le dio el negocio
+ * o, sin nombre, el generico. Antes el formulario decia "Habitacion" a todo lo
+ * que se reservaba por noche, fuera un hotel o un camping.
+ */
+export function recursoLabel(label: string | null | undefined): string {
+  return label?.trim() || "Recurso";
+}
+
 /** La unidad, como se dice en pantalla. */
 export function unidadLabel(unidad: Unidad): string {
   return unidad === "noche" ? "por noche" : "por hora";

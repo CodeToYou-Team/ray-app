@@ -8,7 +8,7 @@ import { rateSuggestions } from "@/lib/tenant/rates";
 import { catalogOptionsFor, getFields } from "@/lib/fields/queries";
 import { customFields } from "@/lib/fields/resolve";
 import type { CobroConfig } from "@/components/reservas/booking-payment";
-import type { BookingFields } from "@/components/reservas/types";
+import type { BookingFields, CampoFijo, CamposFijos } from "@/components/reservas/types";
 
 /**
  * Lo que hace falta para cobrar una reserva: métodos de pago, categorías de
@@ -45,12 +45,25 @@ export async function loadCobroConfig(
   };
 }
 
+const CAMPOS_FIJOS: CampoFijo[] = ["holder_name", "holder_document", "holder_phone", "notes"];
+
 /**
- * Las columnas personalizadas de la reserva: las mismas para el formulario,
- * el detalle y el listado, que es lo que impide que una pantalla muestre un
- * campo que la otra no deja escribir.
+ * Las columnas de la reserva: las mismas para el formulario, el detalle y el
+ * listado, que es lo que impide que una pantalla muestre un campo que la otra
+ * no deja escribir.
  */
 export async function loadBookingFields(tenantId: string): Promise<BookingFields> {
-  const fields = customFields(await getFields(tenantId, "booking"));
-  return { fields, catalogos: await catalogOptionsFor(tenantId, fields) };
+  // Con las ocultas: de una fija oculta hace falta saber que lo está.
+  const todas = await getFields(tenantId, "booking", { includeHidden: true });
+  const fields = customFields(todas).filter((f) => !f.hidden);
+
+  const fijos = Object.fromEntries(
+    CAMPOS_FIJOS.map((key) => {
+      const f = todas.find((c) => c.source === "fixed" && c.key === key);
+      if (!f) throw new Error(`Columna fija de reserva sin declarar: ${key}`);
+      return [key, { label: f.label, visible: !f.hidden, enTabla: !f.hidden && f.showInTable }];
+    }),
+  ) as CamposFijos;
+
+  return { fijos, fields, catalogos: await catalogOptionsFor(tenantId, fields) };
 }

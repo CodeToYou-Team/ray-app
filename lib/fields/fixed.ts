@@ -1,7 +1,7 @@
 import type { FieldEntity, FieldType } from "@/lib/db/schema";
 
 /**
- * Las columnas FIJAS de productos y servicios.
+ * Las columnas FIJAS de productos, servicios y reservas.
  *
  * Son columnas reales de la tabla, no claves del JSONB, y eso es deliberado:
  * `price`, `sku`, `category_id` y `min_stock` cargan la logica de inventario,
@@ -22,6 +22,11 @@ export interface FixedFieldDef {
   catalogKey?: string;
   /** Nunca se puede ocultar: sin ella la fila no se puede identificar. */
   alwaysVisible?: boolean;
+  /**
+   * Si sale como columna del listado mientras el cliente no diga otra cosa.
+   * Por defecto si; las de la reserva que antes no salian siguen sin salir.
+   */
+  defaultShowInTable?: boolean;
   help?: string;
 }
 
@@ -81,11 +86,41 @@ export const FIXED_FIELDS: Record<FieldEntity, FixedFieldDef[]> = {
     },
   ],
   /**
-   * Sin columnas fijas configurables: nombre, documento, teléfono y notas son
-   * del formulario de reserva, escrito a mano, y renombrarlos desde Ajustes no
-   * tendría efecto. En reservas solo se agregan columnas propias.
+   * Los datos del titular y las notas: columnas reales de `bookings`. El
+   * formulario, el detalle y el listado leen de aqui su nombre y si se ven
+   * (`CamposFijos` en components/reservas/types.ts), asi que renombrar u
+   * ocultar desde Ajustes si tiene efecto.
    */
-  booking: [],
+  booking: [
+    {
+      key: "holder_name",
+      type: "text",
+      label: "Titular",
+      required: true,
+      alwaysVisible: true,
+    },
+    {
+      key: "holder_document",
+      type: "text",
+      label: "Documento",
+      required: false,
+      defaultShowInTable: false,
+    },
+    {
+      key: "holder_phone",
+      type: "text",
+      label: "Teléfono",
+      required: false,
+      defaultShowInTable: false,
+    },
+    {
+      key: "notes",
+      type: "textarea",
+      label: "Notas",
+      required: false,
+      defaultShowInTable: false,
+    },
+  ],
 };
 
 const BY_ENTITY_KEY = new Map(

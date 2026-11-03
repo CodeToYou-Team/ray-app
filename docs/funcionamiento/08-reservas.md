@@ -4,7 +4,7 @@
 
 - Una **reserva** ocupa un **recurso** (una habitación, una cancha, una sala, un equipo) durante
   un **rango de tiempo**, por noches o por horas.
-- Un servicio se vuelve reservable desde **Reservas › Recursos**. Hasta entonces se vende como
+- Un servicio se vuelve reservable desde **Servicios › Recursos**. Hasta entonces se vende como
   siempre, como renglón de una venta.
 - Cada servicio reservable es **exclusivo** (una reserva a la vez, como una habitación) o
   **compartido** (varias reservas a la vez hasta llenar los cupos, como una clase o un tour).
@@ -69,17 +69,20 @@ Ejemplos de configuración:
 - **La capacidad de un recurso** se edita en su fila (se guarda al salir del campo o con Enter).
   Subirla siempre se puede. **Bajarla, solo hasta lo ya comprometido** en reservas que no han
   terminado: si la clase del martes tiene 12 inscritos, no puede pasar a 10 cupos.
+- **Cómo se llaman los recursos** ("Cómo se llaman", en la tarjeta del servicio): Habitación,
+  Cancha, Cabaña, Terapeuta. Es la etiqueta del formulario de reserva; vacío, dice "Recurso". Se
+  puede cambiar aunque el servicio ya tenga reservas: solo cambia lo que se lee.
 - **Nombres de recurso únicos** entre los activos del negocio, sin distinguir mayúsculas: "101" es
   una sola habitación aunque se venda como Doble o como Suite.
 
 ### Servicios "no disponibles para vender"
 
-El interruptor **Disponible para vender** de la ficha del servicio (en Productos) también vale para
+El interruptor **Disponible para vender** de la ficha del servicio (en Servicios) también vale para
 reservas, con un matiz:
 
 - **Apagado, no acepta reservas nuevas.** No aparece en el formulario ni ofrece celdas libres en
   la cuadrícula. Si alguien lo intenta igual, se rechaza con "\"Suite\" no está disponible para
-  vender. Actívalo en Productos para aceptar reservas."
+  vender. Actívalo en Servicios para aceptar reservas."
 - **Las reservas que ya tenía siguen su curso.** El servicio sigue en la cuadrícula mientras tenga
   reservas en esos 14 días, con la etiqueta "No disponible: no acepta reservas nuevas", y se les
   puede registrar la llegada, cobrar y registrar la salida. Si desapareciera, el huésped que llega
@@ -122,7 +125,7 @@ Reglas:
 
 ### Archivar un recurso o un servicio
 
-Archivar un recurso (icono de archivo en Recursos) o un servicio (en Productos) lo saca de la
+Archivar un recurso (icono de archivo en Recursos) o un servicio (en Servicios) lo saca de la
 disponibilidad sin borrar las reservas que tuvo. Archivar un recurso además libera su nombre para
 uno nuevo.
 
@@ -191,13 +194,13 @@ Botón **Nueva reserva** arriba, o tocando una celda libre.
 | Campo | Notas |
 |---|---|
 | Qué se reserva | Los servicios reservables que tienen al menos un recurso |
-| Habitación / Recurso | Cada opción dice cuánto le queda: "ocupado", "lleno", "hasta 3" o "4 de 15 cupos". Los que no tienen lugar para esas fechas aparecen deshabilitados |
+| Recurso, con el nombre que le dio el servicio (Habitación, Cancha…) | Cada opción dice cuánto le queda: "ocupado", "lleno", "hasta 3" o "4 de 15 cupos". Los que no tienen lugar para esas fechas aparecen deshabilitados |
 | Entrada y Salida (por noche) | La noche del día de salida **no se cobra**: del 10 al 12 son 2 noches. Si se mueve la entrada más allá de la salida, la salida se corre sola |
 | Fecha, Desde y Hasta (por hora) | En tramos de 30 minutos. El mismo día: no puede cruzar la medianoche |
 | Fecha y Turno (con horarios fijos) | En vez de escribir las horas, se elige uno de los turnos de ese día. Si no hay, lo dice |
 | Personas / Cupos | Por defecto 1. No puede pasar de la capacidad (exclusivo) ni de lo que queda libre (compartido) |
-| A nombre de | Obligatorio |
-| Cédula o documento, Teléfono, Notas | Opcionales |
+| Titular | Obligatorio |
+| Documento, Teléfono, Notas | Opcionales. Se pueden renombrar u ocultar en Ajustes › Columnas › Reservas |
 | Columnas personalizadas | Las que el dueño creó en Ajustes › Columnas › Reservas (ver abajo) |
 
 Debajo se ve el **total**: `2 noches × USD 40,00 = USD 80,00`, o
@@ -224,8 +227,8 @@ Reglas de tiempo:
 
 ### Columnas personalizadas
 
-Además de titular, documento, teléfono y notas, el dueño puede definir en **Ajustes › Columnas ›
-Reservas** lo que su negocio necesita saber de cada reserva: la placa del vehículo, el motivo del
+Titular, documento, teléfono y notas son columnas del sistema: en **Ajustes › Columnas › Reservas**
+se renombran, se ocultan o se muestran como columna del listado. Además, el dueño puede definir ahí lo que su negocio necesita saber de cada reserva: la placa del vehículo, el motivo del
 viaje, el número de vuelo, cómo se enteró. Es el mismo mecanismo y los mismos tipos que en
 productos y servicios ([Ajustes › Columnas](05-ajustes.md#columnas)).
 

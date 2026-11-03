@@ -41,7 +41,26 @@ describe("menu segun el rol", () => {
     // Pero si lo que necesita para trabajar.
     expect(hrefs).toContain("/finanzas/ingresos");
     expect(hrefs).toContain("/productos");
+    expect(hrefs).toContain("/servicios");
     expect(hrefs).toContain("/inventario");
+  });
+
+  it("cada catalogo agrupa lo que depende de el", () => {
+    const grupos = navTreeFor("owner");
+    const hijos = (href: string) =>
+      grupos.find((g) => g.href === href)?.children?.map((c) => c.href) ?? [];
+
+    // Los productos llevan inventario; los servicios, reservas.
+    expect(hijos("/productos")).toEqual(["/productos", "/inventario", "/inventario/alertas"]);
+    expect(hijos("/servicios")).toEqual([
+      "/servicios",
+      "/reservas",
+      "/reservas/listado",
+      "/reservas/recursos",
+    ]);
+    // Ni inventario ni reservas quedan sueltos como grupo propio.
+    expect(grupos.map((g) => g.href)).not.toContain("/inventario");
+    expect(grupos.map((g) => g.href)).not.toContain("/reservas");
   });
 
   it("la recepcion reserva, pero no decide que habitaciones existen", () => {

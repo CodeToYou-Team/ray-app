@@ -12,6 +12,7 @@ import {
   markNoShow as markNoShowCore,
   registerPayment as registerPaymentCore,
   configureServiceBooking as configureServiceBookingCore,
+  setResourceLabel as setResourceLabelCore,
   addSchedule as addScheduleCore,
   removeSchedule as removeScheduleCore,
   updateBooking as updateBookingCore,
@@ -82,6 +83,18 @@ export async function configureServiceBooking(input: {
   const { tenantId, user } = await requireCapability("resource:manage");
   try {
     return await configureServiceBookingCore({ tenantId, userId: user.id }, input);
+  } finally {
+    revalidateReservas();
+  }
+}
+
+export async function setResourceLabel(input: {
+  serviceId: string;
+  label: string;
+}): Promise<Result> {
+  const { tenantId, user } = await requireCapability("resource:manage");
+  try {
+    return await setResourceLabelCore({ tenantId, userId: user.id }, input);
   } finally {
     revalidateReservas();
   }

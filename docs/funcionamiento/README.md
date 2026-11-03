@@ -49,7 +49,8 @@ con el título de la sección arriba y el contenido en el centro.
 | `/finanzas/movimientos` | Movimientos (ingresos + gastos, con balance) | Todos los roles |
 | `/finanzas/reportes` | Reportes | Dueño y encargado |
 | `/finanzas/historial` | Historial mes a mes | Dueño y encargado |
-| `/productos` | Productos y servicios | Todos los roles (editar: dueño y encargado) |
+| `/productos` | Catálogo de productos | Todos los roles (editar: dueño y encargado) |
+| `/servicios` | Catálogo de servicios | Todos los roles (editar: dueño y encargado) |
 | `/inventario` | Stock | Todos los roles |
 | `/inventario/alertas` | Alertas de inventario | Todos los roles |
 | `/reservas` | Disponibilidad: cuadrícula de recursos × días | Todos los roles |

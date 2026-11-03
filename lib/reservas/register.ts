@@ -268,7 +268,7 @@ export async function createBooking(
       if (!servicio.isActive) {
         return {
           ok: false as const,
-          error: `"${servicio.name}" no está disponible para vender. Actívalo en Productos para aceptar reservas.`,
+          error: `"${servicio.name}" no está disponible para vender. Actívalo en Servicios para aceptar reservas.`,
         };
       }
       if (!servicio.bookingUnit) {
@@ -580,6 +580,64 @@ export async function configureServiceBooking(
     });
   } catch {
     return { ok: false, error: "No se pudo guardar el cambio." };
+  }
+}
+
+const resourceLabelSchema = z.object({
+  serviceId: z.uuid(),
+  /** Vacio = volver al generico. */
+  label: z.string().trim().max(40, "Usa un nombre corto, como Habitación o Cancha"),
+});
+
+/**
+ * Como se llaman los recursos de un servicio en pantalla: "Habitación",
+ * "Cancha", "Cabaña". Solo cambia lo que se lee; no toca reservas ni recursos,
+ * así que se puede cambiar aunque el servicio ya tenga reservas.
+ */
+export async function setResourceLabel(
+  { tenantId, userId }: ActorContext,
+  raw: z.infer<typeof resourceLabelSchema>,
+): Promise<Result> {
+  const parsed = resourceLabelSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Nombre inválido." };
+  }
+  const label = parsed.data.label || null;
+
+  try {
+    return await withTenant(tenantId, async (tx) => {
+      const [servicio] = await tx
+        .select({ id: services.id, resourceLabel: services.resourceLabel })
+        .from(services)
+        .where(
+          and(
+            eq(services.id, parsed.data.serviceId),
+            eq(services.tenantId, tenantId),
+            isNull(services.deletedAt),
+          ),
+        );
+      if (!servicio) return { ok: false as const, error: "Ese servicio ya no existe." };
+      if (servicio.resourceLabel === label) return { ok: true as const };
+
+      await tx
+        .update(services)
+        .set({ resourceLabel: label })
+        .where(and(eq(services.id, servicio.id), eq(services.tenantId, tenantId)));
+
+      await tx.insert(auditLog).values({
+        id: uuidv7(),
+        tenantId,
+        entity: "services",
+        entityId: servicio.id,
+        action: "update",
+        actorId: userId,
+        diff: { resourceLabel: { from: servicio.resourceLabel, to: label } },
+      });
+
+      return { ok: true as const };
+    });
+  } catch {
+    return { ok: false, error: "No se pudo guardar el nombre." };
   }
 }
 

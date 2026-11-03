@@ -49,6 +49,7 @@ export async function setPrimaryCurrency(currency: string): Promise<SettingsResu
 
   revalidatePath("/ajustes/negocio");
   revalidatePath("/productos");
+  revalidatePath("/servicios");
   revalidatePath("/dashboard");
   return { ok: true };
 }

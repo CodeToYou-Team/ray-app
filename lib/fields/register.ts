@@ -369,7 +369,7 @@ export async function upsertFixedOverride(
         // Null a proposito: el tipo de una fija vive en el codigo.
         type: null,
         hidden: def.alwaysVisible ? false : (input.hidden ?? false),
-        showInTable: input.showInTable ?? true,
+        showInTable: input.showInTable ?? def.defaultShowInTable ?? true,
         sortOrder: 0,
       });
     });

@@ -6,7 +6,6 @@ import {
   IconLayoutDashboard,
   IconWallet,
   IconPackage,
-  IconBuildingWarehouse,
   IconSettings,
   IconCalendarEvent,
 } from "@tabler/icons-react";
@@ -41,17 +40,13 @@ export const ROUTES: RouteDef[] = [
   { pattern: "/finanzas/reportes", title: "Reportes", description: "Análisis y reportes financieros" },
   { pattern: "/finanzas/historial", title: "Historial", description: "Historial financiero por periodo" },
 
-  {
-    pattern: "/productos",
-    title: "Productos y Servicios",
-    description: "Gestión de catálogo",
-    navLabel: "Productos",
-  },
-  // Crear y editar se hacen en dialogos dentro de /productos, asi que ya no hay
-  // rutas propias para eso.
+  { pattern: "/productos", title: "Productos", description: "Lo que vendes y llevas en inventario" },
+  { pattern: "/servicios", title: "Servicios", description: "Lo que vendes sin inventario, y sus reservas" },
+  // Crear y editar se hacen en dialogos dentro de /productos y /servicios, asi
+  // que no hay rutas propias para eso.
 
-  // Ojo: en el sidebar es el grupo "Inventario", y ademas aparece como hijo
-  // "Stock". Esa etiqueta de hijo se declara en NAV_STRUCTURE, no aqui.
+  // En el sidebar aparece como "Stock" dentro de Productos. Esa etiqueta de
+  // hijo se declara en NAV_STRUCTURE, no aqui.
   { pattern: "/inventario", title: "Inventario", description: "Stock disponible" },
   {
     pattern: "/inventario/alertas",
@@ -200,22 +195,25 @@ const NAV_STRUCTURE: NavGroup[] = [
       "/finanzas/historial",
     ],
   },
-  { href: "/productos", icon: IconPackage },
+  // Cada catalogo con lo que depende de el: los productos llevan inventario,
+  // los servicios reservas. Las rutas de inventario y reservas no cambian.
   {
-    href: "/reservas",
-    icon: IconCalendarEvent,
+    href: "/productos",
+    icon: IconPackage,
     children: [
-      { href: "/reservas", name: "Disponibilidad" },
-      "/reservas/listado",
-      "/reservas/recursos",
+      { href: "/productos", name: "Catálogo" },
+      { href: "/inventario", name: "Stock" },
+      "/inventario/alertas",
     ],
   },
   {
-    href: "/inventario",
-    icon: IconBuildingWarehouse,
+    href: "/servicios",
+    icon: IconCalendarEvent,
     children: [
-      { href: "/inventario", name: "Stock" },
-      "/inventario/alertas",
+      { href: "/servicios", name: "Catálogo" },
+      { href: "/reservas", name: "Disponibilidad" },
+      { href: "/reservas/listado", name: "Reservas" },
+      "/reservas/recursos",
     ],
   },
 ];

@@ -241,9 +241,8 @@ Orden de las secciones (filtrado según el rol):
 
 - **Inicio**
 - **Finanzas** → Ingresos · Gastos · Movimientos · Reportes · Historial
-- **Productos**
-- **Reservas** → Disponibilidad · Listado · Recursos
-- **Inventario** → Stock · Alertas
+- **Productos** → Catálogo · Stock · Alertas
+- **Servicios** → Catálogo · Disponibilidad · Reservas · Recursos
 - *(abajo)* **Ajustes** → Negocio · Catálogos · Columnas · Equipo
 - *(abajo del todo)* Usuario: nombre y correo; su menú tiene **Modo claro/oscuro**, el rol y
   **Cerrar sesión**

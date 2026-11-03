@@ -125,6 +125,21 @@ export function BookingListView({
   const pages = Math.max(1, Math.ceil(total / perPage));
   /** Las personalizadas marcadas "Mostrar como columna en el listado". */
   const columnas = tableFields(campos.fields);
+  /**
+   * Las fijas con columna propia. Documento y teléfono sin columna, pero
+   * visibles, siguen debajo del titular, como siempre.
+   */
+  const { fijos } = campos;
+  const fijasEnTabla = (["holder_document", "holder_phone", "notes"] as const).filter(
+    (k) => fijos[k].enTabla,
+  );
+  const valorFijo = (b: (typeof rows)[number], k: (typeof fijasEnTabla)[number]) =>
+    k === "holder_document" ? b.holderDocument : k === "holder_phone" ? b.holderPhone : b.notes;
+  const bajoTitular = (b: (typeof rows)[number]) =>
+    (["holder_document", "holder_phone"] as const)
+      .filter((k) => fijos[k].visible && !fijos[k].enTabla)
+      .map((k) => valorFijo(b, k))
+      .filter(Boolean);
   const hayFiltros = Boolean(
     filtros.q || filtros.estado || filtros.servicio || filtros.desde || filtros.hasta || filtros.saldo,
   );
@@ -213,7 +228,10 @@ export function BookingListView({
               <TableHeader>
                 <TableRow>
                   <TableHead>Fechas</TableHead>
-                  <TableHead>Titular</TableHead>
+                  <TableHead>{fijos.holder_name.label}</TableHead>
+                  {fijasEnTabla.map((k) => (
+                    <TableHead key={k}>{fijos[k].label}</TableHead>
+                  ))}
                   <TableHead>Qué</TableHead>
                   {columnas.map((f) => (
                     <TableHead key={f.key}>{f.label}</TableHead>
@@ -228,7 +246,7 @@ export function BookingListView({
               <TableBody>
                 {rows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8 + columnas.length} className="py-10 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={8 + fijasEnTabla.length + columnas.length} className="py-10 text-center text-sm text-muted-foreground">
                       {hayFiltros ? (
                         <span className="space-y-2">
                           <span className="block">Ninguna reserva coincide con lo que buscaste.</span>
@@ -267,12 +285,17 @@ export function BookingListView({
                       <TableCell className="whitespace-nowrap text-xs">{fechas(b)}</TableCell>
                       <TableCell>
                         <span className="block font-medium">{b.holderName}</span>
-                        {(b.holderDocument || b.holderPhone) && (
+                        {bajoTitular(b).length > 0 && (
                           <span className="block text-[11px] text-muted-foreground">
-                            {[b.holderDocument, b.holderPhone].filter(Boolean).join(" · ")}
+                            {bajoTitular(b).join(" · ")}
                           </span>
                         )}
                       </TableCell>
+                      {fijasEnTabla.map((k) => (
+                        <TableCell key={k} className="max-w-48 truncate text-sm">
+                          {valorFijo(b, k) || "—"}
+                        </TableCell>
+                      ))}
                       <TableCell className="text-sm text-muted-foreground">
                         {b.serviceName} ·{" "}
                         <span className="font-mono text-foreground">{b.resourceName}</span>

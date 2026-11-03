@@ -18,7 +18,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -100,16 +99,28 @@ export interface CategoryOption {
 }
 
 interface Props {
-  products: ProductRow[];
-  services: ServiceRow[];
-  productCategories: CategoryOption[];
-  serviceCategories: CategoryOption[];
+  /**
+   * Que catalogo pinta. Productos y servicios tienen cada uno su pagina y su
+   * grupo en el menu: los productos llevan inventario, los servicios reservas.
+   */
+  kind: "productos" | "servicios";
+  products?: ProductRow[];
+  services?: ServiceRow[];
+  /** Las categorias del catalogo que se pinta. */
+  categories: CategoryOption[];
   defaultCurrency: string;
   canManage: boolean;
-  canAdjustStock: boolean;
+  canAdjustStock?: boolean;
   /** Columnas resueltas: las fijas del codigo mas las que configuro el cliente. */
-  productFields: ResolvedField[];
-  serviceFields: ResolvedField[];
+  fields: ResolvedField[];
+}
+
+/**
+ * El nombre que el negocio le dio a una columna fija en Ajustes, o el del
+ * codigo. Sin esto, renombrar "SKU" a "Código" se guardaba y no se veia.
+ */
+function etiqueta(fields: ResolvedField[], key: string, porDefecto: string): string {
+  return fields.find((f) => f.source === "fixed" && f.key === key)?.label ?? porDefecto;
 }
 
 /** "7.000" -> "7", "1.500" -> "1.5". */
@@ -122,17 +133,16 @@ type Editing =
   | { tab: "servicios"; row: ServiceRow | null };
 
 export function CatalogView({
-  products,
-  services,
-  productCategories,
-  serviceCategories,
+  kind,
+  products = [],
+  services = [],
+  categories,
   defaultCurrency,
   canManage,
-  canAdjustStock,
-  productFields,
-  serviceFields,
+  canAdjustStock = false,
+  fields,
 }: Props) {
-  const [tab, setTab] = useState<"productos" | "servicios">("productos");
+  const tab = kind;
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [editing, setEditing] = useState<Editing | null>(null);
@@ -151,16 +161,19 @@ export function CatalogView({
 
   // Solo las personalizadas marcadas para la tabla: las fijas ya tienen su
   // columna escrita a mano, con su formato propio.
-  const columnasProducto = tableFields(customFields(productFields));
-  const columnasServicio = tableFields(customFields(serviceFields));
+  const columnas = tableFields(customFields(fields));
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold">Productos y servicios</h2>
+          <h2 className="text-lg font-bold">
+            {kind === "productos" ? "Productos" : "Servicios"}
+          </h2>
           <p className="text-sm text-muted-foreground">
-            Lo que vendes. Los productos llevan inventario; los servicios no.
+            {kind === "productos"
+              ? "Lo que vendes y llevas en inventario."
+              : "Lo que vendes sin inventario. Los que se reservan se configuran en Recursos."}
           </p>
         </div>
         {canManage && (
@@ -175,17 +188,8 @@ export function CatalogView({
         )}
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <TabsList>
-            <TabsTrigger value="productos" className="text-xs">
-              Productos ({products.filter((p) => !p.archived).length})
-            </TabsTrigger>
-            <TabsTrigger value="servicios" className="text-xs">
-              Servicios ({services.filter((s) => !s.archived).length})
-            </TabsTrigger>
-          </TabsList>
-
+      <div className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
           <div className="flex items-center gap-3">
             <div className="relative">
               <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -209,19 +213,19 @@ export function CatalogView({
           </div>
         </div>
 
-        <TabsContent value="productos" className="mt-4">
+        {kind === "productos" && (
           <Card>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Producto</TableHead>
-                    <TableHead className="w-28">SKU</TableHead>
-                    <TableHead>Categoría</TableHead>
-                    <TableHead className="w-28 text-right">Precio</TableHead>
+                    <TableHead className="w-28">{etiqueta(fields, "sku", "SKU")}</TableHead>
+                    <TableHead>{etiqueta(fields, "category_id", "Categoría")}</TableHead>
+                    <TableHead className="w-28 text-right">{etiqueta(fields, "price", "Precio")}</TableHead>
                     <TableHead className="w-20 text-right">Stock</TableHead>
                     {/* Una columna por cada campo personalizado visible. */}
-                    {columnasProducto.map((f) => (
+                    {columnas.map((f) => (
                       <TableHead key={f.key}>{f.label}</TableHead>
                     ))}
                     {canManage && <TableHead className="w-24 text-right" />}
@@ -231,7 +235,7 @@ export function CatalogView({
                   {visiblesProductos.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={6 + columnasProducto.length}
+                        colSpan={6 + columnas.length}
                         className="py-10 text-center text-sm text-muted-foreground"
                       >
                         {products.length === 0
@@ -283,7 +287,7 @@ export function CatalogView({
                           {cantidad(p.stock)}
                         </span>
                       </TableCell>
-                      {columnasProducto.map((f) => (
+                      {columnas.map((f) => (
                         <TableCell key={f.key} className="text-sm text-muted-foreground">
                           {formatFieldValue(f, p.custom?.[f.key])}
                         </TableCell>
@@ -327,18 +331,18 @@ export function CatalogView({
               </Table>
             </CardContent>
           </Card>
-        </TabsContent>
+        )}
 
-        <TabsContent value="servicios" className="mt-4">
+        {kind === "servicios" && (
           <Card>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Servicio</TableHead>
-                    <TableHead>Categoría</TableHead>
-                    <TableHead className="w-28 text-right">Precio</TableHead>
-                    {columnasServicio.map((f) => (
+                    <TableHead>{etiqueta(fields, "category_id", "Categoría")}</TableHead>
+                    <TableHead className="w-28 text-right">{etiqueta(fields, "price", "Precio")}</TableHead>
+                    {columnas.map((f) => (
                       <TableHead key={f.key}>{f.label}</TableHead>
                     ))}
                     {canManage && <TableHead className="w-20 text-right" />}
@@ -348,7 +352,7 @@ export function CatalogView({
                   {visiblesServicios.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={4 + columnasServicio.length}
+                        colSpan={4 + columnas.length}
                         className="py-10 text-center text-sm text-muted-foreground"
                       >
                         {services.length === 0
@@ -378,7 +382,7 @@ export function CatalogView({
                       <TableCell className="text-right font-mono text-sm">
                         {formatMoney(s.price, s.currency)}
                       </TableCell>
-                      {columnasServicio.map((f) => (
+                      {columnas.map((f) => (
                         <TableCell key={f.key} className="text-sm text-muted-foreground">
                           {formatFieldValue(f, s.custom?.[f.key])}
                         </TableCell>
@@ -411,18 +415,14 @@ export function CatalogView({
               </Table>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        )}
+      </div>
 
       {editing && (
         <ItemDialog
           editing={editing}
-          categories={
-            editing.tab === "productos" ? productCategories : serviceCategories
-          }
-          fields={
-            editing.tab === "productos" ? productFields : serviceFields
-          }
+          categories={categories}
+          fields={fields}
           defaultCurrency={defaultCurrency}
           onClose={() => setEditing(null)}
         />
@@ -635,7 +635,7 @@ function ItemDialog({
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Nombre</Label>
+            <Label htmlFor="name">{etiqueta(fields, "name", "Nombre")}</Label>
             <Input
               id="name"
               value={name}
@@ -646,7 +646,7 @@ function ItemDialog({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="category">Categoría</Label>
+              <Label htmlFor="category">{etiqueta(fields, "category_id", "Categoría")}</Label>
               <Select value={categoryId} onValueChange={setCategoryId}>
                 <SelectTrigger id="category" className="w-full">
                   <SelectValue placeholder="Elige una" />
@@ -668,7 +668,7 @@ function ItemDialog({
 
             {esProducto && (
               <div className="space-y-2">
-                <Label htmlFor="sku">SKU (opcional)</Label>
+                <Label htmlFor="sku">{etiqueta(fields, "sku", "SKU")} (opcional)</Label>
                 <Input
                   id="sku"
                   value={sku}
@@ -681,7 +681,7 @@ function ItemDialog({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="price">Precio</Label>
+              <Label htmlFor="price">{etiqueta(fields, "price", "Precio")}</Label>
               <Input
                 id="price"
                 inputMode="decimal"
@@ -705,7 +705,7 @@ function ItemDialog({
           {esProducto && (
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="minStock">Stock mínimo (opcional)</Label>
+                <Label htmlFor="minStock">{etiqueta(fields, "min_stock", "Stock mínimo")} (opcional)</Label>
                 <Input
                   id="minStock"
                   inputMode="decimal"

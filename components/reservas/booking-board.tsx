@@ -167,7 +167,7 @@ export function BookingBoard({
               <p className="font-medium">Todavía no hay nada que reservar</p>
               <p className="mt-1 max-w-md text-sm text-muted-foreground">
                 {todosApagados
-                  ? "Los servicios reservables están marcados como no disponibles para vender. Actívalos en Productos para aceptar reservas."
+                  ? "Los servicios reservables están marcados como no disponibles para vender. Actívalos en Servicios para aceptar reservas."
                   : "Marca un servicio como reservable (por ejemplo “Habitación doble”, por noche) y agrégale sus habitaciones, canchas o equipos."}
               </p>
             </div>

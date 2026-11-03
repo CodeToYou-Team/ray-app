@@ -44,6 +44,7 @@ import {
   encajaEnTurno,
   losDias,
   ocupacionMaxima,
+  recursoLabel,
   seCruzan,
   sumarDias,
   totalReserva,
@@ -157,6 +158,7 @@ export function BookingForm({
    * porque era válido cuando se escribió. Quien valida es el servidor.
    */
   const [custom, setCustom] = useState(() => toFormValues(campos.fields, editing?.custom));
+  const fijos = campos.fijos;
 
   /** En curso: ya llegó, así que la entrada quedó registrada y no se mueve. */
   const entradaFija = editing?.status === "en_curso";
@@ -339,7 +341,7 @@ export function BookingForm({
 
             <div className="space-y-2">
               <Label htmlFor="recurso">
-                {unidad === "noche" ? "Habitación" : "Recurso"}
+                {recursoLabel(servicio?.resourceLabel)}
               </Label>
               <Select value={resourceId} onValueChange={setResourceId}>
                 <SelectTrigger id="recurso" className="w-full">
@@ -541,7 +543,7 @@ export function BookingForm({
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="titular">A nombre de</Label>
+            <Label htmlFor="titular">{fijos.holder_name.label}</Label>
             <Input
               id="titular"
               value={holderName}
@@ -550,25 +552,35 @@ export function BookingForm({
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="documento">Cédula o documento (opcional)</Label>
-              <Input
-                id="documento"
-                value={holderDocument}
-                onChange={(e) => setHolderDocument(e.target.value)}
-              />
+          {/*
+            Una fija oculta no se pinta, pero su estado se sigue enviando con
+            el valor que la reserva ya tenía: ocultarla no la borra.
+          */}
+          {(fijos.holder_document.visible || fijos.holder_phone.visible) && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {fijos.holder_document.visible && (
+                <div className="space-y-2">
+                  <Label htmlFor="documento">{fijos.holder_document.label} (opcional)</Label>
+                  <Input
+                    id="documento"
+                    value={holderDocument}
+                    onChange={(e) => setHolderDocument(e.target.value)}
+                  />
+                </div>
+              )}
+              {fijos.holder_phone.visible && (
+                <div className="space-y-2">
+                  <Label htmlFor="telefono">{fijos.holder_phone.label} (opcional)</Label>
+                  <Input
+                    id="telefono"
+                    type="tel"
+                    value={holderPhone}
+                    onChange={(e) => setHolderPhone(e.target.value)}
+                  />
+                </div>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="telefono">Teléfono (opcional)</Label>
-              <Input
-                id="telefono"
-                type="tel"
-                value={holderPhone}
-                onChange={(e) => setHolderPhone(e.target.value)}
-              />
-            </div>
-          </div>
+          )}
 
           {campos.fields.length > 0 && (
             <div className="space-y-4">
@@ -584,15 +596,17 @@ export function BookingForm({
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="notas">Notas (opcional)</Label>
-            <Textarea
-              id="notas"
-              rows={2}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
+          {fijos.notes.visible && (
+            <div className="space-y-2">
+              <Label htmlFor="notas">{fijos.notes.label} (opcional)</Label>
+              <Textarea
+                id="notas"
+                rows={2}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+          )}
 
           {error && <ErrorBox>{error}</ErrorBox>}
         </div>
@@ -669,6 +683,11 @@ export function BookingDetail({
   const personalizados = campos.fields
     .map((f) => ({ field: f, texto: valorCampo(campos, f, reserva.custom[f.key]) }))
     .filter((c) => c.texto !== "—");
+  // Una fija oculta en Ajustes tampoco se muestra aquí, aunque tenga valor.
+  const { fijos } = campos;
+  const documento = fijos.holder_document.visible ? reserva.holderDocument : null;
+  const telefono = fijos.holder_phone.visible ? reserva.holderPhone : null;
+  const notas = fijos.notes.visible ? reserva.notes : null;
 
   // Lo mismo que verifica el servidor, para decidir qué botones mostrar.
   const llegada = reserva.inicio.slice(0, 10);
@@ -785,23 +804,20 @@ export function BookingDetail({
           </div>
         )}
 
-        {(reserva.holderDocument ||
-          reserva.holderPhone ||
-          reserva.notes ||
-          personalizados.length > 0) && (
+        {(documento || telefono || notas || personalizados.length > 0) && (
           <dl className="space-y-2 text-sm">
-            {reserva.holderDocument && (
+            {documento && (
               <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Documento</dt>
-                <dd>{reserva.holderDocument}</dd>
+                <dt className="text-muted-foreground">{fijos.holder_document.label}</dt>
+                <dd>{documento}</dd>
               </div>
             )}
-            {reserva.holderPhone && (
+            {telefono && (
               <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Teléfono</dt>
+                <dt className="text-muted-foreground">{fijos.holder_phone.label}</dt>
                 <dd>
-                  <a href={`tel:${reserva.holderPhone}`} className="underline underline-offset-2">
-                    {reserva.holderPhone}
+                  <a href={`tel:${telefono}`} className="underline underline-offset-2">
+                    {telefono}
                   </a>
                 </dd>
               </div>
@@ -821,11 +837,11 @@ export function BookingDetail({
                 </div>
               ),
             )}
-            {reserva.notes && (
+            {notas && (
               <div className="space-y-1">
-                <dt className="text-muted-foreground">Notas</dt>
+                <dt className="text-muted-foreground">{fijos.notes.label}</dt>
                 <dd className="whitespace-pre-wrap rounded-md bg-muted/50 p-2 text-xs">
-                  {reserva.notes}
+                  {notas}
                 </dd>
               </div>
             )}

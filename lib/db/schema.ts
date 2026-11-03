@@ -423,6 +423,11 @@ export const services = pgTable(
     bookingShared: boolean("booking_shared").notNull().default(false),
     /** Por persona (el tour, 15 c/u) o por reserva (la habitacion, 40 vayan 1 o 3). */
     bookingPerPerson: boolean("booking_per_person").notNull().default(false),
+    /**
+     * Como se llaman sus recursos en pantalla: "Habitación", "Cancha".
+     * NULL = el generico, que decide `recursoLabel()` en lib/reservas/rango.ts.
+     */
+    resourceLabel: text("resource_label"),
     custom: jsonb("custom")
       .$type<Record<string, unknown>>()
       .notNull()

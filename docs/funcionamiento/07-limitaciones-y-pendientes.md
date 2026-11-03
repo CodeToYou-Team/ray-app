@@ -47,17 +47,13 @@ listado, si tuviera valor, se mostraría el identificador en vez del nombre.
 - Dónde: [`components/productos/catalog-view.tsx`](../../components/productos/catalog-view.tsx)
   usa `<FieldInput>` y `formatFieldValue` sin `catalogOptions` / `catalogLabels`.
 
-### Ajustes de columnas fijas sin efecto en Productos
+### Ocultar columnas fijas sin efecto en Productos
 
 En Ajustes › Columnas se pueden renombrar, ocultar o sacar del listado las columnas del sistema
-(Nombre, SKU, Precio…), y el cambio se guarda. Pero la pantalla de Productos tiene esas columnas
-escritas a mano, así que **los cambios no se ven**: los títulos, el formulario y la tabla siguen
-igual. Solo las columnas personalizadas responden a la configuración.
-
-### Acceso rápido "Producto" del Inicio lleva a una página que no existe
-
-El botón **Producto** de "Acciones rápidas" enlaza a `/productos/nuevo`, una ruta que se eliminó
-cuando crear y editar pasaron a diálogos. Hoy da 404.
+(Nombre, SKU, Precio…). El **nombre** ya se ve en la tabla y el formulario de Productos y
+Servicios, pero **ocultar y sacar del listado no tienen efecto ahí**: esas columnas siguen
+escritas a mano. Ocultar Categoría o Precio, además, no es inocuo: son obligatorias para crear
+un producto. En Reservas sí funcionan las tres cosas.
 
 ### Cabecera con elementos decorativos
 

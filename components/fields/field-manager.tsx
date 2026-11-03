@@ -119,10 +119,13 @@ export function FieldManager({
           <TabsContent key={entity} value={entity} className="mt-4 space-y-3">
             {entity === "booking" && (
               <p className="text-xs text-muted-foreground">
-                Nombre, documento, teléfono y notas siempre están en la reserva.
-                Aquí agregas lo que tu negocio necesita además: la placa del
+                Titular, documento, teléfono y notas son del sistema: puedes
+                renombrarlas, ocultarlas o mostrarlas como columna del listado.
+                Además agregas lo que tu negocio necesita: la placa del
                 vehículo, el motivo del viaje, cómo se enteró de ti. Valen para
-                todas las reservas, de cualquier servicio.
+                todas las reservas, de cualquier servicio. El nombre de lo que
+                se reserva (Habitación, Cancha) se pone en cada servicio, en
+                Recursos.
               </p>
             )}
             <Card>

@@ -62,7 +62,7 @@ export function resolveFields(
       options: [],
       config: override?.config ?? {},
       hidden: def.alwaysVisible ? false : (override?.hidden ?? false),
-      showInTable: override?.showInTable ?? true,
+      showInTable: override?.showInTable ?? def.defaultShowInTable ?? true,
       sortOrder: override?.sortOrder ?? index,
       archived: false,
       editable: { label: true, type: false, required: false, archive: false },

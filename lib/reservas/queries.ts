@@ -53,6 +53,8 @@ export interface BookableService {
   /** Muchas reservas a la vez hasta llenar la capacidad. */
   shared: boolean;
   perPerson: boolean;
+  /** Como se llaman sus recursos. NULL = el generico (`recursoLabel()`). */
+  resourceLabel: string | null;
   price: string;
   currency: string;
   resources: ResourceRow[];
@@ -84,6 +86,7 @@ export async function listBookableServices(
         unidad: services.bookingUnit,
         shared: services.bookingShared,
         perPerson: services.bookingPerPerson,
+        resourceLabel: services.resourceLabel,
         price: services.price,
         currency: services.currency,
       })
@@ -173,13 +176,14 @@ async function turnosPorServicio(
 export interface ServiceSetupRow {
   id: string;
   name: string;
-  /** "Disponible para vender", que se cambia en Productos. */
+  /** "Disponible para vender", que se cambia en Servicios. */
   active: boolean;
   price: string;
   currency: string;
   unidad: BookingUnit | null;
   shared: boolean;
   perPerson: boolean;
+  resourceLabel: string | null;
   turnos: Turno[];
   /** Si ya tiene reservas, la unidad no se puede cambiar. */
   bookingCount: number;
@@ -203,6 +207,7 @@ export async function listServicesForSetup(
         unidad: services.bookingUnit,
         shared: services.bookingShared,
         perPerson: services.bookingPerPerson,
+        resourceLabel: services.resourceLabel,
       })
       .from(services)
       .where(and(eq(services.tenantId, tenantId), isNull(services.deletedAt)))

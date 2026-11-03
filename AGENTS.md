@@ -109,6 +109,10 @@
   `bookings.custom`, validated by `validateCustomIn()` (`lib/fields/queries.ts`)
   inside the write transaction. A hidden field keeps its stored value and is not
   required; `updateBooking` without `custom` leaves the values untouched.
+  Holder name, document, phone and notes are FIXED fields (`FIXED_FIELDS.booking`):
+  every booking screen reads their label and visibility from `campos.fijos`
+  (`loadBookingFields()`), never a hardcoded string. What a service's resources are
+  called ("Habitación", "Cancha") is `services.resource_label`, shown via `recursoLabel()`.
 - `/lib/money.ts`, `/lib/currencies.ts` - Exact decimal arithmetic and the closed
   currency list. Currency columns are `varchar(10)`: stablecoin tickers (USDT, USDC)
   are 4 characters, not 3.

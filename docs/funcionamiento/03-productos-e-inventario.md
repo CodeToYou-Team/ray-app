@@ -1,18 +1,21 @@
 # 3. Productos, servicios e inventario
 
-## Productos y servicios (`/productos`)
+## Productos (`/productos`) y Servicios (`/servicios`)
 
-Una sola pantalla con dos pestañas: **Productos (n)** y **Servicios (n)** (el número cuenta los
-no archivados).
+Dos pantallas con el mismo diseño, cada una en su grupo del menú lateral:
 
-- **Productos** llevan inventario.
+- **Productos** llevan inventario: su grupo es Productos › Catálogo · Stock · Alertas.
 - **Servicios** no tienen stock. Un servicio también puede volverse **reservable** (una
-  habitación por noche, una cancha por hora, una clase con cupos) desde **Reservas › Recursos**:
-  ver [Reservas](08-reservas.md).
+  habitación por noche, una cancha por hora, una clase con cupos) desde **Servicios › Recursos**:
+  ver [Reservas](08-reservas.md). Su grupo es Servicios › Catálogo · Disponibilidad · Reservas ·
+  Recursos.
 
 ### Listado
 
-| Pestaña | Columnas |
+Los títulos de las columnas del sistema (SKU, Categoría, Precio…) y las etiquetas del formulario
+usan el nombre que se les haya dado en Ajustes › Columnas.
+
+| Pantalla | Columnas |
 |---|---|
 | Productos | Producto · SKU · Categoría · Precio · Stock · *(columnas personalizadas)* · acciones |
 | Servicios | Servicio · Categoría · Precio · *(columnas personalizadas)* · acciones |

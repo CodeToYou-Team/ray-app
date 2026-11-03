@@ -257,7 +257,7 @@ export function DashboardContent({
                 </Link>
               </Button>
               <Button variant="outline" size="sm" className="justify-start" asChild>
-                <Link href="/productos/nuevo">
+                <Link href="/productos">
                   <IconPackage className="size-4" />
                   Producto
                 </Link>

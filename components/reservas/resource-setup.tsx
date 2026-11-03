@@ -27,10 +27,11 @@ import {
   configureServiceBooking,
   createResource,
   removeSchedule,
+  setResourceLabel,
   updateResourceCapacity,
 } from "@/lib/reservas/actions";
 import { formatMoney } from "@/lib/format";
-import { DIAS_SEMANA, type Turno, type Unidad } from "@/lib/reservas/rango";
+import { DIAS_SEMANA, recursoLabel, type Turno, type Unidad } from "@/lib/reservas/rango";
 import { cn } from "@/lib/utils";
 
 export interface SetupService {
@@ -42,6 +43,8 @@ export interface SetupService {
   unidad: Unidad | null;
   shared: boolean;
   perPerson: boolean;
+  /** Como se llaman sus recursos. NULL = el generico. */
+  resourceLabel: string | null;
   bookingCount: number;
   resources: { id: string; name: string; notes: string | null; capacity: number }[];
   turnos: Turno[];
@@ -77,7 +80,7 @@ export function ResourceSetup({ services }: { services: SetupService[] }) {
               &ldquo;Habitación doble&rdquo; con su precio por noche.
             </p>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/productos">Ir a Productos y servicios</Link>
+              <Link href="/servicios">Ir a Servicios</Link>
             </Button>
           </CardContent>
         </Card>
@@ -159,7 +162,7 @@ function ServiceCard({ service }: { service: SetupService }) {
             */}
             {!service.active && service.unidad && (
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Marcado como no disponible para vender en Productos: no acepta
+                Marcado como no disponible para vender en Servicios: no acepta
                 reservas nuevas. Las que ya tiene siguen su curso.
               </p>
             )}
@@ -230,6 +233,14 @@ function ServiceCard({ service }: { service: SetupService }) {
               ` Ya tiene ${service.bookingCount} ${service.bookingCount === 1 ? "reserva" : "reservas"}: la unidad y el modo no se pueden cambiar. El cobro sí, y solo afecta a las reservas nuevas.`}
           </p>
 
+          <NombreRecursos
+            key={service.resourceLabel ?? ""}
+            serviceId={service.id}
+            actual={service.resourceLabel}
+            pending={pending}
+            correr={correr}
+          />
+
           {service.resources.length === 0 ? (
             <p className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
               Agrega las habitaciones, canchas, salas o equipos que se reservan con
@@ -261,7 +272,7 @@ function ServiceCard({ service }: { service: SetupService }) {
           >
             <div className="space-y-1.5">
               <Label htmlFor={`nombre-${service.id}`} className="text-xs text-muted-foreground">
-                Nuevo
+                {recursoLabel(service.resourceLabel)}
               </Label>
               <Input
                 id={`nombre-${service.id}`}
@@ -324,6 +335,57 @@ function ServiceCard({ service }: { service: SetupService }) {
         </CardContent>
       )}
     </Card>
+  );
+}
+
+/**
+ * Como se llaman los recursos del servicio: es la etiqueta que ve quien
+ * reserva ("Habitación", "Cancha"). Se guarda al salir del campo o con Enter;
+ * vacío vuelve al genérico.
+ */
+function NombreRecursos({
+  serviceId,
+  actual,
+  pending,
+  correr,
+}: {
+  serviceId: string;
+  actual: string | null;
+  pending: boolean;
+  correr: (accion: () => Promise<{ ok: boolean; error?: string }>) => void;
+}) {
+  const [valor, setValor] = useState(actual ?? "");
+
+  function guardar() {
+    if (valor.trim() === (actual ?? "")) return;
+    correr(() => setResourceLabel({ serviceId, label: valor }));
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Label htmlFor={`etiqueta-${serviceId}`} className="text-xs text-muted-foreground">
+        Cómo se llaman
+      </Label>
+      <Input
+        id={`etiqueta-${serviceId}`}
+        value={valor}
+        onChange={(e) => setValor(e.target.value)}
+        onBlur={guardar}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            guardar();
+          }
+        }}
+        placeholder={recursoLabel(null)}
+        maxLength={40}
+        disabled={pending}
+        className="h-8 w-44"
+      />
+      <span className="text-[11px] text-muted-foreground">
+        Habitación, Cancha, Cabaña… Es lo que se lee al reservar.
+      </span>
+    </div>
   );
 }
 

@@ -26,6 +26,7 @@ export type { CreateFieldInput, UpdateFieldInput, FieldResult };
 function revalidateFields() {
   revalidatePath("/ajustes/columnas");
   revalidatePath("/productos");
+  revalidatePath("/servicios");
   revalidatePath("/reservas");
   revalidatePath("/reservas/listado");
 }

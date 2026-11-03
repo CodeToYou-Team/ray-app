@@ -542,9 +542,14 @@ reserva guardó cómo se calculó la suya).
      21:00 del martes en Caracas ya es miércoles en UTC.
 5. **Columnas personalizadas en la reserva**, con el mismo mecanismo que productos y
    servicios: `field_config` con `entity = 'booking'` y un `custom jsonb` en `bookings`.
-   - **Sin columnas fijas configurables.** Titular, documento, teléfono y notas son del
-     formulario escrito a mano; ofrecer renombrarlos desde Ajustes repetiría el hueco que ya
-     tienen productos (el cambio se guarda y no se ve).
+   - **Titular, documento, teléfono y notas son columnas fijas** (`FIXED_FIELDS.booking`):
+     se renombran, se ocultan y se muestran en el listado desde Ajustes, y el formulario, el
+     detalle y el listado leen su nombre de ahí (`CamposFijos`). *(Al principio no se ofrecían
+     para no repetir el hueco de productos, donde el cambio se guardaba y no se veía; se
+     agregaron cableadas a la pantalla.)* Una oculta conserva su valor: el formulario la sigue
+     enviando con lo que tenía.
+   - **El nombre del recurso es del servicio** (`services.resource_label`), no una columna
+     renombrable de la reserva: un mismo negocio tiene habitaciones y canchas a la vez.
    - **Un oculto conserva su valor** y no se exige (`validateCustomIn`). Si se validara, un
      oculto obligatorio bloquearía cada guardado; si se reemplazara, ocultarlo lo borraría.
    - **Modificar sin mandar `custom` no lo toca**: corregir el teléfono no borra la placa.

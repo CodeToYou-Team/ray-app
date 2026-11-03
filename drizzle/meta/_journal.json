@@ -169,6 +169,13 @@
       "when": 1791312602589,
       "tag": "0023_stock_no_negativo",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791312603589,
+      "tag": "0024_service_resource_label",
+      "breakpoints": true
     }
   ]
 }

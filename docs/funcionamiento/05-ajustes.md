@@ -99,23 +99,28 @@ Define **qué información se guarda** de cada producto, servicio y reserva. Tre
 Productos, Servicios y Reservas. La tabla muestra Columna · Tipo · Identificador · En tabla ·
 Acciones.
 
-**Reservas** no tiene columnas del sistema: titular, documento, teléfono y notas siempre están en
-el formulario de reserva y no se renombran desde aquí. Solo se agregan columnas personalizadas
-(placa, motivo del viaje…). Cómo se usan: [Reservas › Columnas
-personalizadas](08-reservas.md#columnas-personalizadas).
+En **Reservas**, titular, documento, teléfono y notas son columnas del sistema, y además se
+agregan columnas personalizadas (placa, motivo del viaje…). Cómo se usan: [Reservas › Columnas
+personalizadas](08-reservas.md#columnas-personalizadas). El nombre de lo que se reserva
+(Habitación, Cancha…) no está aquí: se pone en cada servicio, en Servicios › Recursos.
 
 ### Columnas del sistema (fijas)
 
 Son columnas reales de la base de datos y de ellas dependen ventas, inventario y alertas:
 
-| Productos | Servicios |
-|---|---|
-| Nombre, SKU, Categoría, Precio, Stock mínimo, Disponible para vender | Nombre, Categoría, Precio, Disponible para vender |
+| Productos | Servicios | Reservas |
+|---|---|---|
+| Nombre, SKU, Categoría, Precio, Stock mínimo, Disponible para vender | Nombre, Categoría, Precio, Disponible para vender | Titular, Documento, Teléfono, Notas |
 
 Desde aquí se pueden **renombrar** y marcar como ocultas o fuera del listado, pero **no** cambiar
-su tipo, su obligatoriedad ni archivarlas. "Nombre" no se puede ocultar. (Ver
-[limitaciones](07-limitaciones-y-pendientes.md#ajustes-de-columnas-fijas-sin-efecto-en-productos):
-hoy esos cambios sobre columnas fijas no se reflejan en la pantalla de Productos.)
+su tipo, su obligatoriedad ni archivarlas. "Nombre" y "Titular" no se pueden ocultar.
+
+- En **Reservas** las tres cosas tienen efecto. Una columna oculta desaparece del formulario, del
+  detalle y del listado, pero la reserva conserva lo que tenía guardado. Documento, teléfono y
+  notas no salen como columna del listado salvo que se marquen; sin marcar, documento y teléfono
+  siguen apareciendo debajo del titular.
+- En **Productos y Servicios** solo el nombre tiene efecto (ver
+  [limitaciones](07-limitaciones-y-pendientes.md#ocultar-columnas-fijas-sin-efecto-en-productos)).
 
 ### Columnas personalizadas
 

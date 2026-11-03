@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import postgres from "postgres";
 import { uuidv7 } from "uuidv7";
-import { archiveField, createField, updateField } from "@/lib/fields/register";
+import { archiveField, createField, updateField, upsertFixedOverride } from "@/lib/fields/register";
 import { getFields } from "@/lib/fields/queries";
-import { createBooking, updateBooking } from "@/lib/reservas/register";
+import { createBooking, setResourceLabel, updateBooking } from "@/lib/reservas/register";
+import { loadBookingFields } from "@/lib/reservas/page-data";
 import { listBookings } from "@/lib/reservas/queries";
 
 /**
@@ -89,10 +90,27 @@ describe.skipIf(!hasDb)("columnas personalizadas en la reserva", () => {
 
   it("las columnas de la reserva no se mezclan con las de productos", async () => {
     const reserva = await getFields(tenant, "booking");
-    expect(reserva.map((f) => f.key)).toEqual(["placa", "motivo", "huespedes_extra", "origen"]);
-    // Sin columnas fijas: nombre, documento y teléfono son del formulario.
-    expect(reserva.every((f) => f.source === "custom")).toBe(true);
+    expect(reserva.map((f) => f.key)).toEqual([
+      // Las fijas primero: son columnas reales de `bookings`.
+      "holder_name",
+      "holder_document",
+      "holder_phone",
+      "notes",
+      "placa",
+      "motivo",
+      "huespedes_extra",
+      "origen",
+    ]);
+    expect(reserva.slice(0, 4).every((f) => f.source === "fixed")).toBe(true);
     expect((await getFields(tenant, "product")).some((f) => f.key === "placa")).toBe(false);
+
+    // Lo que llega al formulario separa unas de otras: el JSONB solo lleva
+    // las personalizadas.
+    const campos = await loadBookingFields(tenant);
+    expect(campos.fields.map((f) => f.key)).toEqual(["placa", "motivo", "huespedes_extra", "origen"]);
+    expect(campos.fijos.holder_name).toEqual({ label: "Titular", visible: true, enTabla: true });
+    // Documento, teléfono y notas no eran columnas del listado y siguen sin serlo.
+    expect(campos.fijos.holder_phone).toEqual({ label: "Teléfono", visible: true, enTabla: false });
   });
 
   it("guarda los valores normalizados y descarta claves desconocidas", async () => {
@@ -245,5 +263,54 @@ describe.skipIf(!hasDb)("columnas personalizadas en la reserva", () => {
 
     // "placa" es la clave de todas; no debe traerlas.
     expect((await listBookings(tenant, TZ, { q: "placa" })).rows).toHaveLength(0);
+  });
+
+  it("las fijas se renombran y ocultan desde Ajustes; el titular no se oculta", async () => {
+    const tel = await upsertFixedOverride(ctx, "booking", "holder_phone", {
+      label: "Celular",
+      hidden: true,
+      showInTable: true,
+    });
+    const doc = await upsertFixedOverride(ctx, "booking", "holder_document", {
+      label: "RIF",
+      showInTable: true,
+    });
+    const titular = await upsertFixedOverride(ctx, "booking", "holder_name", {
+      label: "Huésped",
+      hidden: true,
+    });
+    expect(tel.ok && doc.ok && titular.ok).toBe(true);
+
+    try {
+      const { fijos } = await loadBookingFields(tenant);
+      expect(fijos.holder_name).toEqual({ label: "Huésped", visible: true, enTabla: true });
+      expect(fijos.holder_document).toEqual({ label: "RIF", visible: true, enTabla: true });
+      // Oculta no sale en el listado aunque esté marcada "En tabla".
+      expect(fijos.holder_phone).toEqual({ label: "Celular", visible: false, enTabla: false });
+    } finally {
+      await sql`delete from field_config where tenant_id = ${tenant} and source = 'fixed'`;
+    }
+  });
+
+  it("cada servicio dice cómo se llaman sus recursos", async () => {
+    expect((await setResourceLabel(ctx, { serviceId: doble, label: "  Cabaña " })).ok).toBe(true);
+    const [con] = await sql<{ resource_label: string | null }[]>`
+      select resource_label from services where id = ${doble}`;
+    expect(con.resource_label).toBe("Cabaña");
+
+    const largo = await setResourceLabel(ctx, { serviceId: doble, label: "x".repeat(41) });
+    expect(largo.ok).toBe(false);
+
+    // Vacío vuelve al genérico, guardado como NULL.
+    expect((await setResourceLabel(ctx, { serviceId: doble, label: "" })).ok).toBe(true);
+    const [sin] = await sql<{ resource_label: string | null }[]>`
+      select resource_label from services where id = ${doble}`;
+    expect(sin.resource_label).toBeNull();
+
+    const auditado = await sql`
+      select 1 from audit_log
+      where tenant_id = ${tenant} and entity = 'services' and entity_id = ${doble}
+        and diff ? 'resourceLabel'`;
+    expect(auditado).toHaveLength(2);
   });
 });
