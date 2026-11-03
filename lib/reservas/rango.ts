@@ -478,3 +478,34 @@ export function encajaEnTurno(turnos: Turno[], rango: RangoHoras): boolean {
     (t) => t.start === rango.inicio && t.end === rango.fin,
   );
 }
+
+/**
+ * Qué son los horarios de un servicio. Espejo de `schedule_mode`:
+ * - atencion: la franja en la que se atiende; vale cualquier tramo que quepa
+ *   entero dentro de una franja de ese día;
+ * - turnos: tramos exactos, como `encajaEnTurno`.
+ */
+export type ModoHorario = "atencion" | "turnos";
+
+/**
+ * Si un tramo por hora respeta el horario del servicio.
+ *
+ * Sin horarios, todo tramo vale. Por atención, el tramo tiene que caber en
+ * UNA franja: de 11:00 a 15:00 no vale si se atiende de 08:00 a 12:00 y de
+ * 14:00 a 20:00, aunque empiece y termine dentro de alguna.
+ */
+export function cumpleHorario(modo: ModoHorario, turnos: Turno[], rango: RangoHoras): boolean {
+  if (modo === "turnos") return encajaEnTurno(turnos, rango);
+  if (turnos.length === 0) return true;
+  return turnosDelDia(turnos, rango.fecha).some(
+    (t) => t.start <= rango.inicio && rango.fin <= t.end,
+  );
+}
+
+/** "de 08:00 a 12:00 y de 14:00 a 20:00": las franjas de un día, para leer. */
+export function franjasTexto(delDia: Turno[]): string {
+  const partes = delDia.map((t) => `de ${t.start} a ${t.end}`);
+  return partes.length <= 1
+    ? (partes[0] ?? "")
+    : `${partes.slice(0, -1).join(", ")} y ${partes[partes.length - 1]}`;
+}

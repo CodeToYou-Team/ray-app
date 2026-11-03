@@ -104,7 +104,10 @@
   there is no race to close. `updateBooking` only checks the schedule when the
   hours change, so editing an old booking whose slot was removed still works.
   The weekday comes from the local date string (`diaSemanaIso`), never from the
-  stored instant.
+  stored instant. `services.schedule_mode` says what those rows mean: `atencion`
+  (default; any range that fits inside ONE window of the day) or `turnos` (exact
+  slots). Check with `cumpleHorario()`, never `encajaEnTurno()` directly: the board,
+  the form and the server must read the same rows the same way.
   Custom fields: `field_config` rows with `entity = 'booking'`, values in
   `bookings.custom`, validated by `validateCustomIn()` (`lib/fields/queries.ts`)
   inside the write transaction. A hidden field keeps its stored value and is not

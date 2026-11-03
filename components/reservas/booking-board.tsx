@@ -483,7 +483,8 @@ function GrupoServicio({
               <CeldasHoras
                 servicioId={servicio.id}
                 recursoId={r.id}
-                turnos={servicio.turnos}
+                turnos={turnosExactos(servicio)}
+                atiende={(f) => atiendeEl(servicio, f)}
                 reservas={reservas.filter((b) => b.resourceId === r.id)}
                 fechas={fechas}
                 hoy={hoy}
@@ -499,11 +500,33 @@ function GrupoServicio({
   );
 }
 
+/**
+ * Los turnos que se ofrecen como tramos exactos. Con horario de atención, los
+ * horarios son franjas: no se pintan como turnos, se reserva libre dentro.
+ */
+function turnosExactos(servicio: BoardService): Turno[] {
+  return servicio.horario === "turnos" ? servicio.turnos : [];
+}
+
+/** Con horario de atención, si ese día se atiende. */
+function atiendeEl(servicio: BoardService, fecha: string): boolean {
+  return (
+    servicio.horario !== "atencion" ||
+    servicio.turnos.length === 0 ||
+    turnosDelDia(servicio.turnos, fecha).length > 0
+  );
+}
+
 interface CeldasProps {
   servicioId: string;
   recursoId: string;
-  /** Horarios fijos del servicio. Vacío = se reserva libre. */
+  /** Turnos EXACTOS del servicio. Vacío = se reserva libre (o en su franja). */
   turnos: Turno[];
+  /**
+   * Con horario de atención: si ese día se atiende. Un día cerrado no ofrece
+   * "+". Sin horario, todos los días se atienden.
+   */
+  atiende?: (fecha: string) => boolean;
   reservas: BoardBooking[];
   fechas: string[];
   hoy: string;
@@ -623,6 +646,7 @@ function CeldasHoras({
   servicioId,
   recursoId,
   turnos,
+  atiende = () => true,
   reservas,
   fechas,
   hoy,
@@ -685,7 +709,7 @@ function CeldasHoras({
                   {b.inicio.slice(11, 16)}
                 </button>
               ))}
-              {canManage && !pasado && (
+              {canManage && !pasado && atiende(f) && (
                 <button
                   type="button"
                   onClick={() =>
@@ -805,14 +829,14 @@ function CeldasCompartidas({
         // horario) se sigue mostrando aparte.
         const delDia = reservas.filter((b) => b.inicio.slice(0, 10) === f);
         const turnos = new Map<string, BoardBooking[]>();
-        for (const t of turnosDelDia(servicio.turnos, f)) {
+        for (const t of turnosDelDia(turnosExactos(servicio), f)) {
           turnos.set(`${f}T${t.start}|${f}T${t.end}`, []);
         }
         for (const b of delDia) {
           const clave = `${b.inicio}|${b.fin}`;
           turnos.set(clave, [...(turnos.get(clave) ?? []), b]);
         }
-        const conHorario = servicio.turnos.length > 0;
+        const conHorario = turnosExactos(servicio).length > 0;
 
         return (
           <td
@@ -871,7 +895,7 @@ function CeldasCompartidas({
                 );
               })}
               {/* Con horario fijo, lo que se ofrece son los turnos: nada de "+" libre. */}
-              {canManage && !pasado && !conHorario && (
+              {canManage && !pasado && !conHorario && atiendeEl(servicio, f) && (
                 <button
                   type="button"
                   onClick={() => onNueva(inicial(f))}

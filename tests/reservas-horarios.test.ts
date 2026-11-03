@@ -127,10 +127,12 @@ describe.skipIf(!hasDb)("horarios fijos en la base", () => {
     await sql`insert into users (id, email) values (${user}, ${`hor-${user.slice(-12)}@test.local`})`;
     await sql`insert into catalog_items (id, tenant_id, catalog_key, code, label) values
       (${catServ}, ${tenant}, 'service_category', 'serv', 'Servicios')`;
-    await sql`insert into services (id, tenant_id, name, category_id, price, currency, booking_unit, booking_shared, booking_per_person) values
-      (${yoga},  ${tenant}, 'Clase de yoga', ${catServ}, '10.00', 'USD', 'hora',  true,  true),
-      (${libre}, ${tenant}, 'Box libre',     ${catServ}, '5.00',  'USD', 'hora',  false, false),
-      (${noche}, ${tenant}, 'Habitación',    ${catServ}, '40.00', 'USD', 'noche', false, false)`;
+    // Este archivo prueba los turnos EXACTOS; la franja de atención (el modo
+    // por defecto) está en reservas-atencion.test.ts.
+    await sql`insert into services (id, tenant_id, name, category_id, price, currency, booking_unit, booking_shared, booking_per_person, schedule_mode) values
+      (${yoga},  ${tenant}, 'Clase de yoga', ${catServ}, '10.00', 'USD', 'hora',  true,  true,  'turnos'),
+      (${libre}, ${tenant}, 'Box libre',     ${catServ}, '5.00',  'USD', 'hora',  false, false, 'turnos'),
+      (${noche}, ${tenant}, 'Habitación',    ${catServ}, '40.00', 'USD', 'noche', false, false, 'turnos')`;
     await tarifasDeSiempre(sql, tenant);
     await sql`insert into resources (id, tenant_id, service_id, name, capacity) values
       (${sala}, ${tenant}, ${yoga},  'Sala',  15),

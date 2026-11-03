@@ -196,6 +196,7 @@ En `drizzle/`, aplicadas con `pnpm db:migrate`:
 | `0023_stock_no_negativo` | el trigger que impide que un movimiento deje el stock en negativo |
 | `0024_service_resource_label` | cómo se llaman los recursos de cada servicio (`services.resource_label`) |
 | `0025_service_rates` | tarifas por servicio, y la tarifa y la `qty` congeladas en cada reserva |
+| `0026_service_schedule_mode` | si los horarios de un servicio son franjas de atención o turnos exactos |
 
 ## Scripts
 

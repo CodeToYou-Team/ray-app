@@ -40,8 +40,10 @@ import {
 import {
   bordesLocales,
   cantidad,
+  cumpleHorario,
+  DIAS_SEMANA,
   diaSemanaIso,
-  encajaEnTurno,
+  franjasTexto,
   losDias,
   nombreTarifa,
   ocupacionMaxima,
@@ -56,6 +58,7 @@ import {
   type Rango,
 } from "@/lib/reservas/rango";
 import { compareMoney } from "@/lib/money";
+import { cn } from "@/lib/utils";
 import { formatDate, formatMoney } from "@/lib/format";
 import { FieldInput, formatFieldValue } from "@/components/fields/field-input";
 import { toFormValues } from "@/lib/fields/validate";
@@ -206,7 +209,11 @@ export function BookingForm({
    * entero, y el servidor comprueba que sea de bloques completos.
    */
   const turnosServicio = servicio?.turnos ?? [];
-  const conTurnos = unidad === "hora" && turnosServicio.length > 0;
+  const horario = servicio?.horario ?? "atencion";
+  // Turnos exactos: el tramo se elige de una lista. Franja de atención: se
+  // escriben las horas, y tienen que caber en el horario de ese día.
+  const conTurnos = unidad === "hora" && horario === "turnos" && turnosServicio.length > 0;
+  const conFranjas = unidad === "hora" && horario === "atencion" && turnosServicio.length > 0;
   const porBloques = unidadTarifa === "bloque" && !conTurnos;
   const finBloques = porBloques
     ? minutosAHora(horaAMinutos(inicio) + nCuantas * (tarifa?.minutes ?? 0))
@@ -247,10 +254,11 @@ export function BookingForm({
       editing.inicio === `${fecha}T${inicio}` &&
       editing.fin === `${fecha}T${fin}`,
   );
+  const franjasHoy = conFranjas ? turnosDelDia(turnosServicio, fecha) : [];
   const turnoOk =
-    !conTurnos ||
+    (!conTurnos && !conFranjas) ||
     horasSinCambio ||
-    encajaEnTurno(turnosServicio, { unidad: "hora", fecha, inicio, fin });
+    cumpleHorario(horario, turnosServicio, { unidad: "hora", fecha, inicio, fin: finBloques ?? fin });
 
   const nPersonas = Number(personas);
   const personasValidas = Number.isInteger(nPersonas) && nPersonas >= 1;
@@ -644,6 +652,20 @@ export function BookingForm({
                 </>
               )}
             </div>
+          )}
+
+          {conFranjas && (
+            <p
+              className={cn(
+                "text-[11px]",
+                turnoOk ? "text-muted-foreground" : "text-destructive",
+              )}
+            >
+              {franjasHoy.length === 0
+                ? `No se atiende ${losDias(diaSemanaIso(fecha))}. Elige otra fecha.`
+                : `El ${DIAS_SEMANA[diaSemanaIso(fecha) - 1]} se atiende ${franjasTexto(franjasHoy)}.`}
+              {franjasHoy.length > 0 && !turnoOk && " El tramo tiene que caber entero en ese horario."}
+            </p>
           )}
 
           <div className="space-y-2">

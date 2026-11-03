@@ -119,20 +119,33 @@ reservas, con un matiz:
 
 Encenderlo de nuevo reabre las reservas.
 
-### Horarios fijos (servicios por hora)
+### Horario (servicios por horas)
 
-Un servicio **por hora** puede publicar sus **turnos**: la clase de yoga los martes y jueves de
-18:00 a 19:00, o los turnos de hora y media de una cancha.
+Un servicio **por horas** puede publicar su horario, y elegir qué significa:
 
-- **Sin turnos**, el servicio se reserva como siempre: en cualquier tramo de 30 minutos.
-- **Con al menos un turno**, solo se reserva en ellos. Fuera de los turnos se rechaza diciendo
-  cuáles hay ese día ("el martes hay: 18:00–19:00, 19:00–20:00") o que ese día no hay ninguno.
-- Los turnos son **del servicio** y valen para todos sus recursos: las dos canchas comparten sus
-  turnos, las salas su horario.
+| Modo | Qué se publica | Qué se puede reservar | Ejemplo |
+|---|---|---|---|
+| **Horario de atención** (por defecto) | Las franjas en que se atiende | Cualquier tramo que quepa **entero en una** franja de ese día, en medias horas o en bloques de su tarifa | Cancha: lunes a viernes de 08:00 a 12:00 y de 14:00 a 22:00 |
+| **Turnos exactos** | Los tramos que se ofrecen | Solo esos tramos, enteros | Yoga: martes y jueves de 18:00 a 19:00 |
 
-En la sección **Horarios fijos** de cada servicio por hora (en Recursos) se eligen los días (Lu a
-Do), la hora de inicio y la de fin, y **Agregar turno** crea uno por cada día elegido. La **×** de
-un turno lo quita.
+- **Sin horario**, el servicio se reserva como siempre: en cualquier tramo de 30 minutos, a
+  cualquier hora.
+- **Por atención**, de 11:00 a 15:00 no cabe si se atiende de 08:00 a 12:00 y de 14:00 a 22:00,
+  aunque empiece y termine dentro de alguna. Fuera del horario se rechaza diciendo el de ese día
+  ("atiende el martes de 08:00 a 12:00 y de 14:00 a 22:00") o que ese día no atiende. La
+  cuadrícula no ofrece **+** en los días que no se atiende, y el formulario muestra el horario del
+  día debajo de las horas.
+- **Por turnos**, fuera de ellos se rechaza diciendo cuáles hay ese día ("el martes hay:
+  18:00–19:00, 19:00–20:00"). En la cuadrícula y el formulario el turno se elige, no se escribe.
+- El horario es **del servicio** y vale para todos sus recursos: las dos canchas comparten su
+  horario, las salas sus turnos.
+- **El modo se cambia cuando se quiera** con el selector de la sección: las mismas filas pasan a
+  leerse de la otra forma, y no se toca ninguna reserva. Los servicios que ya tenían turnos antes
+  de que existiera el modo quedaron como **turnos exactos**.
+
+En la sección **Horario** de cada servicio por horas (en Recursos) se eligen los días (Lu a Do),
+la hora de inicio y la de fin, y **Agregar horario** (o **Agregar turno**) crea uno por cada día
+elegido. La **×** lo quita.
 
 Reglas:
 
@@ -227,7 +240,8 @@ Botón **Nueva reserva** arriba, o tocando una celda libre.
 | Desde y Semanas / Meses | La salida se calcula sola y se muestra debajo ("Hasta el 15/03/2030") |
 | Fecha, Desde y Hasta (por hora) | En tramos de 30 minutos. El mismo día: no puede cruzar la medianoche |
 | Fecha, Desde y Bloques (por bloque) | El fin se calcula solo ("Hasta las 16:00"); no puede pasar de la medianoche |
-| Fecha y Turno (con horarios fijos) | En vez de escribir las horas, se elige uno de los turnos de ese día. Si no hay, lo dice |
+| Fecha y Turno (con turnos exactos) | En vez de escribir las horas, se elige uno de los turnos de ese día. Si no hay, lo dice |
+| Horario del día (con horario de atención) | Debajo de las horas: "El martes se atiende de 08:00 a 12:00 y de 14:00 a 22:00", en rojo si el tramo no cabe |
 | Personas / Cupos | Por defecto 1. No puede pasar de la capacidad (exclusivo) ni de lo que queda libre (compartido) |
 | Titular | Obligatorio |
 | Documento, Teléfono, Notas | Opcionales. Se pueden renombrar u ocultar en Ajustes › Columnas › Reservas |

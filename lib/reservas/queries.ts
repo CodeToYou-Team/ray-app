@@ -32,7 +32,14 @@ import {
 import { normalizeMoney, subtractMoney, sumMoney } from "@/lib/money";
 import { escapeLike } from "@/lib/finanzas/queries";
 import { bordesLocalesSql, periodoSql } from "./periodo";
-import { describirCantidad, sinCeros, totalReserva, type Tarifa, type Turno } from "./rango";
+import {
+  describirCantidad,
+  sinCeros,
+  totalReserva,
+  type ModoHorario,
+  type Tarifa,
+  type Turno,
+} from "./rango";
 
 export interface ResourceRow {
   id: string;
@@ -105,8 +112,10 @@ export interface BookableService {
   resources: ResourceRow[];
   /** Tarifas activas. Sin ninguna no se puede reservar. */
   tarifas: TarifaRow[];
-  /** Turnos publicados. Vacío = se reserva en cualquier tramo de 30 minutos. */
+  /** Horarios publicados. Vacío = se reserva en cualquier tramo de 30 minutos. */
   turnos: Turno[];
+  /** Qué son esos horarios: franja de atención o turnos exactos. */
+  horario: ModoHorario;
 }
 
 /**
@@ -134,6 +143,7 @@ export async function listBookableServices(
         shared: services.bookingShared,
         perPerson: services.bookingPerPerson,
         resourceLabel: services.resourceLabel,
+        horario: services.scheduleMode,
         price: services.price,
         currency: services.currency,
       })
@@ -238,6 +248,7 @@ export interface ServiceSetupRow {
   perPerson: boolean;
   resourceLabel: string | null;
   turnos: Turno[];
+  horario: ModoHorario;
   tarifas: TarifaRow[];
   /** Si ya tiene reservas, la unidad no se puede cambiar. */
   bookingCount: number;
@@ -262,6 +273,7 @@ export async function listServicesForSetup(
         shared: services.bookingShared,
         perPerson: services.bookingPerPerson,
         resourceLabel: services.resourceLabel,
+        horario: services.scheduleMode,
       })
       .from(services)
       .where(and(eq(services.tenantId, tenantId), isNull(services.deletedAt)))

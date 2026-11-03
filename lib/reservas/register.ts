@@ -45,8 +45,9 @@ import { bordesLocalesSql, periodoSql } from "./periodo";
 import {
   bordesLocales,
   cantidad,
+  cumpleHorario,
   diaSemanaIso,
-  encajaEnTurno,
+  franjasTexto,
   hoyEn,
   losDias,
   nombreTarifa,
@@ -59,6 +60,7 @@ import {
   type Rango,
   type RangoHoras,
   type Tarifa,
+  type ModoHorario,
   type Turno,
   type Unidad,
 } from "./rango";
@@ -155,7 +157,8 @@ async function turnosDe(tx: Tx, tenantId: string, serviceId: string): Promise<Tu
 }
 
 /**
- * Si el tramo pedido es uno de los turnos publicados del servicio.
+ * Si el tramo pedido respeta el horario del servicio: cabe en una franja de
+ * atención, o es exactamente uno de sus turnos (`cumpleHorario`).
  *
  * En la aplicación y no en un trigger, a propósito: a diferencia de la doble
  * reserva o los cupos, aquí no hay carrera que cerrar. Es validar un dato de
@@ -167,14 +170,23 @@ async function turnosDe(tx: Tx, tenantId: string, serviceId: string): Promise<Tu
 async function validarTurno(
   tx: Tx,
   tenantId: string,
-  servicio: { id: string; name: string },
+  servicio: { id: string; name: string; scheduleMode: ModoHorario },
   rango: RangoHoras,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const turnos = await turnosDe(tx, tenantId, servicio.id);
-  if (encajaEnTurno(turnos, rango)) return { ok: true };
+  if (cumpleHorario(servicio.scheduleMode, turnos, rango)) return { ok: true };
 
   const delDia = turnosDelDia(turnos, rango.fecha);
   const dia = diaSemanaIso(rango.fecha);
+  if (servicio.scheduleMode === "atencion") {
+    return {
+      ok: false,
+      error:
+        delDia.length === 0
+          ? `"${servicio.name}" no atiende ${losDias(dia)}.`
+          : `"${servicio.name}" atiende el ${DIAS_SEMANA[dia - 1]} ${franjasTexto(delDia)}: el tramo tiene que caber entero en una de esas horas.`,
+    };
+  }
   if (delDia.length === 0) {
     return {
       ok: false,
@@ -1908,7 +1920,7 @@ export async function updateBooking(
       const cambiaRango = nuevos.inicio !== r.inicio || nuevos.fin !== r.fin;
       if (rango.unidad === "hora" && cambiaRango) {
         const [servicio] = await tx
-          .select({ id: services.id, name: services.name })
+          .select({ id: services.id, name: services.name, scheduleMode: services.scheduleMode })
           .from(services)
           .where(and(eq(services.id, r.serviceId), eq(services.tenantId, tenantId)));
         const turno = await validarTurno(tx, tenantId, servicio, rango);
@@ -2142,6 +2154,55 @@ export async function addSchedule(
       };
     }
     return { ok: false, error: "No se pudo guardar el turno." };
+  }
+}
+
+/**
+ * Qué son los horarios de un servicio: la franja en la que se atiende o
+ * turnos exactos. No toca ninguna reserva (nada referencia un horario) y no
+ * cambia los horarios publicados: la misma fila "martes de 08:00 a 20:00"
+ * pasa a leerse de otra forma.
+ */
+export async function setScheduleMode(
+  { tenantId, userId }: ActorContext,
+  raw: { serviceId: string; modo: ModoHorario },
+): Promise<Result> {
+  const parsed = z
+    .object({ serviceId: z.uuid(), modo: z.enum(["atencion", "turnos"]) })
+    .safeParse(raw);
+  if (!parsed.success) return { ok: false, error: "Datos inválidos." };
+  const { serviceId, modo } = parsed.data;
+
+  try {
+    return await withTenant(tenantId, async (tx) => {
+      const [servicio] = await tx
+        .select({ id: services.id, name: services.name, antes: services.scheduleMode })
+        .from(services)
+        .where(
+          and(eq(services.id, serviceId), eq(services.tenantId, tenantId), isNull(services.deletedAt)),
+        );
+      if (!servicio) return { ok: false as const, error: "Ese servicio ya no existe." };
+      if (servicio.antes === modo) return { ok: true as const };
+
+      await tx
+        .update(services)
+        .set({ scheduleMode: modo })
+        .where(and(eq(services.id, servicio.id), eq(services.tenantId, tenantId)));
+
+      await tx.insert(auditLog).values({
+        id: uuidv7(),
+        tenantId,
+        entity: "services",
+        entityId: servicio.id,
+        action: "update",
+        actorId: userId,
+        diff: { scheduleMode: { from: servicio.antes, to: modo } },
+      });
+
+      return { ok: true as const };
+    });
+  } catch {
+    return { ok: false, error: "No se pudo guardar el cambio." };
   }
 }
 

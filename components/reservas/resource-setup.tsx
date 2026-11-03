@@ -32,6 +32,7 @@ import {
   createResource,
   removeSchedule,
   setResourceLabel,
+  setScheduleMode,
   updateRate,
   updateResourceCapacity,
 } from "@/lib/reservas/actions";
@@ -44,6 +45,7 @@ import {
   porUnidad,
   recursoLabel,
   TARIFAS_DEL_GRANO,
+  type ModoHorario,
   type Turno,
   type Unidad,
   type UnidadTarifa,
@@ -64,6 +66,8 @@ export interface SetupService {
   bookingCount: number;
   resources: { id: string; name: string; notes: string | null; capacity: number }[];
   turnos: Turno[];
+  /** Qué son sus horarios: franja de atención o turnos exactos. */
+  horario: ModoHorario;
   /** Activas. Un servicio reservable tiene al menos una. */
   tarifas: TarifaRow[];
 }
@@ -346,6 +350,7 @@ function ServiceCard({ service }: { service: SetupService }) {
           {service.unidad === "hora" && (
             <Horarios
               serviceId={service.id}
+              modo={service.horario}
               turnos={service.turnos}
               pending={pending}
               correr={correr}
@@ -767,11 +772,13 @@ const DIAS_CORTOS = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"];
  */
 function Horarios({
   serviceId,
+  modo,
   turnos,
   pending,
   correr,
 }: {
   serviceId: string;
+  modo: ModoHorario;
   turnos: Turno[];
   pending: boolean;
   correr: (accion: () => Promise<{ ok: boolean; error?: string }>, despues?: () => void) => void;
@@ -789,13 +796,34 @@ function Horarios({
 
   return (
     <div className="space-y-3 border-t pt-4">
-      <div>
-        <p className="text-sm font-medium">Horarios fijos</p>
-        <p className="text-[11px] text-muted-foreground">
-          {turnos.length === 0
-            ? "Sin horarios: se reserva en cualquier tramo de 30 minutos. Publica turnos si solo se puede reservar en ciertas horas (una clase los martes a las 18:00, turnos de hora y media)."
-            : "Solo se puede reservar en estos turnos. Quitar uno no toca las reservas que ya se hicieron en él."}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="max-w-md">
+          <p className="text-sm font-medium">Horario</p>
+          <p className="text-[11px] text-muted-foreground">
+            {modo === "atencion"
+              ? turnos.length === 0
+                ? "Sin horario: se reserva a cualquier hora, en tramos de 30 minutos. Pon las horas en que atiendes (lunes a viernes de 08:00 a 20:00) y solo se podrá reservar dentro."
+                : "Se reserva cualquier tramo que quepa entero en una de estas franjas: en medias horas o en bloques de su tarifa. Cambiarlas no toca las reservas hechas."
+              : turnos.length === 0
+                ? "Sin turnos: se reserva en cualquier tramo de 30 minutos. Publica turnos si solo se reserva en tramos exactos (una clase los martes a las 18:00)."
+                : "Solo se puede reservar en estos turnos, enteros. Quitar uno no toca las reservas que ya se hicieron en él."}
+          </p>
+        </div>
+        <Select
+          value={modo}
+          onValueChange={(v) =>
+            correr(() => setScheduleMode({ serviceId, modo: v as ModoHorario }))
+          }
+          disabled={pending}
+        >
+          <SelectTrigger className="w-56">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="atencion">Horario de atención</SelectItem>
+            <SelectItem value="turnos">Turnos exactos (clases, tours)</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {turnos.length > 0 && (
@@ -893,7 +921,7 @@ function Horarios({
           </div>
           <Button type="submit" variant="outline" size="sm" disabled={pending || !valido}>
             <IconPlus className="size-3.5" />
-            Agregar turno
+            {modo === "atencion" ? "Agregar horario" : "Agregar turno"}
           </Button>
         </div>
         {fin && inicio && fin <= inicio && (

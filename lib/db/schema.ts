@@ -396,6 +396,14 @@ export type BookingUnit = (typeof bookingUnit.enumValues)[number];
  * (se reserva por fechas) y admite `dia`, `noche`, `semana` y `mes`; `hora`
  * admite `hora` y `bloque`. Ver `TARIFAS_DEL_GRANO` en lib/reservas/rango.ts.
  */
+/**
+ * Que son los horarios de un servicio por horas: la franja en la que se
+ * atiende (se reserva cualquier tramo dentro) o turnos exactos (la clase de
+ * 18:00 a 19:00). Ver drizzle/0026_service_schedule_mode.sql.
+ */
+export const scheduleMode = pgEnum("schedule_mode", ["atencion", "turnos"]);
+export type ScheduleMode = (typeof scheduleMode.enumValues)[number];
+
 export const rateUnit = pgEnum("rate_unit", ["hora", "bloque", "dia", "noche", "semana", "mes"]);
 export type RateUnit = (typeof rateUnit.enumValues)[number];
 
@@ -431,6 +439,8 @@ export const services = pgTable(
     bookingShared: boolean("booking_shared").notNull().default(false),
     /** Por persona (el tour, 15 c/u) o por reserva (la habitacion, 40 vayan 1 o 3). */
     bookingPerPerson: boolean("booking_per_person").notNull().default(false),
+    /** Que son sus horarios (`service_schedules`), si tiene. */
+    scheduleMode: scheduleMode("schedule_mode").notNull().default("atencion"),
     /**
      * Como se llaman sus recursos en pantalla: "Habitación", "Cancha".
      * NULL = el generico, que decide `recursoLabel()` en lib/reservas/rango.ts.

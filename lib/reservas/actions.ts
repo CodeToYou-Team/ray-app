@@ -18,6 +18,7 @@ import {
   archiveRate as archiveRateCore,
   addSchedule as addScheduleCore,
   removeSchedule as removeScheduleCore,
+  setScheduleMode as setScheduleModeCore,
   updateBooking as updateBookingCore,
   updateResourceCapacity as updateResourceCapacityCore,
   type BookingResult,
@@ -129,6 +130,18 @@ export async function archiveRate(input: { id: string }): Promise<Result> {
   const { tenantId, user } = await requireCapability("resource:manage");
   try {
     return await archiveRateCore({ tenantId, userId: user.id }, input);
+  } finally {
+    revalidateReservas();
+  }
+}
+
+export async function setScheduleMode(input: {
+  serviceId: string;
+  modo: "atencion" | "turnos";
+}): Promise<Result> {
+  const { tenantId, user } = await requireCapability("resource:manage");
+  try {
+    return await setScheduleModeCore({ tenantId, userId: user.id }, input);
   } finally {
     revalidateReservas();
   }

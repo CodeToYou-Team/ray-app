@@ -606,6 +606,19 @@ reserva guardó cómo se calculó la suya).
      en Finanzas. Al marcar un servicio como reservable se crea su primera tarifa con ese
      precio; la migración hace lo mismo con los que ya se reservaban, y les copia su tarifa y
      su `qty` a las reservas existentes.
+7. **Horario de atención.** Los horarios de la fase 4 solo significaban turnos exactos: para una
+   cancha había que publicar 08–09, 08–10, 09–10… Ahora cada servicio dice qué son
+   (`services.schedule_mode`):
+   - **`atencion`** (por defecto): la franja en que se atiende. Vale cualquier tramo que quepa
+     **entero en una** franja del día; la duración la siguen midiendo la tarifa (medias horas o
+     bloques completos) y `cantidad()`.
+   - **`turnos`**: los tramos exactos de siempre (la clase, el tour).
+   - **La tabla no cambia.** Una franja y un turno tienen la misma forma, y el `EXCLUDE` que
+     impide que se pisen vale para los dos. Cambiar de modo no toca nada más: las mismas filas
+     se leen de otra forma (`cumpleHorario()`), y nada referencia un horario.
+   - La migración deja en `turnos` a los servicios que ya tenían horarios publicados: lo que
+     funcionaba no cambia de significado.
+   - Sigue sin cruzar la medianoche: un bar de 20:00 a 02:00 queda fuera.
 
 ---
 
