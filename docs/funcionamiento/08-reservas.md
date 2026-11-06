@@ -245,7 +245,7 @@ Cómo se ve cada reserva:
 | Recurso | Se muestra | Al tocarlo |
 |---|---|---|
 | Exclusivo, por noche | Un bloque con el nombre del titular que abarca sus noches. `‹` o `›` si empieza antes o sigue después de la ventana | Detalle de la reserva |
-| Exclusivo, por hora | Una ficha con la hora de inicio dentro del día | Detalle de la reserva |
+| Exclusivo, por hora | Una ficha con la hora de inicio dentro del día ("22:00→" si sigue al día siguiente). En los días siguientes, "→10:00" con su salida, o "todo el día" | Detalle de la reserva |
 | Exclusivo, con horarios fijos | Los turnos de ese día: ocupados con su reserva, libres con borde punteado | Ocupado: el detalle. Libre: nueva reserva en ese turno |
 | Compartido, por noche | La ocupación de cada noche, por ejemplo `5/8` | Lista de quiénes van esa noche |
 | Compartido, por hora | Una ficha por turno con hora y ocupación, por ejemplo `18:00 · 7/15` | Lista de quiénes van en ese turno |
@@ -282,8 +282,8 @@ Botón **Nueva reserva** arriba, o tocando una celda libre.
 | Entrada y Salida (por noche) | La noche del día de salida **no se cobra**: del 10 al 12 son 2 noches. Si se mueve la entrada más allá de la salida, la salida se corre sola |
 | Primer día y Último día (por día) | Los dos incluidos |
 | Desde y Semanas / Meses | La salida se calcula sola y se muestra debajo ("Hasta el 15/03/2030") |
-| Fecha, Desde y Hasta (por hora) | Se eligen de una lista en tramos de 30 minutos. El mismo día: "Hasta" llega a 24:00, pero no cruza la medianoche |
-| Fecha, Desde y Bloques (por bloque) | El fin se calcula solo ("Hasta las 16:00"); puede llegar a las 24:00, no pasarlas |
+| Fecha, Desde, Sale el y Hasta (por hora) | Las horas se eligen de una lista en tramos de 30 minutos. **Sale el** es el mismo día por defecto; otro día permite cruzar la medianoche (de 22:00 a 10:00 del siguiente), hasta 7 días |
+| Fecha, Desde y Bloques (por bloque) | La salida se calcula sola, también otro día: "Hasta las 16:00" o "Hasta el 08/04/2030 a las 02:00" (un bloque de 12 h desde las 14:00) |
 | Fecha y Turno (con turnos exactos) | En vez de escribir las horas, se elige uno de los turnos de ese día. Si no hay, lo dice |
 | Horario del día (con horario de atención) | Debajo de las horas: "El martes se atiende de 08:00 a 12:00 y de 14:00 a 22:00", en rojo si el tramo no cabe |
 | Personas / Cupos | Por defecto 1. No puede pasar de la capacidad (exclusivo) ni de lo que queda libre (compartido) |
@@ -311,6 +311,14 @@ Reglas de tiempo:
   en la zona horaria del negocio. Salir el 12 y entrar el 12 no choca.
 - **Por hora**, los tramos que se tocan no chocan (de 18:00 a 19:00 y de 19:00 a 20:00 sí se
   pueden); los que se pisan, sí.
+- **Por hora, una reserva puede cruzar la medianoche**: de 22:00 a 10:00 del día siguiente, o un
+  bloque de 24 h desde las 09:00. Son instantes reales, así que choca con la que empieza a las 09:00
+  de la mañana siguiente. Una salida a la medianoche se guarda como "24:00" de ese día, no como
+  "00:00" del siguiente. No puede pasar de 7 días: para más, el servicio se reserva por fechas.
+- **Con horario de atención, cada día tiene que cubrir su parte**: de 22:00 a 10:00 necesita que el
+  día de entrada se atienda hasta las 24:00 y el de salida desde las 00:00 hasta las 10:00. Si no
+  cabe, el aviso dice qué día. Con **turnos exactos** no se cruza la medianoche: un turno es de un
+  día.
 - Una reserva por noche no puede pasar de 365 noches.
 
 ### Columnas personalizadas
@@ -515,7 +523,8 @@ Cada cobro **es un ingreso normal**:
 | Grupo más grande que el recurso | "\"301\" admite hasta 3 personas." / "\"Sala\" tiene 15 cupos en total." |
 | Salida antes o igual que la entrada | "La salida tiene que ser al menos un día después de la entrada." |
 | Tramo que no es de 30 minutos | "La duración tiene que ir en tramos de 30 minutos." |
-| Tramo que cruza la medianoche | "La hora de fin tiene que ser después de la de inicio, el mismo día." |
+| Salida antes de la entrada | "La salida tiene que ser después de la entrada." |
+| Por horas, más de 7 días | "Una reserva por horas no puede pasar de 7 días. Para más, resérvalo por fechas." |
 | Llegada antes de tiempo | "La llegada es el 10/11/2026. Todavía no se puede hacer check-in." |
 | Cobro mayor que el saldo | "El cobro pasa del saldo, que es 80.00 USD." |
 | Cobro en otra moneda sin tasa | "La reserva es en USD y el pago en VES. Escribe la tasa que aplicaste." |

@@ -55,6 +55,9 @@ import {
   totalReserva,
   turnosDelDia,
   horasEnTramos,
+  normalizarRango,
+  sumarMinutos,
+  tramoFueraDeHorario,
   TRAMO_MINUTOS,
   type Rango,
 } from "@/lib/reservas/rango";
@@ -170,6 +173,10 @@ export function BookingForm({
   const [fin, setFin] = useState(
     editing ? editing.fin.slice(11, 16) : (inicial.fin ?? "10:00"),
   );
+  /** Día de salida: puede ser otro si cruza la medianoche (22:00 a 10:00). */
+  const [fechaFin, setFechaFin] = useState(
+    editing ? editing.fin.slice(0, 10) : inicial.fecha,
+  );
   /**
    * Cuántas semanas, meses o bloques, para las tarifas que no se escriben con
    * dos fechas u horas: el final sale de aquí y del comienzo.
@@ -217,9 +224,15 @@ export function BookingForm({
   const conTurnos = unidad === "hora" && horario === "turnos" && turnosServicio.length > 0;
   const conFranjas = unidad === "hora" && horario === "atencion" && turnosServicio.length > 0;
   const porBloques = unidadTarifa === "bloque" && !conTurnos;
+  /**
+   * Por bloques, la salida sale de la entrada y de cuántos: 2 bloques de 12 h
+   * desde las 14:00 terminan a las 14:00 del día siguiente.
+   */
   const finBloques = porBloques
-    ? minutosAHora(horaAMinutos(inicio) + nCuantas * (tarifa?.minutes ?? 0))
+    ? sumarMinutos(fecha, inicio, nCuantas * (tarifa?.minutes ?? 0))
     : null;
+  // Un turno es de un día: con turnos, la salida es el mismo día.
+  const fechaSalida = conTurnos ? fecha : fechaFin;
 
   // Semanas y meses se piden como "desde + cuántas"; la salida sale de ahí.
   // Por día, el último día se muestra incluido y se guarda el siguiente.
@@ -233,16 +246,20 @@ export function BookingForm({
   const rango: Rango =
     unidad === "noche"
       ? { unidad, desde, hasta: hastaFechas }
-      : { unidad, fecha, inicio, fin: finBloques ?? fin };
+      : normalizarRango({
+          unidad,
+          fecha,
+          inicio,
+          fin: finBloques?.fin ?? fin,
+          fechaFin: finBloques?.fechaFin ?? fechaSalida,
+        });
 
   const cant: ReturnType<typeof cantidad> =
     (unidadTarifa === "semana" || unidadTarifa === "mes" || porBloques) && !cuantasValidas
       ? { ok: false, error: "Escribe cuántas, en números enteros." }
-      : porBloques && finBloques === null
-        ? { ok: false, error: "Esos bloques pasan de la medianoche." }
-        : !tarifa
-          ? { ok: false, error: "Elige una tarifa." }
-          : cantidad(rango, tarifa);
+      : !tarifa
+        ? { ok: false, error: "Elige una tarifa." }
+        : cantidad(rango, tarifa);
 
   /**
    * Con horarios fijos, el tramo se elige entre los turnos del día, no se
@@ -251,16 +268,24 @@ export function BookingForm({
    * aplica la misma regla).
    */
   const turnosHoy = conTurnos ? turnosDelDia(turnosServicio, fecha) : [];
+  const bordesPedidos = bordesLocales(rango);
   const horasSinCambio = Boolean(
-    editing &&
-      editing.inicio === `${fecha}T${inicio}` &&
-      editing.fin === `${fecha}T${fin}`,
+    editing && editing.inicio === bordesPedidos.inicio && editing.fin === bordesPedidos.fin,
   );
-  const franjasHoy = conFranjas ? turnosDelDia(turnosServicio, fecha) : [];
   const turnoOk =
+    rango.unidad !== "hora" ||
     (!conTurnos && !conFranjas) ||
     horasSinCambio ||
-    cumpleHorario(horario, turnosServicio, { unidad: "hora", fecha, inicio, fin: finBloques ?? fin });
+    cumpleHorario(horario, turnosServicio, rango);
+  // El día cuyo horario se muestra: el que no cabe (con un rango que cruza la
+  // medianoche puede ser el de salida); si todo cabe, el de entrada.
+  const fuera =
+    conFranjas && rango.unidad === "hora" && !turnoOk
+      ? tramoFueraDeHorario(turnosServicio, rango)
+      : null;
+  const diaHorario = fuera?.fecha ?? fecha;
+  const franjasHoy = conFranjas ? turnosDelDia(turnosServicio, diaHorario) : [];
+  const cruzaMedianoche = rango.unidad === "hora" && Boolean(rango.fechaFin);
 
   const nPersonas = Number(personas);
   const personasValidas = Number.isInteger(nPersonas) && nPersonas >= 1;
@@ -326,8 +351,14 @@ export function BookingForm({
   // Exclusivo ocupado: alguien ya lo tiene. Compartido: no quedan cupos para
   // este grupo. Exclusivo libre pero grupo grande: no cabe.
   const recursoOcupado = Boolean(resourceId && cant.ok && libresRecurso === 0);
+  // Sin un rango válido no se calculó cuánto queda: no se puede decir que no
+  // cabe (antes decía "admite hasta 1 persona" con una sola).
   const noCabe =
-    Boolean(recurso) && personasValidas && !recursoOcupado && nPersonas > libresRecurso;
+    Boolean(recurso) &&
+    libres.has(resourceId) &&
+    personasValidas &&
+    !recursoOcupado &&
+    nPersonas > libresRecurso;
 
   const puedeGuardar =
     servicio &&
@@ -569,7 +600,13 @@ export function BookingForm({
                   type="date"
                   value={fecha}
                   disabled={entradaFija}
-                  onChange={(e) => setFecha(e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setFecha(v);
+                    // Si salía el mismo día, sigue saliendo el mismo día; y la
+                    // salida nunca queda antes de la entrada.
+                    if (fechaFin === fecha || fechaFin < v) setFechaFin(v);
+                  }}
                 />
               </div>
               {conTurnos ? (
@@ -622,8 +659,8 @@ export function BookingForm({
                       onChange={(v) => {
                         setInicio(v);
                         // Que "hasta" siga siendo después: mueve el fin con la
-                        // misma duración si quedaba antes o igual.
-                        if (fin <= v) {
+                        // misma duración si quedaba antes o igual el mismo día.
+                        if (fechaFin === fecha && fin <= v) {
                           const dur = Math.max(
                             TRAMO_MINUTOS,
                             horaAMinutos(fin) - horaAMinutos(inicio),
@@ -645,20 +682,43 @@ export function BookingForm({
                         onChange={(e) => setCuantas(e.target.value)}
                         className="font-mono"
                       />
-                      {finBloques && (
-                        <p className="text-[11px] text-muted-foreground">Hasta las {finBloques}</p>
+                      {finBloques && cuantasValidas && (
+                        <p className="text-[11px] text-muted-foreground">
+                          {finBloques.fechaFin === fecha
+                            ? `Hasta las ${finBloques.fin}`
+                            : `Hasta el ${formatDate(finBloques.fechaFin)} a las ${finBloques.fin}`}
+                        </p>
                       )}
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      <Label htmlFor="fin">Hasta</Label>
-                      <HoraSelect
-                        id="fin"
-                        value={fin}
-                        opciones={horasEnTramos(horaAMinutos(inicio) + TRAMO_MINUTOS)}
-                        onChange={setFin}
-                      />
-                    </div>
+                    <>
+                      <div className="space-y-2 sm:col-start-1">
+                        <Label htmlFor="fecha-fin">Sale el</Label>
+                        <Input
+                          id="fecha-fin"
+                          type="date"
+                          value={fechaFin}
+                          min={fecha}
+                          max={sumarDias(fecha, 7)}
+                          onChange={(e) => setFechaFin(e.target.value || fecha)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="fin">Hasta</Label>
+                        <HoraSelect
+                          id="fin"
+                          value={fin}
+                          // Otro día, desde las 00:30: las 00:00 son las 24:00
+                          // del día anterior.
+                          opciones={
+                            fechaFin === fecha
+                              ? horasEnTramos(horaAMinutos(inicio) + TRAMO_MINUTOS)
+                              : horasEnTramos(TRAMO_MINUTOS)
+                          }
+                          onChange={setFin}
+                        />
+                      </div>
+                    </>
                   )}
                 </>
               )}
@@ -673,9 +733,13 @@ export function BookingForm({
               )}
             >
               {franjasHoy.length === 0
-                ? `No se atiende ${losDias(diaSemanaIso(fecha))}. Elige otra fecha.`
-                : `El ${DIAS_SEMANA[diaSemanaIso(fecha) - 1]} se atiende ${franjasTexto(franjasHoy)}.`}
-              {franjasHoy.length > 0 && !turnoOk && " El tramo tiene que caber entero en ese horario."}
+                ? `No se atiende ${losDias(diaSemanaIso(diaHorario))}. Elige otra fecha.`
+                : `El ${DIAS_SEMANA[diaSemanaIso(diaHorario) - 1]} se atiende ${franjasTexto(franjasHoy)}.`}
+              {franjasHoy.length > 0 &&
+                !turnoOk &&
+                (cruzaMedianoche
+                  ? " Si cruza la medianoche, tiene que caber en el horario de cada día."
+                  : " El tramo tiene que caber entero en ese horario.")}
             </p>
           )}
 
@@ -841,7 +905,18 @@ function describirRango(r: BoardBooking): string {
   if (r.unidad === "noche") {
     return `${formatDate(r.inicio.slice(0, 10))} → ${formatDate(r.fin.slice(0, 10))}`;
   }
-  return `${formatDate(r.inicio.slice(0, 10))}, ${r.inicio.slice(11, 16)}–${r.fin.slice(11, 16)}`;
+  return textoRangoHoras(r.inicio, r.fin);
+}
+
+/**
+ * "07/11/2026, 14:00–18:00", o con las dos fechas si cruza la medianoche:
+ * "07/11/2026 22:00 → 08/11/2026 10:00".
+ */
+export function textoRangoHoras(inicio: string, fin: string): string {
+  if (fin.slice(0, 10) === inicio.slice(0, 10)) {
+    return `${formatDate(inicio.slice(0, 10))}, ${inicio.slice(11, 16)}–${fin.slice(11, 16)}`;
+  }
+  return `${formatDate(inicio.slice(0, 10))} ${inicio.slice(11, 16)} → ${formatDate(fin.slice(0, 10))} ${fin.slice(11, 16)}`;
 }
 
 type Modo = "ver" | "cobrando" | "cancelando" | "saliendo" | "noshow";

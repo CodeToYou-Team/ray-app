@@ -33,7 +33,7 @@ import { formatDate, formatMoney } from "@/lib/format";
 import { compareMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { tableFields } from "@/lib/fields/resolve";
-import { BookingDetail, BookingForm, ESTADO, valorCampo } from "./booking-dialogs";
+import { BookingDetail, BookingForm, ESTADO, textoRangoHoras, valorCampo } from "./booking-dialogs";
 import type { CobroConfig } from "./booking-payment";
 import type { BoardBooking, BoardService, BookingFields } from "./types";
 
@@ -85,7 +85,7 @@ function fechas(b: BoardBooking): string {
   if (b.unidad === "noche") {
     return `${formatDate(b.inicio.slice(0, 10))} → ${formatDate(b.fin.slice(0, 10))}`;
   }
-  return `${formatDate(b.inicio.slice(0, 10))}, ${b.inicio.slice(11, 16)}–${b.fin.slice(11, 16)}`;
+  return textoRangoHoras(b.inicio, b.fin);
 }
 
 /**

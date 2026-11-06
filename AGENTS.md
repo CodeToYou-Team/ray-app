@@ -110,9 +110,14 @@
   (default; any range that fits inside ONE window of the day) or `turnos` (exact
   slots). Check with `cumpleHorario()`, never `encajaEnTurno()` directly: the board,
   the form and the server must read the same rows the same way.
+  Hourly bookings may cross midnight: `RangoHoras.fechaFin` is the departure date
+  (absent = same day), up to 7 days. Everything goes through `normalizarRango()` first
+  (canonical form: no `fechaFin` when same day, a midnight end is "24:00" of the day
+  before). The schedule is checked per day (`tramosPorDia` / `tramoFueraDeHorario`);
+  exact turnos never cross midnight.
   `24:00` is a valid END hour (schedules and hourly bookings): "todo el día" is
-  00:00–24:00. `bordesLocalesSql()` reads such a booking back as `<date>T24:00`, not
-  `<next day>T00:00` — that is why it takes `rate_unit` — so string comparisons and
+  00:00–24:00. `bordesLocalesSql()` reads any hourly midnight end back as `<day before>T24:00`, not
+  `<that day>T00:00` — that is why it takes `rate_unit` — so string comparisons and
   `slice(11, 16)` keep working. The UI saves the whole week at once (`setWeekSchedule`).
   A service's grain and mode change only with no PENDING bookings
   (`reservaPendienteSql`, same predicate as archiving). Old bookings stay readable: a

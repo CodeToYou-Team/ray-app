@@ -11,6 +11,7 @@
  */
 
 import { lineSubtotal, multiplyQuantity } from "@/lib/money";
+import { sumarDias as sumarDiasFecha } from "@/lib/fechas";
 
 export type Unidad = "noche" | "hora";
 
@@ -23,15 +24,27 @@ export interface RangoNoches {
   hasta: string;
 }
 
-/** Por hora: un día y un tramo, en hora local del negocio. */
+/**
+ * Por hora: un día, una hora de entrada y una de salida, en hora local del
+ * negocio. La salida puede caer otro día (de 22:00 a 10:00 del siguiente):
+ * una habitación por horas o por bloques de 12 o 24 horas cruza la
+ * medianoche.
+ *
+ * Forma canónica (`normalizarRango`): sin `fechaFin` si termina el mismo
+ * día, y una salida a la medianoche se escribe "24:00" del día anterior, no
+ * "00:00" del siguiente. Es la misma forma que devuelve `bordesLocalesSql`,
+ * así que comparar como texto lo pedido con lo guardado funciona.
+ */
 export interface RangoHoras {
   unidad: "hora";
-  /** YYYY-MM-DD */
+  /** YYYY-MM-DD. Día de entrada. */
   fecha: string;
   /** HH:MM */
   inicio: string;
-  /** HH:MM */
+  /** HH:MM, o "24:00": la medianoche al final de `fechaFin`. */
   fin: string;
+  /** YYYY-MM-DD. Día de salida, si no es `fecha`. */
+  fechaFin?: string;
 }
 
 export type Rango = RangoNoches | RangoHoras;
@@ -54,6 +67,12 @@ export const TRAMO_MINUTOS = 30;
 
 /** Una reserva por noche no puede pasar de esto. Un año es ya un alquiler. */
 export const MAX_NOCHES = 365;
+
+/**
+ * Una reserva por horas no puede pasar de esto: una semana. Más ya es una
+ * estadía, y se reserva por fechas.
+ */
+export const MAX_MINUTOS_HORAS = 7 * 24 * 60;
 
 /** Días desde el 1970-01-01 de una fecha escrita, sin pasar por ninguna zona. */
 function diaAbsoluto(fecha: string): number {
@@ -222,19 +241,23 @@ export function cantidad(rango: Rango, tarifa: Tarifa = tarifaBase(rango.unidad)
     };
   }
 
-  if (!fechaValida(rango.fecha)) {
+  if (!fechaValida(rango.fecha) || (rango.fechaFin !== undefined && !fechaValida(rango.fechaFin))) {
     return { ok: false, error: "La fecha no es válida." };
   }
   if (!HORA.test(rango.inicio) || !HORA_FIN.test(rango.fin)) {
     return { ok: false, error: "Usa horas con el formato 14:30." };
   }
-  const duracion = minutos(rango.fin) - minutos(rango.inicio);
-  // Un tramo que cruza la medianoche (22:00 a 01:00) queda fuera de la fase 1:
-  // habría que pedir dos fechas, y la mayoría de canchas y salas cierran antes.
+  const duracion = minutosDelRango(rango);
   if (duracion <= 0) {
     return {
       ok: false,
-      error: "La hora de fin tiene que ser después de la de inicio, el mismo día.",
+      error: "La salida tiene que ser después de la entrada.",
+    };
+  }
+  if (duracion > MAX_MINUTOS_HORAS) {
+    return {
+      ok: false,
+      error: "Una reserva por horas no puede pasar de 7 días. Para más, resérvalo por fechas.",
     };
   }
   // En tramos de 30 minutos: cubre la cancha de hora y media sin abrir la
@@ -365,10 +388,82 @@ export function bordesLocales(rango: Rango): { inicio: string; fin: string } {
   if (rango.unidad === "noche") {
     return { inicio: `${rango.desde}T00:00`, fin: `${rango.hasta}T00:00` };
   }
+  const r = normalizarRango(rango);
   return {
-    inicio: `${rango.fecha}T${rango.inicio}`,
-    fin: `${rango.fecha}T${rango.fin}`,
+    inicio: `${r.fecha}T${r.inicio}`,
+    fin: `${diaDeSalida(r)}T${r.fin}`,
   };
+}
+
+/** El día en que termina un rango por horas. */
+export function diaDeSalida(rango: RangoHoras): string {
+  return rango.fechaFin ?? rango.fecha;
+}
+
+/** Cuántos minutos dura un rango por horas, aunque cruce días. */
+export function minutosDelRango(rango: RangoHoras): number {
+  const dias = diaAbsoluto(diaDeSalida(rango)) - diaAbsoluto(rango.fecha);
+  return dias * 24 * 60 + minutos(rango.fin) - minutos(rango.inicio);
+}
+
+/**
+ * La forma canónica de un rango (ver `RangoHoras`). Por noches no cambia.
+ * Todo lo que compara, guarda o valida un rango por horas pasa por aquí.
+ */
+export function normalizarRango<R extends Rango>(rango: R): R {
+  if (rango.unidad === "noche") return rango;
+  const r = rango as RangoHoras;
+  let fechaFin = diaDeSalida(r);
+  let fin = r.fin;
+  // "00:00" del día siguiente es "24:00" del anterior.
+  if (fin === "00:00" && fechaFin > r.fecha) {
+    fechaFin = sumarDiasFecha(fechaFin, -1);
+    fin = FIN_DEL_DIA;
+  }
+  const { fechaFin: _, ...base } = r;
+  void _;
+  return (fechaFin === r.fecha ? { ...base, fin } : { ...base, fin, fechaFin }) as R;
+}
+
+/**
+ * Dónde termina un tramo de `duracion` minutos que empieza en `fecha` a las
+ * `hora`, en forma canónica. Null si la duración no es un número.
+ */
+export function sumarMinutos(
+  fecha: string,
+  hora: string,
+  duracion: number,
+): { fechaFin: string; fin: string } | null {
+  if (!Number.isFinite(duracion)) return null;
+  const total = minutos(hora) + duracion;
+  const dia = 24 * 60;
+  // Termina justo a una medianoche: "24:00" del día anterior.
+  const dias = total % dia === 0 ? total / dia - 1 : Math.floor(total / dia);
+  const resto = total - dias * dia;
+  return {
+    fechaFin: sumarDiasFecha(fecha, dias),
+    fin: `${String(Math.floor(resto / 60)).padStart(2, "0")}:${String(resto % 60).padStart(2, "0")}`,
+  };
+}
+
+/**
+ * Un rango por horas partido en tramos de un solo día: de 22:00 a 10:00 del
+ * siguiente son "22:00–24:00" y "00:00–10:00". Para validar el horario, que
+ * es por día.
+ */
+export function tramosPorDia(rango: RangoHoras): RangoHoras[] {
+  const r = normalizarRango(rango);
+  const salida = diaDeSalida(r);
+  const tramos: RangoHoras[] = [];
+  for (let f = r.fecha; f <= salida; f = sumarDiasFecha(f, 1)) {
+    tramos.push({
+      unidad: "hora",
+      fecha: f,
+      inicio: f === r.fecha ? r.inicio : "00:00",
+      fin: f === salida ? r.fin : FIN_DEL_DIA,
+    });
+  }
+  return tramos;
 }
 
 /**
@@ -508,6 +603,8 @@ export function turnosDelDia(turnos: Turno[], fecha: string): Turno[] {
  */
 export function encajaEnTurno(turnos: Turno[], rango: RangoHoras): boolean {
   if (turnos.length === 0) return true;
+  // Un turno es de un día: un tramo que cruza la medianoche no es ninguno.
+  if (normalizarRango(rango).fechaFin) return false;
   return turnosDelDia(turnos, rango.fecha).some(
     (t) => t.start === rango.inicio && t.end === rango.fin,
   );
@@ -530,10 +627,24 @@ export type ModoHorario = "atencion" | "turnos";
  */
 export function cumpleHorario(modo: ModoHorario, turnos: Turno[], rango: RangoHoras): boolean {
   if (modo === "turnos") return encajaEnTurno(turnos, rango);
-  if (turnos.length === 0) return true;
-  return turnosDelDia(turnos, rango.fecha).some(
-    (t) => t.start <= rango.inicio && rango.fin <= t.end,
-  );
+  return tramoFueraDeHorario(turnos, rango) === null;
+}
+
+/**
+ * Por atención, el primer tramo de un día que no cabe en el horario, o null si
+ * todos caben. Un rango que cruza la medianoche tiene que caber cada día: el
+ * de 22:00 a 10:00 necesita que se atienda hasta las 24:00 y desde las 00:00
+ * del siguiente.
+ */
+export function tramoFueraDeHorario(turnos: Turno[], rango: RangoHoras): RangoHoras | null {
+  if (turnos.length === 0) return null;
+  for (const tramo of tramosPorDia(rango)) {
+    const cabe = turnosDelDia(turnos, tramo.fecha).some(
+      (t) => t.start <= tramo.inicio && tramo.fin <= t.end,
+    );
+    if (!cabe) return tramo;
+  }
+  return null;
 }
 
 /** "de 08:00 a 12:00 y de 14:00 a 20:00": las franjas de un día, para leer. */

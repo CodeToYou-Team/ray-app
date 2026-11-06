@@ -54,6 +54,8 @@ import {
   franjasTexto,
   hoyEn,
   losDias,
+  normalizarRango,
+  tramoFueraDeHorario,
   nombreTarifa,
   sinCeros,
   tarifaBase,
@@ -220,15 +222,32 @@ async function validarTurno(
   const turnos = await turnosDe(tx, tenantId, servicio.id);
   if (cumpleHorario(servicio.scheduleMode, turnos, rango)) return { ok: true };
 
-  const delDia = turnosDelDia(turnos, rango.fecha);
-  const dia = diaSemanaIso(rango.fecha);
   if (servicio.scheduleMode === "atencion") {
+    // El día que no cabe: con un rango que cruza la medianoche puede ser el
+    // de salida.
+    const fuera = tramoFueraDeHorario(turnos, rango) ?? rango;
+    const delDia = turnosDelDia(turnos, fuera.fecha);
+    const dia = diaSemanaIso(fuera.fecha);
+    const cruza = Boolean(normalizarRango(rango).fechaFin);
     return {
       ok: false,
       error:
         delDia.length === 0
           ? `"${servicio.name}" no atiende ${losDias(dia)}.`
-          : `"${servicio.name}" atiende el ${DIAS_SEMANA[dia - 1]} ${franjasTexto(delDia)}: el tramo tiene que caber entero en una de esas horas.`,
+          : `"${servicio.name}" atiende el ${DIAS_SEMANA[dia - 1]} ${franjasTexto(delDia)}: ${
+              cruza
+                ? `de ${fuera.inicio} a ${fuera.fin} de ese día no cabe en el horario.`
+                : "el tramo tiene que caber entero en una de esas horas."
+            }`,
+    };
+  }
+
+  const delDia = turnosDelDia(turnos, rango.fecha);
+  const dia = diaSemanaIso(rango.fecha);
+  if (normalizarRango(rango).fechaFin) {
+    return {
+      ok: false,
+      error: `"${servicio.name}" se reserva en sus turnos, y ninguno cruza la medianoche.`,
     };
   }
   if (delDia.length === 0) {
@@ -356,6 +375,8 @@ const rangoSchema = z.discriminatedUnion("unidad", [
     fecha: z.string(),
     inicio: z.string(),
     fin: z.string(),
+    /** Día de salida, si cruza la medianoche. Ausente = el mismo día. */
+    fechaFin: z.string().optional(),
   }),
 ]);
 
@@ -489,11 +510,13 @@ export async function createBooking(
       if (!elegida.ok) return { ok: false as const, error: elegida.error };
       const tarifa = elegida.tarifa;
 
-      const unidades = cantidad(input.rango as Rango, tarifa);
+      // Forma canónica: lo que se valida, se guarda y se audita es lo mismo.
+      const rango = normalizarRango(input.rango as Rango);
+      const unidades = cantidad(rango, tarifa);
       if (!unidades.ok) return { ok: false as const, error: unidades.error };
 
-      if (input.rango.unidad === "hora") {
-        const turno = await validarTurno(tx, tenantId, servicio, input.rango);
+      if (rango.unidad === "hora") {
+        const turno = await validarTurno(tx, tenantId, servicio, rango);
         if (!turno.ok) return { ok: false as const, error: turno.error };
       }
 
@@ -510,7 +533,7 @@ export async function createBooking(
       const cruce = await cruceConOtroModo(tx, tenantId, {
         resourceId: recurso.id,
         shared: servicio.bookingShared,
-        periodo: periodoSql(input.rango as Rango, timezone),
+        periodo: periodoSql(rango, timezone),
       });
       if (cruce) return { ok: false as const, error: errorOtroModo(recurso.name, servicio.bookingShared) };
 
@@ -524,7 +547,7 @@ export async function createBooking(
         tenantId,
         serviceId: servicio.id,
         resourceId: recurso.id,
-        period: periodoSql(input.rango as Rango, timezone),
+        period: periodoSql(rango, timezone),
         partySize: personas,
         // Copiados del servicio, como el precio: si mañana el tour pasa a
         // cobrarse por grupo, esta reserva conserva cómo se calculó.
@@ -554,7 +577,7 @@ export async function createBooking(
         diff: {
           recurso: recurso.name,
           tarifa: nombreTarifa(tarifa),
-          rango: input.rango,
+          rango,
           titular: input.holderName,
           personas,
           ...(Object.keys(custom.values).length > 0 ? { custom: custom.values } : {}),
@@ -2029,7 +2052,7 @@ export async function updateBooking(
   const parsed = updateSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
   const input = parsed.data;
-  const rango = input.rango as Rango;
+  const rango = normalizarRango(input.rango as Rango);
 
   try {
     return await withTenant(tenantId, async (tx) => {

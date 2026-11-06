@@ -689,6 +689,28 @@ function CeldasHoras({
             className={cn("min-h-10 p-0.5 align-top", f === hoy && "bg-primary/5")}
           >
             <div className="flex flex-col gap-0.5">
+              {/*
+                Las que entraron otro día y siguen este (de 22:00 a 10:00 del
+                siguiente): se ven aquí con su hora de salida, o "todo el día".
+              */}
+              {reservas
+                .filter((b) => b.inicio.slice(0, 10) < f && b.fin.slice(0, 10) >= f)
+                .map((b) => (
+                  <button
+                    key={`${b.id}-${f}`}
+                    type="button"
+                    onClick={() => onVer(b)}
+                    title={`${b.holderName} · ${b.descripcion} · entró el ${b.inicio.slice(0, 10)} a las ${b.inicio.slice(11, 16)}`}
+                    className={cn(
+                      "flex items-center gap-1 truncate rounded px-1 py-0.5 text-left font-mono text-[10px]",
+                      claseReserva(b),
+                    )}
+                  >
+                    {b.fin.slice(0, 10) === f && b.fin.slice(11, 16) !== "24:00"
+                      ? `→${b.fin.slice(11, 16)}`
+                      : "todo el día"}
+                  </button>
+                ))}
               {delDia.map((b) => (
                 <button
                   key={b.id}
@@ -707,6 +729,8 @@ function CeldasHoras({
                     />
                   )}
                   {b.inicio.slice(11, 16)}
+                  {/* Sigue al día siguiente. */}
+                  {b.fin.slice(0, 10) > f && "→"}
                 </button>
               ))}
               {canManage && !pasado && atiende(f) && (

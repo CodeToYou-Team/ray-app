@@ -1,7 +1,7 @@
 import "server-only";
 
 import { sql, type SQL } from "drizzle-orm";
-import type { Rango } from "./rango";
+import { diaDeSalida, normalizarRango, type Rango } from "./rango";
 
 /**
  * El rango de una reserva, convertido a instantes reales. Solo servidor.
@@ -35,9 +35,11 @@ export function periodoSql(rango: Rango, timezone: string): SQL {
       '[)'
     )`;
   }
+  // La salida puede ser otro día (de 22:00 a 10:00 del siguiente).
+  const r = normalizarRango(rango);
   return sql`tstzrange(
-    (${rango.fecha}::date + ${rango.inicio}::time) AT TIME ZONE ${timezone},
-    (${rango.fecha}::date + ${rango.fin}::time) AT TIME ZONE ${timezone},
+    (${r.fecha}::date + ${r.inicio}::time) AT TIME ZONE ${timezone},
+    (${diaDeSalida(r)}::date + ${r.fin}::time) AT TIME ZONE ${timezone},
     '[)'
   )`;
 }
@@ -49,12 +51,12 @@ export function periodoSql(rango: Rango, timezone: string): SQL {
  * compararlos como texto es correcto, que es lo que hace la cuadrícula para
  * saber qué celda ocupa cada reserva.
  *
- * Una reserva POR HORAS que termina a la medianoche se devuelve con fin
- * "<fecha de inicio>T24:00", no "<día siguiente>T00:00": es como se pidió
- * (`bordesLocales` de rango.ts escribe lo mismo), así que "¿cambiaron las
- * horas?" compara igual, la cuadrícula la deja en su día, y "24:00" sigue
- * ordenando después de "23:30" como texto. Por eso hace falta `rateUnit`: una
- * reserva por noches también termina a las 00:00 y esa sí es del día de salida.
+ * Una reserva POR HORAS que termina a una medianoche se devuelve con fin
+ * "<día anterior>T24:00", no "<ese día>T00:00": es la forma canónica de
+ * `normalizarRango` (rango.ts), así que "¿cambiaron las horas?" compara igual,
+ * la cuadrícula no la pinta en un día que no ocupa, y "24:00" sigue ordenando
+ * después de "23:30" como texto. Por eso hace falta `rateUnit`: una reserva
+ * por noches también termina a las 00:00 y esa sí es del día de salida.
  */
 export function bordesLocalesSql(
   periodo: unknown,
@@ -68,8 +70,8 @@ export function bordesLocalesSql(
     fin: sql<string>`CASE
       WHEN ${rateUnit} IN ('hora', 'bloque')
         AND (${hasta})::time = time '00:00'
-        AND (${hasta})::date = (${desde})::date + 1
-      THEN to_char(${desde}, 'YYYY-MM-DD') || 'T24:00'
+        AND (${hasta})::date > (${desde})::date
+      THEN to_char((${hasta})::date - 1, 'YYYY-MM-DD') || 'T24:00'
       ELSE to_char(${hasta}, 'YYYY-MM-DD"T"HH24:MI')
     END`,
   };

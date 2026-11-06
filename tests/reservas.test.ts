@@ -65,7 +65,7 @@ describe("cuántas unidades se cobran", () => {
     });
   });
 
-  it("rechaza tramos sueltos, al revés o cruzando la medianoche", () => {
+  it("rechaza tramos sueltos, al revés, o que cruzan la medianoche sin fecha de salida", () => {
     expect(cantidad({ unidad: "hora", fecha: "2026-11-10", inicio: "14:00", fin: "14:20" }).ok).toBe(false);
     expect(cantidad({ unidad: "hora", fecha: "2026-11-10", inicio: "15:00", fin: "14:00" }).ok).toBe(false);
     expect(cantidad({ unidad: "hora", fecha: "2026-11-10", inicio: "22:00", fin: "01:00" }).ok).toBe(false);
