@@ -21,6 +21,8 @@ import {
   setScheduleMode as setScheduleModeCore,
   updateBooking as updateBookingCore,
   updateResourceCapacity as updateResourceCapacityCore,
+  updateResource as updateResourceCore,
+  setWeekSchedule as setWeekScheduleCore,
   type BookingResult,
   type CheckOutResult,
   type CreateBookingInput,
@@ -52,7 +54,10 @@ export type {
 
 function revalidateReservas() {
   revalidatePath("/reservas");
-  revalidatePath("/reservas/recursos");
+  // La configuración de cada servicio vive en su página, y el listado de
+  // Servicios resume cómo se reserva cada uno.
+  revalidatePath("/servicios");
+  revalidatePath("/servicios/[id]", "page");
 }
 
 export async function createBooking(
@@ -154,6 +159,17 @@ export async function updateResourceCapacity(input: {
   const { tenantId, user } = await requireCapability("resource:manage");
   try {
     return await updateResourceCapacityCore({ tenantId, userId: user.id }, input);
+  } finally {
+    revalidateReservas();
+  }
+}
+
+export async function updateResource(
+  input: Parameters<typeof updateResourceCore>[1],
+): Promise<Result> {
+  const { tenantId, user } = await requireCapability("resource:manage");
+  try {
+    return await updateResourceCore({ tenantId, userId: user.id }, input);
   } finally {
     revalidateReservas();
   }
@@ -270,6 +286,18 @@ export async function removeSchedule(input: { id: string }): Promise<Result> {
   const { tenantId, user } = await requireCapability("resource:manage");
   try {
     return await removeScheduleCore({ tenantId, userId: user.id }, input);
+  } finally {
+    revalidateReservas();
+  }
+}
+
+/** El horario completo de la semana, de una vez. Ver `setWeekSchedule`. */
+export async function setWeekSchedule(
+  input: Parameters<typeof setWeekScheduleCore>[1],
+): Promise<Result> {
+  const { tenantId, user } = await requireCapability("resource:manage");
+  try {
+    return await setWeekScheduleCore({ tenantId, userId: user.id }, input);
   } finally {
     revalidateReservas();
   }

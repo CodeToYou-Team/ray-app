@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   IconPlus,
@@ -48,7 +48,6 @@ import {
   adjustStock,
   createService,
   editService,
-  setServiceArchived,
 } from "@/lib/productos/actions";
 import { CurrencySelect } from "@/components/currency-select";
 import { formatMoney } from "@/lib/format";
@@ -93,14 +92,8 @@ export interface CategoryOption {
 }
 
 interface Props {
-  /**
-   * Que catalogo pinta. Productos y servicios tienen cada uno su pagina y su
-   * grupo en el menu: los productos llevan inventario, los servicios reservas.
-   */
-  kind: "productos" | "servicios";
-  products?: ProductRow[];
-  services?: ServiceRow[];
-  /** Las categorias del catalogo que se pinta. */
+  products: ProductRow[];
+  /** Las categorias de productos. */
   categories: CategoryOption[];
   defaultCurrency: string;
   canManage: boolean;
@@ -113,7 +106,7 @@ interface Props {
  * El nombre que el negocio le dio a una columna fija en Ajustes, o el del
  * codigo. Sin esto, renombrar "SKU" a "Código" se guardaba y no se veia.
  */
-function etiqueta(fields: ResolvedField[], key: string, porDefecto: string): string {
+export function etiqueta(fields: ResolvedField[], key: string, porDefecto: string): string {
   return fields.find((f) => f.source === "fixed" && f.key === key)?.label ?? porDefecto;
 }
 
@@ -122,21 +115,22 @@ function cantidad(value: string): string {
   return value.replace(/\.?0+$/, "") || "0";
 }
 
-type Editing =
+export type Editing =
   | { tab: "productos"; row: ProductRow | null }
   | { tab: "servicios"; row: ServiceRow | null };
 
+/**
+ * El catalogo de productos. Los servicios tienen su propia vista
+ * (components/servicios), porque cada uno abre su pagina con sus reservas.
+ */
 export function CatalogView({
-  kind,
-  products = [],
-  services = [],
+  products,
   categories,
   defaultCurrency,
   canManage,
   canAdjustStock = false,
   fields,
 }: Props) {
-  const tab = kind;
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [editing, setEditing] = useState<Editing | null>(null);
@@ -151,7 +145,6 @@ export function CatalogView({
     );
 
   const visiblesProductos = filtrar(products);
-  const visiblesServicios = filtrar(services);
 
   // Solo las personalizadas marcadas para la tabla: las fijas ya tienen su
   // columna escrita a mano, con su formato propio.
@@ -161,23 +154,19 @@ export function CatalogView({
     <div className="space-y-4 max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold">
-            {kind === "productos" ? "Productos" : "Servicios"}
-          </h2>
+          <h2 className="text-lg font-bold">Productos</h2>
           <p className="text-sm text-muted-foreground">
-            {kind === "productos"
-              ? "Lo que vendes y llevas en inventario."
-              : "Lo que vendes sin inventario. Los que se reservan se configuran en Recursos."}
+            Lo que vendes y llevas en inventario.
           </p>
         </div>
         {canManage && (
           <Button
             size="sm"
             className="gap-1.5"
-            onClick={() => setEditing({ tab, row: null } as Editing)}
+            onClick={() => setEditing({ tab: "productos", row: null })}
           >
             <IconPlus className="size-3.5" />
-            {tab === "productos" ? "Nuevo producto" : "Nuevo servicio"}
+            Nuevo producto
           </Button>
         )}
       </div>
@@ -207,209 +196,123 @@ export function CatalogView({
           </div>
         </div>
 
-        {kind === "productos" && (
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Producto</TableHead>
+                  <TableHead className="w-28">{etiqueta(fields, "sku", "SKU")}</TableHead>
+                  <TableHead>{etiqueta(fields, "category_id", "Categoría")}</TableHead>
+                  <TableHead className="w-28 text-right">{etiqueta(fields, "price", "Precio")}</TableHead>
+                  <TableHead className="w-20 text-right">Stock</TableHead>
+                  {/* Una columna por cada campo personalizado visible. */}
+                  {columnas.map((f) => (
+                    <TableHead key={f.key}>{f.label}</TableHead>
+                  ))}
+                  {canManage && <TableHead className="w-24 text-right" />}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visiblesProductos.length === 0 && (
                   <TableRow>
-                    <TableHead>Producto</TableHead>
-                    <TableHead className="w-28">{etiqueta(fields, "sku", "SKU")}</TableHead>
-                    <TableHead>{etiqueta(fields, "category_id", "Categoría")}</TableHead>
-                    <TableHead className="w-28 text-right">{etiqueta(fields, "price", "Precio")}</TableHead>
-                    <TableHead className="w-20 text-right">Stock</TableHead>
-                    {/* Una columna por cada campo personalizado visible. */}
-                    {columnas.map((f) => (
-                      <TableHead key={f.key}>{f.label}</TableHead>
-                    ))}
-                    {canManage && <TableHead className="w-24 text-right" />}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {visiblesProductos.length === 0 && (
-                    <TableRow>
-                      <TableCell
-                        colSpan={6 + columnas.length}
-                        className="py-10 text-center text-sm text-muted-foreground"
-                      >
-                        {products.length === 0
-                          ? "Todavía no hay productos. Crea el primero para poder registrar ventas."
-                          : "Ninguno coincide con la búsqueda."}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {visiblesProductos.map((p) => (
-                    <TableRow
-                      key={p.id}
-                      className={p.archived ? "opacity-55" : undefined}
+                    <TableCell
+                      colSpan={6 + columnas.length}
+                      className="py-10 text-center text-sm text-muted-foreground"
                     >
-                      <TableCell className="font-medium">
-                        <span className="flex items-center gap-2">
-                          {p.name}
-                          {p.archived && (
-                            <Badge variant="secondary" className="text-[10px]">
-                              Archivado
-                            </Badge>
-                          )}
-                          {!p.isActive && !p.archived && (
-                            <Badge variant="outline" className="text-[10px]">
-                              Inactivo
-                            </Badge>
-                          )}
-                        </span>
+                      {products.length === 0
+                        ? "Todavía no hay productos. Crea el primero para poder registrar ventas."
+                        : "Ninguno coincide con la búsqueda."}
+                    </TableCell>
+                  </TableRow>
+                )}
+                {visiblesProductos.map((p) => (
+                  <TableRow
+                    key={p.id}
+                    className={p.archived ? "opacity-55" : undefined}
+                  >
+                    <TableCell className="font-medium">
+                      <span className="flex items-center gap-2">
+                        {p.name}
+                        {p.archived && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            Archivado
+                          </Badge>
+                        )}
+                        {!p.isActive && !p.archived && (
+                          <Badge variant="outline" className="text-[10px]">
+                            Inactivo
+                          </Badge>
+                        )}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {p.sku ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {p.categoryLabel}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      {formatMoney(p.price, p.currency)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span
+                        className={cn(
+                          "font-mono text-sm",
+                          Number(p.stock) <= 0 && "text-destructive",
+                          p.minStock &&
+                            Number(p.stock) > 0 &&
+                            Number(p.stock) <= Number(p.minStock) &&
+                            "text-warning",
+                        )}
+                      >
+                        {cantidad(p.stock)}
+                      </span>
+                    </TableCell>
+                    {columnas.map((f) => (
+                      <TableCell key={f.key} className="text-sm text-muted-foreground">
+                        {formatFieldValue(f, p.custom?.[f.key])}
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {p.sku ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {p.categoryLabel}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-sm">
-                        {formatMoney(p.price, p.currency)}
-                      </TableCell>
+                    ))}
+                    {canManage && (
                       <TableCell className="text-right">
-                        <span
-                          className={cn(
-                            "font-mono text-sm",
-                            Number(p.stock) <= 0 && "text-destructive",
-                            p.minStock &&
-                              Number(p.stock) > 0 &&
-                              Number(p.stock) <= Number(p.minStock) &&
-                              "text-warning",
-                          )}
-                        >
-                          {cantidad(p.stock)}
-                        </span>
-                      </TableCell>
-                      {columnas.map((f) => (
-                        <TableCell key={f.key} className="text-sm text-muted-foreground">
-                          {formatFieldValue(f, p.custom?.[f.key])}
-                        </TableCell>
-                      ))}
-                      {canManage && (
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            {canAdjustStock && !p.archived && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-8"
-                                title="Ajustar inventario"
-                                onClick={() => setAdjusting(p)}
-                              >
-                                <IconAdjustments className="size-4" />
-                              </Button>
-                            )}
+                        <div className="flex justify-end gap-1">
+                          {canAdjustStock && !p.archived && (
                             <Button
                               variant="ghost"
                               size="icon"
                               className="size-8"
-                              onClick={() =>
-                                setEditing({ tab: "productos", row: p })
-                              }
+                              title="Ajustar inventario"
+                              onClick={() => setAdjusting(p)}
                             >
-                              <IconPencil className="size-4" />
+                              <IconAdjustments className="size-4" />
                             </Button>
-                            <ArchiveButton
-                              archived={p.archived}
-                              onToggle={() =>
-                                setProductArchived(p.id, !p.archived)
-                              }
-                            />
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        )}
-
-        {kind === "servicios" && (
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Servicio</TableHead>
-                    <TableHead>{etiqueta(fields, "category_id", "Categoría")}</TableHead>
-                    <TableHead className="w-28 text-right">{etiqueta(fields, "price", "Precio")}</TableHead>
-                    {columnas.map((f) => (
-                      <TableHead key={f.key}>{f.label}</TableHead>
-                    ))}
-                    {canManage && <TableHead className="w-20 text-right" />}
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8"
+                            onClick={() =>
+                              setEditing({ tab: "productos", row: p })
+                            }
+                          >
+                            <IconPencil className="size-4" />
+                          </Button>
+                          <ArchiveButton
+                            archived={p.archived}
+                            onToggle={() =>
+                              setProductArchived(p.id, !p.archived)
+                            }
+                          />
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {visiblesServicios.length === 0 && (
-                    <TableRow>
-                      <TableCell
-                        colSpan={4 + columnas.length}
-                        className="py-10 text-center text-sm text-muted-foreground"
-                      >
-                        {services.length === 0
-                          ? "Todavía no hay servicios."
-                          : "Ninguno coincide con la búsqueda."}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {visiblesServicios.map((s) => (
-                    <TableRow
-                      key={s.id}
-                      className={s.archived ? "opacity-55" : undefined}
-                    >
-                      <TableCell className="font-medium">
-                        <span className="flex items-center gap-2">
-                          {s.name}
-                          {s.archived && (
-                            <Badge variant="secondary" className="text-[10px]">
-                              Archivado
-                            </Badge>
-                          )}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {s.categoryLabel}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-sm">
-                        {formatMoney(s.price, s.currency)}
-                      </TableCell>
-                      {columnas.map((f) => (
-                        <TableCell key={f.key} className="text-sm text-muted-foreground">
-                          {formatFieldValue(f, s.custom?.[f.key])}
-                        </TableCell>
-                      ))}
-                      {canManage && (
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8"
-                              onClick={() =>
-                                setEditing({ tab: "servicios", row: s })
-                              }
-                            >
-                              <IconPencil className="size-4" />
-                            </Button>
-                            <ArchiveButton
-                              archived={s.archived}
-                              onToggle={() =>
-                                setServiceArchived(s.id, !s.archived)
-                              }
-                            />
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        )}
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       </div>
 
       {editing && (
@@ -436,7 +339,7 @@ export function CatalogView({
  * ignoraba, y un rechazo (un servicio con reservas pendientes) no hacía nada
  * visible, como si el botón no funcionara.
  */
-function ArchiveButton({
+export function ArchiveButton({
   archived,
   onToggle,
 }: {
@@ -489,18 +392,27 @@ function ArchiveButton({
   );
 }
 
-function ItemDialog({
+export function ItemDialog({
   editing,
   categories,
   fields,
   defaultCurrency,
   onClose,
+  onSaved,
+  children,
 }: {
   editing: Editing;
   categories: CategoryOption[];
   fields: ResolvedField[];
   defaultCurrency: string;
   onClose: () => void;
+  /**
+   * Corre después de guardar bien, antes de cerrar: crear un servicio sigue
+   * con cómo se reserva y lleva a su página. Sin esto, se cierra y refresca.
+   */
+  onSaved?: (id: string) => Promise<void>;
+  /** Más campos al final del formulario, antes del error. */
+  children?: ReactNode;
 }) {
   const router = useRouter();
   const esProducto = editing.tab === "productos";
@@ -557,6 +469,10 @@ function ItemDialog({
           : await createService(base);
 
       if (result.ok) {
+        if (onSaved) {
+          await onSaved(result.id);
+          return;
+        }
         onClose();
         router.refresh();
       } else {
@@ -577,8 +493,9 @@ function ItemDialog({
         <DialogHeader>
           <DialogTitle className="text-base">{titulo}</DialogTitle>
           <DialogDescription className="text-xs">
-            El precio queda en la moneda que elijas. Solo se puede vender en una
-            operación cobrada en esa misma moneda: los montos no se convierten.
+            {esProducto
+              ? "El precio queda en la moneda que elijas. Solo se puede vender en una operación cobrada en esa misma moneda: los montos no se convierten."
+              : "El precio es el de venta en Finanzas. Si se reserva, las tarifas (por noche, por hora…) se ajustan después en su página."}
           </DialogDescription>
         </DialogHeader>
 
@@ -706,6 +623,8 @@ function ItemDialog({
               Disponible para vender
             </Label>
           </div>
+
+          {children}
 
           {error && (
             <p

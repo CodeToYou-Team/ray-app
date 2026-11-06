@@ -51,11 +51,11 @@ con el título de la sección arriba y el contenido en el centro.
 | `/finanzas/historial` | Historial mes a mes | Dueño y encargado |
 | `/productos` | Catálogo de productos | Todos los roles (editar: dueño y encargado) |
 | `/servicios` | Catálogo de servicios | Todos los roles (editar: dueño y encargado) |
+| `/servicios/<id>` | Un servicio: datos, cómo se reserva, tarifas, recursos y horario | Todos los roles (editar: dueño y encargado) |
 | `/inventario` | Stock | Todos los roles |
 | `/inventario/alertas` | Alertas de inventario | Todos los roles |
 | `/reservas` | Disponibilidad: cuadrícula de recursos × días | Todos los roles |
 | `/reservas/listado` | Listado de reservas: búsqueda, filtros y lo que se debe | Todos los roles |
-| `/reservas/recursos` | Qué servicios se reservan, cómo y con qué recursos | Dueño y encargado |
 | `/ajustes` | Redirige a la primera sección permitida | — |
 | `/ajustes/negocio` | Moneda por defecto y tasas de cambio | Solo dueño |
 | `/ajustes/catalogos` | Categorías y métodos de pago | Todos (editar: dueño y encargado) |

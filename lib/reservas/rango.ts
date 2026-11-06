@@ -38,6 +38,16 @@ export type Rango = RangoNoches | RangoHoras;
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 const HORA = /^([01]\d|2[0-3]):([0-5]\d)$/;
+/**
+ * Una hora de FIN: además de las del día, "24:00", que es la medianoche al
+ * final de ESE día. Postgres la acepta tal cual (`fecha + '24:00'::time` es
+ * el 00:00 del día siguiente), así que un tramo de 23:00 a 24:00 sigue siendo
+ * de una sola fecha y no hace falta pedir dos.
+ */
+const HORA_FIN = /^(([01]\d|2[0-3]):([0-5]\d)|24:00)$/;
+
+/** El final del día, como hora de fin. */
+export const FIN_DEL_DIA = "24:00";
 
 /** Tramo mínimo por hora. Ver `cantidad()`. */
 export const TRAMO_MINUTOS = 30;
@@ -215,7 +225,7 @@ export function cantidad(rango: Rango, tarifa: Tarifa = tarifaBase(rango.unidad)
   if (!fechaValida(rango.fecha)) {
     return { ok: false, error: "La fecha no es válida." };
   }
-  if (!HORA.test(rango.inicio) || !HORA.test(rango.fin)) {
+  if (!HORA.test(rango.inicio) || !HORA_FIN.test(rango.fin)) {
     return { ok: false, error: "Usa horas con el formato 14:30." };
   }
   const duracion = minutos(rango.fin) - minutos(rango.inicio);
@@ -438,6 +448,30 @@ export const DIAS_SEMANA = [
   "domingo",
 ] as const;
 
+/**
+ * Las horas en punto y y media de `desde` a `hasta` (en minutos desde las
+ * 00:00), ambas incluidas: para elegir horas sin escribirlas. Llega a "24:00",
+ * que un `<input type="time">` no puede mostrar.
+ */
+export function horasEnTramos(desde = 0, hasta = 24 * 60): string[] {
+  const horas: string[] = [];
+  const inicio = Math.ceil(desde / TRAMO_MINUTOS) * TRAMO_MINUTOS;
+  for (let m = inicio; m <= Math.min(hasta, 24 * 60); m += TRAMO_MINUTOS) {
+    horas.push(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
+  }
+  return horas;
+}
+
+/** "14:30" → 870; "24:00" → 1440. */
+export function horaAMinutos(hora: string): number {
+  return minutos(hora);
+}
+
+/** Si una franja cubre el día entero: de 00:00 a 24:00. */
+export function esTodoElDia(franjas: { start: string; end: string }[]): boolean {
+  return franjas.length === 1 && franjas[0].start === "00:00" && franjas[0].end === FIN_DEL_DIA;
+}
+
 /** "los lunes", "los sábados": para mensajes como "no tiene turnos los domingos". */
 export function losDias(weekday: number): string {
   const dia = DIAS_SEMANA[weekday - 1];
@@ -504,6 +538,7 @@ export function cumpleHorario(modo: ModoHorario, turnos: Turno[], rango: RangoHo
 
 /** "de 08:00 a 12:00 y de 14:00 a 20:00": las franjas de un día, para leer. */
 export function franjasTexto(delDia: Turno[]): string {
+  if (esTodoElDia(delDia)) return "todo el día";
   const partes = delDia.map((t) => `de ${t.start} a ${t.end}`);
   return partes.length <= 1
     ? (partes[0] ?? "")

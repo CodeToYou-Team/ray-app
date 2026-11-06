@@ -48,13 +48,52 @@ export function periodoSql(rango: Rango, timezone: string): SQL {
  * Devuelve "YYYY-MM-DDTHH:MI" sin zona. Al estar todos en la misma zona local,
  * compararlos como texto es correcto, que es lo que hace la cuadrícula para
  * saber qué celda ocupa cada reserva.
+ *
+ * Una reserva POR HORAS que termina a la medianoche se devuelve con fin
+ * "<fecha de inicio>T24:00", no "<día siguiente>T00:00": es como se pidió
+ * (`bordesLocales` de rango.ts escribe lo mismo), así que "¿cambiaron las
+ * horas?" compara igual, la cuadrícula la deja en su día, y "24:00" sigue
+ * ordenando después de "23:30" como texto. Por eso hace falta `rateUnit`: una
+ * reserva por noches también termina a las 00:00 y esa sí es del día de salida.
  */
 export function bordesLocalesSql(
   periodo: unknown,
   timezone: string,
+  rateUnit: unknown,
 ): { inicio: SQL<string>; fin: SQL<string> } {
+  const desde = sql`lower(${periodo}) AT TIME ZONE ${timezone}`;
+  const hasta = sql`upper(${periodo}) AT TIME ZONE ${timezone}`;
   return {
-    inicio: sql<string>`to_char(lower(${periodo}) AT TIME ZONE ${timezone}, 'YYYY-MM-DD"T"HH24:MI')`,
-    fin: sql<string>`to_char(upper(${periodo}) AT TIME ZONE ${timezone}, 'YYYY-MM-DD"T"HH24:MI')`,
+    inicio: sql<string>`to_char(${desde}, 'YYYY-MM-DD"T"HH24:MI')`,
+    fin: sql<string>`CASE
+      WHEN ${rateUnit} IN ('hora', 'bloque')
+        AND (${hasta})::time = time '00:00'
+        AND (${hasta})::date = (${desde})::date + 1
+      THEN to_char(${desde}, 'YYYY-MM-DD') || 'T24:00'
+      ELSE to_char(${hasta}, 'YYYY-MM-DD"T"HH24:MI')
+    END`,
   };
+}
+
+/**
+ * Si una reserva es por fechas o por horas, sacado de SU tarifa congelada
+ * (`bookings.rate_unit`), no del servicio. El servicio puede cambiar de grano
+ * cuando ya no tiene reservas pendientes; las de antes siguen siendo lo que
+ * fueron y se tienen que seguir leyendo así.
+ */
+export function unidadDeReservaSql(rateUnit: unknown): SQL<"noche" | "hora"> {
+  return sql<"noche" | "hora">`(CASE WHEN ${rateUnit} IN ('hora', 'bloque') THEN 'hora' ELSE 'noche' END)`;
+}
+
+/**
+ * Una reserva PENDIENTE: en curso, o reservada y sin terminar. Es lo que
+ * impide archivar un recurso o un servicio, y cambiar cómo se reserva un
+ * servicio. Un solo predicado para las dos cosas (`contarPendientes` y lo que
+ * muestra la página del servicio), así la pantalla y el servidor no discrepan.
+ *
+ * NO cuentan las canceladas, las no presentadas, las finalizadas, ni las
+ * reservadas cuyo rango ya pasó.
+ */
+export function reservaPendienteSql(status: unknown, periodo: unknown): SQL<boolean> {
+  return sql<boolean>`(${status} = 'en_curso' OR (${status} = 'reservada' AND upper(${periodo}) > now()))`;
 }

@@ -8,7 +8,7 @@ import "server-only";
  * llamar estas funciones desde una ruta o un componente: el punto de entrada
  * es actions.ts, que exige el permiso primero.
  */
-import { and, count, eq, isNull, ne, or, sql } from "drizzle-orm";
+import { and, count, eq, isNull, ne, sql, type SQL } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { z } from "zod";
 import { type Tx } from "@/lib/db";
@@ -41,7 +41,11 @@ import {
 } from "@/lib/money";
 import { validateCustomIn } from "@/lib/fields/queries";
 import type { CustomValues } from "@/lib/fields/validate";
-import { bordesLocalesSql, periodoSql } from "./periodo";
+import {
+  bordesLocalesSql,
+  periodoSql,
+  reservaPendienteSql,
+} from "./periodo";
 import {
   bordesLocales,
   cantidad,
@@ -119,16 +123,56 @@ export async function contarPendientes(
         "resourceId" in de
           ? eq(bookings.resourceId, de.resourceId)
           : eq(bookings.serviceId, de.serviceId),
-        or(
-          eq(bookings.status, "en_curso"),
-          and(
-            eq(bookings.status, "reservada"),
-            sql`upper(${bookings.period}) > now()`,
-          ),
-        ),
+        reservaPendienteSql(bookings.status, bookings.period),
       ),
     );
   return n;
+}
+
+/**
+ * Si el rango se cruza, en el mismo recurso, con una reserva que ocupa y es
+ * del OTRO modo (exclusiva contra compartida).
+ *
+ * Las dos garantías de la base solo comparan reservas del mismo modo: el
+ * EXCLUDE, exclusivas entre sí; el trigger de cupos, compartidas entre sí.
+ * Mientras un servicio tiene un solo modo eso basta, pero el modo se puede
+ * cambiar cuando ya no quedan reservas pendientes, y las de antes (una
+ * estadía que terminó, una reservada que nadie cerró) siguen ocupando su
+ * rango con el modo viejo. Una reserva nueva que cae encima de una de ellas
+ * no la vería ninguna de las dos garantías.
+ *
+ * Consultar antes de insertar es seguro AQUÍ, a diferencia de la
+ * disponibilidad: las reservas del otro modo ya no pueden aparecer, porque
+ * cambiar el modo bloquea la fila del servicio (FOR UPDATE) y crear o mover
+ * una reserva la toma FOR SHARE. El conjunto contra el que se compara es fijo.
+ */
+async function cruceConOtroModo(
+  tx: Tx,
+  tenantId: string,
+  de: { resourceId: string; shared: boolean; periodo: SQL; excepto?: string },
+): Promise<boolean> {
+  const [fila] = await tx
+    .select({ id: bookings.id })
+    .from(bookings)
+    .where(
+      and(
+        eq(bookings.tenantId, tenantId),
+        eq(bookings.resourceId, de.resourceId),
+        ne(bookings.shared, de.shared),
+        ne(bookings.status, "cancelada"),
+        ne(bookings.status, "no_show"),
+        sql`${bookings.period} && ${de.periodo}`,
+        de.excepto ? ne(bookings.id, de.excepto) : undefined,
+      ),
+    )
+    .limit(1);
+  return Boolean(fila);
+}
+
+function errorOtroModo(recurso: string, shared: boolean): string {
+  return `"${recurso}" tiene en esas fechas una reserva de cuando el servicio era ${
+    shared ? "exclusivo" : "compartido"
+  }. Elige otras fechas u otro recurso.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -256,7 +300,7 @@ async function elegirTarifa(
   if (activas.length === 0) {
     return {
       ok: false,
-      error: `"${servicio.name}" no tiene tarifas. Agrégale una en Servicios › Recursos.`,
+      error: `"${servicio.name}" no tiene tarifas. Agrégale una en su página, en Servicios.`,
     };
   }
   return { ok: false, error: "Elige una tarifa." };
@@ -369,6 +413,10 @@ export async function createBooking(
 
   try {
     return await withTenant(tenantId, async (tx) => {
+      // FOR SHARE: mientras se crea, nadie cambia cómo se reserva el servicio
+      // (`configureServiceBooking` lo bloquea FOR UPDATE). Sin esto, la regla
+      // "no se cambia con reservas pendientes" contaría antes de que esta
+      // exista y la dejaría con el modo viejo.
       const [servicio] = await tx
         .select()
         .from(services)
@@ -378,7 +426,8 @@ export async function createBooking(
             eq(services.tenantId, tenantId),
             isNull(services.deletedAt),
           ),
-        );
+        )
+        .for("share");
 
       if (!servicio) return { ok: false as const, error: "Ese servicio ya no existe." };
       // "Disponible para vender" apagado: lo mismo que en las ventas, no se
@@ -393,7 +442,7 @@ export async function createBooking(
       if (!servicio.bookingUnit) {
         return {
           ok: false as const,
-          error: `"${servicio.name}" no se reserva. Actívalo en Servicios › Recursos.`,
+          error: `"${servicio.name}" no se reserva. Actívalo en su página, en Servicios.`,
         };
       }
       // El rango tiene que venir en la unidad del servicio: una habitación por
@@ -457,6 +506,13 @@ export async function createBooking(
         .select({ timezone: tenants.timezone })
         .from(tenants)
         .where(eq(tenants.id, tenantId));
+
+      const cruce = await cruceConOtroModo(tx, tenantId, {
+        resourceId: recurso.id,
+        shared: servicio.bookingShared,
+        periodo: periodoSql(input.rango as Rango, timezone),
+      });
+      if (cruce) return { ok: false as const, error: errorOtroModo(recurso.name, servicio.bookingShared) };
 
       // Snapshot de la tarifa: si mañana sube, o se archiva, esta reserva no
       // cambia. La cantidad también se guarda (ver bookings.qty).
@@ -611,12 +667,17 @@ export async function cancelBooking(
  * Cómo se reserva un servicio: unidad, si es compartido y si cobra por persona.
  *
  * La UNIDAD y el MODO (exclusivo o compartido) solo cambian si el servicio no
- * tiene reservas, de ningún estado:
- * - pasar de "por noche" a "por hora" dejaría reservas cuya cantidad ya no
- *   significa lo mismo;
- * - pasar de exclusivo a compartido mezclaría en un mismo recurso reservas
- *   que no se pueden solapar con otras que sí, y ninguna de las dos garantías
- *   cubriría el cruce entre ellas.
+ * tiene reservas PENDIENTES (`contarPendientes`). Las canceladas, terminadas o
+ * pasadas no lo impiden, porque cada reserva guardó lo suyo:
+ * - su grano sale de su tarifa congelada (`unidadDeReservaSql` en periodo.ts), no del
+ *   servicio, así que una estadía de noches se sigue leyendo como noches;
+ * - su modo es `bookings.shared`, y una reserva nueva del modo nuevo que se
+ *   cruce con una vieja del otro se rechaza (`cruceConOtroModo`).
+ * Con una pendiente sí se bloquea: quedaría viva una reserva que el servicio
+ * ya no sabe tratar (la cuadrícula la pinta según el grano del servicio).
+ *
+ * Bloquea la fila del servicio: crear una reserva la toma FOR SHARE, así una
+ * que se esté creando no se cuela entre "no hay pendientes" y el cambio.
  *
  * El COBRO por persona sí se puede cambiar en cualquier momento: cada reserva
  * guardó cómo se calculaba la suya.
@@ -641,7 +702,8 @@ export async function configureServiceBooking(
             eq(services.tenantId, tenantId),
             isNull(services.deletedAt),
           ),
-        );
+        )
+        .for("update");
       if (!servicio) return { ok: false as const, error: "Ese servicio ya no existe." };
 
       // Sin unidad, el servicio no se reserva: compartido y por persona no
@@ -668,16 +730,11 @@ export async function configureServiceBooking(
       }
 
       if (cambiaForma) {
-        const [{ n }] = await tx
-          .select({ n: count() })
-          .from(bookings)
-          .where(
-            and(eq(bookings.tenantId, tenantId), eq(bookings.serviceId, servicio.id)),
-          );
+        const n = await contarPendientes(tx, tenantId, { serviceId: servicio.id });
         if (n > 0) {
           return {
             ok: false as const,
-            error: `"${servicio.name}" ya tiene reservas. Para reservar de otra forma, crea otro servicio.`,
+            error: `"${servicio.name}" tiene ${n} ${n === 1 ? "reserva pendiente" : "reservas pendientes"}. Para reservarlo de otra forma, espera a que terminen o cancélalas.`,
           };
         }
       }
@@ -1200,7 +1257,7 @@ async function cargarReserva(
     .from(tenants)
     .where(eq(tenants.id, tenantId));
 
-  const bordes = bordesLocalesSql(bookings.period, timezone);
+  const bordes = bordesLocalesSql(bookings.period, timezone, bookings.rateUnit);
 
   const [b] = await tx
     .select({
@@ -1235,15 +1292,14 @@ async function cargarReserva(
   if (!b) return null;
 
   const [extra] = await tx
-    .select({ unidad: services.bookingUnit, resourceName: resources.name })
+    .select({ resourceName: resources.name })
     .from(resources)
-    .innerJoin(
-      services,
-      and(eq(services.id, resources.serviceId), eq(services.tenantId, resources.tenantId)),
-    )
     .where(and(eq(resources.id, b.resourceId), eq(resources.tenantId, tenantId)));
 
-  const unidad = extra?.unidad ?? "noche";
+  // El grano de ESTA reserva, de su tarifa congelada: el servicio pudo pasar
+  // de noches a horas después de que ella terminara.
+  const unidad: "noche" | "hora" =
+    b.rateUnit === "hora" || b.rateUnit === "bloque" ? "hora" : "noche";
   // La cantidad se guardó al reservar con la tarifa de entonces; no se vuelve
   // a derivar del período.
   const total = totalReserva({
@@ -1722,79 +1778,164 @@ export async function updateResourceCapacity(
 ): Promise<Result> {
   const cap = capacidadSchema.safeParse(input.capacity);
   if (!cap.success) return { ok: false, error: cap.error.issues[0].message };
-  const nueva = cap.data;
+
+  try {
+    return await withTenant(tenantId, (tx) =>
+      cambiarCapacidad(tx, { tenantId, userId }, input.id, cap.data),
+    );
+  } catch {
+    return { ok: false, error: "No se pudo cambiar la capacidad." };
+  }
+}
+
+/** El cuerpo de `updateResourceCapacity`, dentro de una transacción abierta. */
+async function cambiarCapacidad(
+  tx: Tx,
+  { tenantId, userId }: ActorContext,
+  id: string,
+  nueva: number,
+): Promise<Result> {
+    const [recurso] = await tx
+      .select({
+        id: resources.id,
+        name: resources.name,
+        capacity: resources.capacity,
+        shared: services.bookingShared,
+      })
+      .from(resources)
+      .innerJoin(
+        services,
+        and(eq(services.id, resources.serviceId), eq(services.tenantId, resources.tenantId)),
+      )
+      .where(and(eq(resources.id, id), eq(resources.tenantId, tenantId)))
+      .for("update", { of: resources });
+
+    if (!recurso) return { ok: false as const, error: "No se encontró ese recurso." };
+    if (recurso.capacity === nueva) return { ok: true as const };
+
+    if (nueva < recurso.capacity) {
+      const pendientes = await tx
+        .select({
+          desde: sql<number>`extract(epoch from lower(${bookings.period}))`,
+          hasta: sql<number>`extract(epoch from upper(${bookings.period}))`,
+          personas: bookings.partySize,
+        })
+        .from(bookings)
+        .where(
+          and(
+            eq(bookings.tenantId, tenantId),
+            eq(bookings.resourceId, recurso.id),
+            ne(bookings.status, "cancelada"),
+            ne(bookings.status, "no_show"),
+            sql`upper(${bookings.period}) > now()`,
+          ),
+        );
+
+      const comprometido = recurso.shared
+        ? picoDeOcupacion(pendientes)
+        : Math.max(0, ...pendientes.map((p) => p.personas));
+
+      if (nueva < comprometido) {
+        return {
+          ok: false as const,
+          error: recurso.shared
+            ? `"${recurso.name}" ya tiene momentos con ${comprometido} cupos ocupados. No se puede bajar a ${nueva}.`
+            : `"${recurso.name}" tiene una reserva para ${comprometido} personas. No se puede bajar a ${nueva}.`,
+        };
+      }
+    }
+
+    await tx
+      .update(resources)
+      .set({ capacity: nueva })
+      .where(and(eq(resources.id, recurso.id), eq(resources.tenantId, tenantId)));
+
+    await tx.insert(auditLog).values({
+      id: uuidv7(),
+      tenantId,
+      entity: "resources",
+      entityId: recurso.id,
+      action: "update",
+      actorId: userId,
+      diff: { capacity: { from: recurso.capacity, to: nueva } },
+    });
+
+    return { ok: true as const };
+}
+
+/** Un rechazo de capacidad que tiene que deshacer la transacción entera. */
+class RechazoCapacidad extends Error {}
+
+const updateResourceSchema = z.object({
+  id: z.uuid(),
+  name: resourceSchema.shape.name,
+  notes: z.string().trim().max(500),
+  capacity: capacidadSchema,
+});
+
+/**
+ * Edita un recurso: nombre, notas y capacidad, todo o nada.
+ *
+ * El nombre se puede cambiar aunque tenga reservas: cada reserva apunta al
+ * recurso por id, y el detalle muestra el nombre de hoy. La capacidad sigue
+ * la regla de `updateResourceCapacity` (no bajar de lo ya comprometido), y si
+ * se rechaza, tampoco se guarda el nombre.
+ */
+export async function updateResource(
+  ctx: ActorContext,
+  raw: z.infer<typeof updateResourceSchema>,
+): Promise<Result> {
+  const parsed = updateResourceSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const input = parsed.data;
+  const { tenantId, userId } = ctx;
 
   try {
     return await withTenant(tenantId, async (tx) => {
       const [recurso] = await tx
-        .select({
-          id: resources.id,
-          name: resources.name,
-          capacity: resources.capacity,
-          shared: services.bookingShared,
-        })
+        .select()
         .from(resources)
-        .innerJoin(
-          services,
-          and(eq(services.id, resources.serviceId), eq(services.tenantId, resources.tenantId)),
-        )
-        .where(and(eq(resources.id, input.id), eq(resources.tenantId, tenantId)))
-        .for("update", { of: resources });
-
+        .where(
+          and(
+            eq(resources.id, input.id),
+            eq(resources.tenantId, tenantId),
+            isNull(resources.archivedAt),
+          ),
+        );
       if (!recurso) return { ok: false as const, error: "No se encontró ese recurso." };
-      if (recurso.capacity === nueva) return { ok: true as const };
 
-      if (nueva < recurso.capacity) {
-        const pendientes = await tx
-          .select({
-            desde: sql<number>`extract(epoch from lower(${bookings.period}))`,
-            hasta: sql<number>`extract(epoch from upper(${bookings.period}))`,
-            personas: bookings.partySize,
-          })
-          .from(bookings)
-          .where(
-            and(
-              eq(bookings.tenantId, tenantId),
-              eq(bookings.resourceId, recurso.id),
-              ne(bookings.status, "cancelada"),
-              ne(bookings.status, "no_show"),
-              sql`upper(${bookings.period}) > now()`,
-            ),
-          );
+      const notas = input.notes || null;
+      if (recurso.name !== input.name || recurso.notes !== notas) {
+        await tx
+          .update(resources)
+          .set({ name: input.name, notes: notas })
+          .where(and(eq(resources.id, recurso.id), eq(resources.tenantId, tenantId)));
 
-        const comprometido = recurso.shared
-          ? picoDeOcupacion(pendientes)
-          : Math.max(0, ...pendientes.map((p) => p.personas));
-
-        if (nueva < comprometido) {
-          return {
-            ok: false as const,
-            error: recurso.shared
-              ? `"${recurso.name}" ya tiene momentos con ${comprometido} cupos ocupados. No se puede bajar a ${nueva}.`
-              : `"${recurso.name}" tiene una reserva para ${comprometido} personas. No se puede bajar a ${nueva}.`,
-          };
-        }
+        await tx.insert(auditLog).values({
+          id: uuidv7(),
+          tenantId,
+          entity: "resources",
+          entityId: recurso.id,
+          action: "update",
+          actorId: userId,
+          diff: {
+            name: { from: recurso.name, to: input.name },
+            notes: { from: recurso.notes, to: notas },
+          },
+        });
       }
 
-      await tx
-        .update(resources)
-        .set({ capacity: nueva })
-        .where(and(eq(resources.id, recurso.id), eq(resources.tenantId, tenantId)));
-
-      await tx.insert(auditLog).values({
-        id: uuidv7(),
-        tenantId,
-        entity: "resources",
-        entityId: recurso.id,
-        action: "update",
-        actorId: userId,
-        diff: { capacity: { from: recurso.capacity, to: nueva } },
-      });
-
-      return { ok: true as const };
+      const capacidad = await cambiarCapacidad(tx, ctx, recurso.id, input.capacity);
+      // Lanzar deshace el nombre: un rechazo no deja medio cambio guardado.
+      if (!capacidad.ok) throw new RechazoCapacidad(capacidad.error);
+      return capacidad;
     });
-  } catch {
-    return { ok: false, error: "No se pudo cambiar la capacidad." };
+  } catch (error) {
+    if (pgCode(error) === "23505") {
+      return { ok: false, error: `Ya hay un recurso activo que se llama "${input.name}".` };
+    }
+    if (error instanceof RechazoCapacidad) return { ok: false, error: error.message };
+    return { ok: false, error: "No se pudo guardar el recurso." };
   }
 }
 
@@ -1967,6 +2108,24 @@ export async function updateBooking(
         };
       }
 
+      // Moverla (de fechas o de recurso) no puede caer encima de una reserva
+      // del otro modo; ver `cruceConOtroModo`. El servicio FOR SHARE, como al
+      // crear, para que el modo no cambie mientras tanto.
+      if (cambiaRango || recurso.id !== r.resourceId) {
+        await tx
+          .select({ id: services.id })
+          .from(services)
+          .where(and(eq(services.id, r.serviceId), eq(services.tenantId, tenantId)))
+          .for("share");
+        const cruce = await cruceConOtroModo(tx, tenantId, {
+          resourceId: recurso.id,
+          shared: r.shared,
+          periodo: periodoSql(rango, r.timezone),
+          excepto: r.id,
+        });
+        if (cruce) return { ok: false as const, error: errorOtroModo(recurso.name, r.shared) };
+      }
+
       const total = totalReserva({
         qty: unidades.qty,
         partySize: personas,
@@ -2068,6 +2227,8 @@ export async function updateBooking(
 // ---------------------------------------------------------------------------
 
 const HORA_EN_PUNTO = /^([01]\d|2[0-3]):(00|30)$/;
+/** Como hora de fin vale también "24:00": abrir hasta la medianoche. */
+const FIN_EN_PUNTO = /^(([01]\d|2[0-3]):(00|30)|24:00)$/;
 
 const scheduleSchema = z.object({
   serviceId: z.uuid(),
@@ -2076,7 +2237,7 @@ const scheduleSchema = z.object({
     .array(z.number().int().min(1).max(7))
     .min(1, "Elige al menos un día"),
   inicio: z.string().regex(HORA_EN_PUNTO, "La hora de inicio va en punto o y media, como 18:00 o 18:30"),
-  fin: z.string().regex(HORA_EN_PUNTO, "La hora de fin va en punto o y media, como 19:00 o 19:30"),
+  fin: z.string().regex(FIN_EN_PUNTO, "La hora de fin va en punto o y media, como 19:00 o 19:30"),
 });
 
 /**
@@ -2154,6 +2315,131 @@ export async function addSchedule(
       };
     }
     return { ok: false, error: "No se pudo guardar el turno." };
+  }
+}
+
+const semanaSchema = z.object({
+  serviceId: z.uuid(),
+  /** Todas las franjas de la semana. Vacío = sin horario. */
+  franjas: z
+    .array(
+      z.object({
+        weekday: z.number().int().min(1).max(7),
+        inicio: z
+          .string()
+          .regex(HORA_EN_PUNTO, "La hora de inicio va en punto o y media, como 18:00 o 18:30"),
+        fin: z
+          .string()
+          .regex(FIN_EN_PUNTO, "La hora de fin va en punto o y media, como 19:00 o 19:30"),
+      }),
+    )
+    .max(7 * 48),
+});
+
+/**
+ * Reemplaza el horario COMPLETO de un servicio por hora.
+ *
+ * La pantalla edita la semana día por día ("cerrado", "todo el día", unas
+ * franjas) y guarda la semana entera: así "el sábado, todo el día" no choca
+ * con las franjas que el sábado tenía antes, y cambiar un día no deja la
+ * semana a medias si otro falla. Todo o nada, en una transacción.
+ *
+ * Igual que quitar un turno, no toca ninguna reserva: lo ya reservado sigue.
+ */
+export async function setWeekSchedule(
+  { tenantId, userId }: ActorContext,
+  raw: z.infer<typeof semanaSchema>,
+): Promise<Result> {
+  const parsed = semanaSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const { serviceId } = parsed.data;
+  const franjas = [...parsed.data.franjas].sort(
+    (a, b) => a.weekday - b.weekday || a.inicio.localeCompare(b.inicio),
+  );
+
+  for (let i = 0; i < franjas.length; i++) {
+    const f = franjas[i];
+    const dia = DIAS_SEMANA[f.weekday - 1];
+    if (f.fin <= f.inicio) {
+      return {
+        ok: false,
+        error: `El ${dia}: la hora de fin tiene que ser después de la de inicio, el mismo día.`,
+      };
+    }
+    const anterior = franjas[i - 1];
+    if (anterior && anterior.weekday === f.weekday && f.inicio < anterior.fin) {
+      return {
+        ok: false,
+        error: `El ${dia}: ${anterior.inicio}–${anterior.fin} y ${f.inicio}–${f.fin} se cruzan.`,
+      };
+    }
+  }
+
+  try {
+    return await withTenant(tenantId, async (tx) => {
+      // Bloqueada: dos personas guardando el horario a la vez no mezclan el
+      // de una con el de la otra; gana la última, entera.
+      const [servicio] = await tx
+        .select({ id: services.id, bookingUnit: services.bookingUnit })
+        .from(services)
+        .where(
+          and(eq(services.id, serviceId), eq(services.tenantId, tenantId), isNull(services.deletedAt)),
+        )
+        .for("update");
+      if (!servicio) return { ok: false as const, error: "Ese servicio ya no existe." };
+      if (servicio.bookingUnit !== "hora") {
+        return {
+          ok: false as const,
+          error: "El horario es para servicios que se reservan por hora.",
+        };
+      }
+
+      const antes = await turnosDe(tx, tenantId, servicio.id);
+
+      await tx
+        .delete(serviceSchedules)
+        .where(
+          and(eq(serviceSchedules.tenantId, tenantId), eq(serviceSchedules.serviceId, servicio.id)),
+        );
+
+      if (franjas.length > 0) {
+        await tx.insert(serviceSchedules).values(
+          franjas.map((f) => ({
+            id: uuidv7(),
+            tenantId,
+            serviceId: servicio.id,
+            weekday: f.weekday,
+            startTime: f.inicio,
+            endTime: f.fin,
+            createdBy: userId,
+          })),
+        );
+      }
+
+      await tx.insert(auditLog).values({
+        id: uuidv7(),
+        tenantId,
+        entity: "services",
+        entityId: servicio.id,
+        action: "update",
+        actorId: userId,
+        diff: {
+          horario: {
+            from: antes
+              .sort((a, b) => a.weekday - b.weekday || a.start.localeCompare(b.start))
+              .map((t) => ({ dia: t.weekday, inicio: t.start, fin: t.end })),
+            to: franjas.map((f) => ({ dia: f.weekday, inicio: f.inicio, fin: f.fin })),
+          },
+        },
+      });
+
+      return { ok: true as const };
+    });
+  } catch (error) {
+    if (pgCode(error) === "23P01") {
+      return { ok: false, error: "Dos franjas del mismo día se cruzan. Revisa el horario." };
+    }
+    return { ok: false, error: "No se pudo guardar el horario." };
   }
 }
 

@@ -6,9 +6,9 @@ Dos pantallas con el mismo diseño, cada una en su grupo del menú lateral:
 
 - **Productos** llevan inventario: su grupo es Productos › Catálogo · Stock · Alertas.
 - **Servicios** no tienen stock. Un servicio también puede volverse **reservable** (una
-  habitación por noche, una cancha por hora, una clase con cupos) desde **Servicios › Recursos**:
-  ver [Reservas](08-reservas.md). Su grupo es Servicios › Catálogo · Disponibilidad · Reservas ·
-  Recursos.
+  habitación por noche, una cancha por hora, una clase con cupos) desde **su página** (cada fila
+  de Servicios › Catálogo abre la suya): ver [Reservas](08-reservas.md). Su grupo es Servicios ›
+  Catálogo · Disponibilidad · Reservas.
 
 ### Listado
 

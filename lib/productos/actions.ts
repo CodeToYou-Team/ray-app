@@ -28,6 +28,7 @@ export type { ProductInput, ServiceInput, ItemResult };
 function revalidateCatalogo() {
   revalidatePath("/productos");
   revalidatePath("/servicios");
+  revalidatePath("/servicios/[id]", "page");
   revalidatePath("/inventario");
   revalidatePath("/dashboard");
 }

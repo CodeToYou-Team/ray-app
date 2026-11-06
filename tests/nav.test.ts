@@ -52,26 +52,25 @@ describe("menu segun el rol", () => {
 
     // Los productos llevan inventario; los servicios, reservas.
     expect(hijos("/productos")).toEqual(["/productos", "/inventario", "/inventario/alertas"]);
-    expect(hijos("/servicios")).toEqual([
-      "/servicios",
-      "/reservas",
-      "/reservas/listado",
-      "/reservas/recursos",
-    ]);
+    // Qué se reserva y con qué recursos se configura en la página de cada
+    // servicio, no en una entrada aparte del menú.
+    expect(hijos("/servicios")).toEqual(["/servicios", "/reservas", "/reservas/listado"]);
     // Ni inventario ni reservas quedan sueltos como grupo propio.
     expect(grupos.map((g) => g.href)).not.toContain("/inventario");
     expect(grupos.map((g) => g.href)).not.toContain("/reservas");
   });
 
-  it("la recepcion reserva, pero no decide que habitaciones existen", () => {
+  it("la recepcion reserva y busca reservas", () => {
     const hrefs = hrefsVisibles("staff");
     expect(hrefs).toContain("/reservas");
     // Buscar una reserva o ver quién debe es trabajo de recepción.
     expect(hrefs).toContain("/reservas/listado");
-    expect(hrefs).not.toContain("/reservas/recursos");
+  });
 
-    // El encargado si administra los recursos.
-    expect(hrefsVisibles("manager")).toContain("/reservas/recursos");
+  it("la pagina de un servicio tiene titulo", () => {
+    expect(resolveRoute("/servicios/0190a8c2-0000-7000-8000-000000000000")?.title).toBe(
+      "Servicio",
+    );
   });
 
   it("un grupo sin hijos accesibles no se muestra vacio", () => {

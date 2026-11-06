@@ -5,8 +5,9 @@
 - Una **reserva** ocupa un **recurso** (una habitación, una cancha, una sala, un equipo) durante
   un **rango de tiempo**, por fechas o por horas, y se cobra con una de las **tarifas** del
   servicio (por noche, por semana, por tanda de 4 horas…).
-- Un servicio se vuelve reservable desde **Servicios › Recursos**. Hasta entonces se vende como
-  siempre, como renglón de una venta.
+- Un servicio se vuelve reservable desde **su página** (Servicios › el servicio › Cómo se
+  reserva), o al crearlo, respondiendo "¿Se reserva?". Hasta entonces se vende como siempre, como
+  renglón de una venta.
 - Cada servicio reservable es **exclusivo** (una reserva a la vez, como una habitación) o
   **compartido** (varias reservas a la vez hasta llenar los cupos, como una clase o un tour).
 - **Dos reservas no pueden pisarse**: en los exclusivos, no se puede reservar algo ya ocupado; en
@@ -15,14 +16,35 @@
 - La reserva **no es una venta**. Los cobros se registran aparte, cuando entra el dinero, y la
   reserva lleva su **saldo**.
 
-## Cómo se configura (`/reservas/recursos`, en el menú Servicios › Recursos)
+## Cómo se configura (`/servicios/<id>`, la página de cada servicio)
 
-Solo **dueño y encargado** (`resource:manage`). El personal puede reservar, pero no decide qué se
+Todo lo de un servicio vive en **su página**. En **Servicios › Catálogo** la tabla tiene la misma
+forma que la de productos: la columna **Reserva** resume cómo se reserva cada uno ("Por fechas · 3
+recursos", "No se reserva", o "sin recursos" en ámbar si falta agregarlos), y al final de la fila
+están el **lápiz** (abre la página) y **archivar**. Antes, el servicio se creaba en Servicios y se
+configuraba en otra pantalla (`/reservas/recursos`), que ya no existe.
+
+La página va en **pestañas**:
+
+| Pestaña | Qué tiene |
+|---|---|
+| **General** | Datos (categoría, precio, "Disponible para vender", columnas) y **Cómo se reserva** (por fechas u horas, modo, cobro, cómo se llaman sus recursos) |
+| **Tarifas** | Con cuántas tiene al lado |
+| **Recursos** | Con cuántos tiene, o un punto ámbar si no tiene ninguno |
+| **Horario** | Solo los servicios por horas |
+
+Un servicio que no se reserva solo tiene General, sin barra de pestañas. La pestaña queda en la URL
+(`?tab=recursos`): recargar no la pierde, y el "Agrégalos" de la cuadrícula abre directo esa.
+Dentro de cada pestaña, todo se lee como dato y se edita **una cosa a la vez** con su botón
+**Editar** o su lápiz; abrir una edición, o cambiar de pestaña, cierra la que estaba abierta.
+
+Los datos los edita quien tiene `product:manage`; las secciones de reservas, solo **dueño y
+encargado** (`resource:manage`). El personal puede ver la página y reservar, pero no decide qué se
 reserva ni con qué recursos.
 
-Paso previo: el servicio tiene que existir en **Servicios › Catálogo** (nombre, precio,
-categoría). La pantalla lista todos los servicios del negocio; si no hay ninguno, lleva a
-Servicios.
+**Al crear un servicio**, quien tiene `resource:manage` ve además "¿Se reserva?" (no / por fechas /
+por horas) y, si responde que sí, cómo se llaman sus recursos y el modo. Al guardar, la app abre la
+pestaña **Recursos** de su página, para agregarlos.
 
 ### Las tres decisiones de cada servicio
 
@@ -85,17 +107,27 @@ Ejemplos de configuración:
 
 ### Qué se puede cambiar y qué no
 
-- **La unidad y el modo quedan fijos con la primera reserva** del servicio (de cualquier estado,
-  incluidas las canceladas). Pasar de noche a hora dejaría reservas cuya cantidad ya no significa
-  lo mismo, y mezclar exclusivas con compartidas en un mismo recurso dejaría un hueco que ninguna
-  de las dos protecciones cubre. Si hace falta reservar de otra forma, se crea otro servicio. La
-  pantalla lo explica debajo de los selectores.
+- **La unidad y el modo no cambian mientras haya reservas pendientes**: en curso, o reservadas que
+  todavía no terminan (las mismas que impiden archivar). Las canceladas, las no presentadas, las
+  finalizadas y las reservadas cuyo rango ya pasó **no lo impiden**. La sección "Cómo se reserva"
+  dice cuántas pendientes hay.
+  - Cada reserva vieja se sigue leyendo como lo que fue: si es por noches o por horas sale de **su
+    tarifa congelada**, no del servicio. Una estadía de dos noches sigue diciendo "2 noches" aunque
+    el servicio ahora se reserve por horas.
+  - Cada reserva guarda su modo (exclusiva o compartida). Las dos protecciones de la base solo
+    comparan reservas del mismo modo, así que una reserva nueva, o una que se mueve, se rechaza si
+    cae en el mismo recurso encima de una que ocupa y es **del otro modo**: "Sala A tiene en
+    esas fechas una reserva de cuando el servicio era exclusivo."
+  - Mientras se cambia el modo, nadie puede estar creando una reserva del servicio: el cambio
+    bloquea la fila del servicio y crear o mover una reserva espera a que termine.
 - **El cobro se puede cambiar en cualquier momento.** Cada reserva guardó cómo se calculaba la
   suya, así que el cambio solo afecta a las nuevas.
-- **La capacidad de un recurso** se edita en su fila (se guarda al salir del campo o con Enter).
-  Subirla siempre se puede. **Bajarla, solo hasta lo ya comprometido** en reservas que no han
-  terminado: si la clase del martes tiene 12 inscritos, no puede pasar a 10 cupos.
-- **Cómo se llaman los recursos** ("Cómo se llaman", en la tarjeta del servicio): Habitación,
+- **Un recurso se edita entero con su lápiz**: nombre, capacidad y notas, con **Guardar**. Se
+  puede renombrar aunque tenga reservas (cada reserva apunta al recurso, no a su nombre). Subir
+  la capacidad siempre se puede. **Bajarla, solo hasta lo ya comprometido** en reservas que no han
+  terminado: si la clase del martes tiene 12 inscritos, no puede pasar a 10 cupos. Si la
+  capacidad se rechaza, tampoco se guarda el nombre: todo o nada.
+- **Cómo se llaman los recursos** (en **Cómo se reserva**): Habitación,
   Cancha, Cabaña, Terapeuta. Es la etiqueta del formulario de reserva; vacío, dice "Recurso". Se
   puede cambiar aunque el servicio ya tenga reservas: solo cambia lo que se lee.
 - **Nombres de recurso únicos** entre los activos del negocio, sin distinguir mayúsculas: "101" es
@@ -114,7 +146,7 @@ reservas, con un matiz:
   puede registrar la llegada, cobrar y registrar la salida. Si desapareciera, el huésped que llega
   mañana no tendría dónde registrarse.
 - Sin reservas en la ventana, un servicio apagado no se muestra.
-- En **Recursos** se sigue pudiendo configurar, con una nota que explica por qué no aparece en
+- En **su página** se sigue pudiendo configurar, con una nota que explica por qué no aparece en
   Disponibilidad.
 
 Encenderlo de nuevo reabre las reservas.
@@ -143,17 +175,28 @@ Un servicio **por horas** puede publicar su horario, y elegir qué significa:
   leerse de la otra forma, y no se toca ninguna reserva. Los servicios que ya tenían turnos antes
   de que existiera el modo quedaron como **turnos exactos**.
 
-En la sección **Horario** de cada servicio por horas (en Recursos) se eligen los días (Lu a Do),
-la hora de inicio y la de fin, y **Agregar horario** (o **Agregar turno**) crea uno por cada día
-elegido. La **×** lo quita.
+La sección **Horario** de cada servicio por horas se lee como una **semana**: cada día dice
+*Cerrado*, *Todo el día* o sus franjas (`08:00–12:00 · 14:00–20:00`). El lápiz abre **solo ese
+día**:
+
+- Por atención, se elige **Cerrado**, **Todo el día** o **Por horas** (con sus franjas, que se
+  agregan y quitan). Por turnos, solo la lista de turnos del día.
+- **Aplicar también a** copia lo elegido a otros días (o a **Todos**).
+- **Guardar** reemplaza la semana entera en una sola operación (`setWeekSchedule`).
+- **Sin horario, cada día se muestra "Todo el día"**: cerrar el domingo guarda los otros seis
+  abiertos todo el día, no los deja cerrados. Y al revés: los siete días todo el día se guardan
+  como "sin horario".
+- **Quitar el horario** (debajo de la semana, con confirmación) vuelve a "sin horario".
 
 Reglas:
 
-- En punto o y media (18:00, 18:30), y el mismo día: no cruza la medianoche.
+- En punto o y media (18:00, 18:30), y el mismo día: no cruza la medianoche. **24:00** vale como
+  hora de fin: **Todo el día** es de 00:00 a 24:00, y una cancha abierta las 24 horas se reserva de
+  23:00 a 24:00.
 - **Dos turnos del mismo día no se pisan** (18:00–19:00 y 18:30–19:30 no pueden convivir); que se
   toquen sí (18:00–19:00 y 19:00–20:00). Lo impide la base de datos.
-- **Todo o nada**: si al publicar "martes y jueves" el del jueves choca con otro, no se crea
-  tampoco el del martes.
+- **Todo o nada**: si una franja de la semana choca con otra, no se guarda nada y se dice cuáles
+  ("El martes: 08:00–12:00 y 11:00–13:00 se cruzan").
 - **Cambiar el horario no invalida lo ya reservado.** La reserva guarda sus horas, no el turno. Si
   se quita el turno de las 19:00, las reservas de las 19:00 siguen en pie; solo dejan de ofrecerse
   nuevas. Y se pueden modificar (el teléfono, las personas) sin que se les pida un turno, mientras
@@ -164,7 +207,8 @@ Reglas:
 
 ### Archivar un recurso o un servicio
 
-Archivar un recurso (icono de archivo en Recursos) o un servicio (en Servicios) lo saca de la
+Archivar un recurso (icono de archivo en su fila, que pide confirmación) o un servicio (botón
+**Archivar** en su página) lo saca de la
 disponibilidad sin borrar las reservas que tuvo. Archivar un recurso además libera su nombre para
 uno nuevo.
 
@@ -238,8 +282,8 @@ Botón **Nueva reserva** arriba, o tocando una celda libre.
 | Entrada y Salida (por noche) | La noche del día de salida **no se cobra**: del 10 al 12 son 2 noches. Si se mueve la entrada más allá de la salida, la salida se corre sola |
 | Primer día y Último día (por día) | Los dos incluidos |
 | Desde y Semanas / Meses | La salida se calcula sola y se muestra debajo ("Hasta el 15/03/2030") |
-| Fecha, Desde y Hasta (por hora) | En tramos de 30 minutos. El mismo día: no puede cruzar la medianoche |
-| Fecha, Desde y Bloques (por bloque) | El fin se calcula solo ("Hasta las 16:00"); no puede pasar de la medianoche |
+| Fecha, Desde y Hasta (por hora) | Se eligen de una lista en tramos de 30 minutos. El mismo día: "Hasta" llega a 24:00, pero no cruza la medianoche |
+| Fecha, Desde y Bloques (por bloque) | El fin se calcula solo ("Hasta las 16:00"); puede llegar a las 24:00, no pasarlas |
 | Fecha y Turno (con turnos exactos) | En vez de escribir las horas, se elige uno de los turnos de ese día. Si no hay, lo dice |
 | Horario del día (con horario de atención) | Debajo de las horas: "El martes se atiende de 08:00 a 12:00 y de 14:00 a 22:00", en rojo si el tramo no cabe |
 | Personas / Cupos | Por defecto 1. No puede pasar de la capacidad (exclusivo) ni de lo que queda libre (compartido) |
@@ -475,7 +519,8 @@ Cada cobro **es un ingreso normal**:
 | Llegada antes de tiempo | "La llegada es el 10/11/2026. Todavía no se puede hacer check-in." |
 | Cobro mayor que el saldo | "El cobro pasa del saldo, que es 80.00 USD." |
 | Cobro en otra moneda sin tasa | "La reserva es en USD y el pago en VES. Escribe la tasa que aplicaste." |
-| Cambiar la forma de reservar con reservas | "\"Habitación doble\" ya tiene reservas. Para reservar de otra forma, crea otro servicio." |
+| Cambiar la forma de reservar con reservas pendientes | "\"Habitación doble\" tiene 2 reservas pendientes. Para reservarlo de otra forma, espera a que terminen o cancélalas." |
+| Reservar encima de una reserva vieja del otro modo | "\"Sala A\" tiene en esas fechas una reserva de cuando el servicio era exclusivo. Elige otras fechas u otro recurso." |
 | Bajar la capacidad por debajo de lo ocupado | "\"Sala\" ya tiene momentos con 12 cupos ocupados. No se puede bajar a 10." |
 | Modificar moviéndola encima de otra | "Ese recurso ya tiene otra reserva que se cruza con esas fechas." |
 | Modificar la entrada de una en curso | "Ya llegó: la entrada no se puede mover. Sí se puede cambiar la salida, el recurso y las personas." |

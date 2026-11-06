@@ -42,8 +42,15 @@ export const ROUTES: RouteDef[] = [
 
   { pattern: "/productos", title: "Productos", description: "Lo que vendes y llevas en inventario" },
   { pattern: "/servicios", title: "Servicios", description: "Lo que vendes sin inventario, y sus reservas" },
-  // Crear y editar se hacen en dialogos dentro de /productos y /servicios, asi
-  // que no hay rutas propias para eso.
+  // Un servicio en su pagina: sus datos y, si se reserva, como, sus tarifas,
+  // sus recursos y su horario. Antes eso vivia aparte, en /reservas/recursos.
+  {
+    pattern: "/servicios/:id",
+    title: "Servicio",
+    description: "Datos, reservas, tarifas, recursos y horario",
+  },
+  // Crear y editar productos se hace en dialogos dentro de /productos, asi que
+  // no hay rutas propias para eso.
 
   // En el sidebar aparece como "Stock" dentro de Productos. Esa etiqueta de
   // hijo se declara en NAV_STRUCTURE, no aqui.
@@ -65,11 +72,6 @@ export const ROUTES: RouteDef[] = [
     title: "Listado de reservas",
     description: "Buscar reservas y ver cuánto se debe",
     navLabel: "Listado",
-  },
-  {
-    pattern: "/reservas/recursos",
-    title: "Recursos",
-    description: "Qué se reserva y con qué habitaciones, canchas o equipos",
   },
 
   { pattern: "/ajustes", title: "Ajustes", description: "Configuración del negocio" },
@@ -166,7 +168,6 @@ const ROUTE_CAPABILITY: Record<string, Capability> = {
   "/ajustes/negocio": "tenant:manage",
   "/reservas": "booking:read",
   "/reservas/listado": "booking:read",
-  "/reservas/recursos": "resource:manage",
 };
 
 export function routeCapability(pathname: string): Capability | undefined {
@@ -213,7 +214,6 @@ const NAV_STRUCTURE: NavGroup[] = [
       { href: "/servicios", name: "Catálogo" },
       { href: "/reservas", name: "Disponibilidad" },
       { href: "/reservas/listado", name: "Reservas" },
-      "/reservas/recursos",
     ],
   },
 ];

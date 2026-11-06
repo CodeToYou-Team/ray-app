@@ -175,7 +175,7 @@ export function BookingBoard({
             </div>
             {canSetup ? (
               <Button size="sm" asChild>
-                <Link href="/reservas/recursos">Configurar recursos</Link>
+                <Link href="/servicios">Configurar en Servicios</Link>
               </Button>
             ) : (
               <p className="text-xs text-muted-foreground">
@@ -441,7 +441,7 @@ function GrupoServicio({
           >
             Sin recursos todavía.{" "}
             {canSetup && (
-              <Link href="/reservas/recursos" className="underline underline-offset-2">
+              <Link href={`/servicios/${servicio.id}?tab=recursos`} className="underline underline-offset-2">
                 Agrégalos
               </Link>
             )}

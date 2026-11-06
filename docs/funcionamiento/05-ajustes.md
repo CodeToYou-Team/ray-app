@@ -102,7 +102,7 @@ Acciones.
 En **Reservas**, titular, documento, teléfono y notas son columnas del sistema, y además se
 agregan columnas personalizadas (placa, motivo del viaje…). Cómo se usan: [Reservas › Columnas
 personalizadas](08-reservas.md#columnas-personalizadas). El nombre de lo que se reserva
-(Habitación, Cancha…) no está aquí: se pone en cada servicio, en Servicios › Recursos.
+(Habitación, Cancha…) no está aquí: se pone en cada servicio, en su página (Cómo se reserva).
 
 ### Columnas del sistema (fijas)
 

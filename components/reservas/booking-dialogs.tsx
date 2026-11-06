@@ -54,6 +54,7 @@ import {
   sumarMeses,
   totalReserva,
   turnosDelDia,
+  horasEnTramos,
   TRAMO_MINUTOS,
   type Rango,
 } from "@/lib/reservas/rango";
@@ -65,6 +66,7 @@ import { toFormValues } from "@/lib/fields/validate";
 import type { ResolvedField } from "@/lib/fields/resolve";
 import type { BoardBooking, BoardService, BookingFields } from "./types";
 import { PaymentForm, type CobroConfig } from "./booking-payment";
+import { HoraSelect } from "./hora-select";
 
 /** Con qué abre el formulario: lo que se tocó en la cuadrícula. */
 export interface Inicial {
@@ -89,9 +91,9 @@ function horaAMinutos(hora: string): number {
   return h * 60 + m;
 }
 
-/** 870 → "14:30"; null si se pasa de la medianoche (o no es un número). */
+/** 870 → "14:30", 1440 → "24:00"; null si se pasa de la medianoche (o no es un número). */
 function minutosAHora(minutos: number): string | null {
-  if (!Number.isFinite(minutos) || minutos > 24 * 60 - 1) return null;
+  if (!Number.isFinite(minutos) || minutos > 24 * 60) return null;
   return `${String(Math.floor(minutos / 60)).padStart(2, "0")}:${String(minutos % 60).padStart(2, "0")}`;
 }
 
@@ -612,13 +614,23 @@ export function BookingForm({
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="inicio">Desde</Label>
-                    <Input
+                    <HoraSelect
                       id="inicio"
-                      type="time"
-                      step={TRAMO_MINUTOS * 60}
                       value={inicio}
+                      opciones={horasEnTramos(0, 24 * 60 - TRAMO_MINUTOS)}
                       disabled={entradaFija}
-                      onChange={(e) => setInicio(e.target.value)}
+                      onChange={(v) => {
+                        setInicio(v);
+                        // Que "hasta" siga siendo después: mueve el fin con la
+                        // misma duración si quedaba antes o igual.
+                        if (fin <= v) {
+                          const dur = Math.max(
+                            TRAMO_MINUTOS,
+                            horaAMinutos(fin) - horaAMinutos(inicio),
+                          );
+                          setFin(minutosAHora(horaAMinutos(v) + dur) ?? "24:00");
+                        }
+                      }}
                     />
                   </div>
                   {porBloques ? (
@@ -640,12 +652,11 @@ export function BookingForm({
                   ) : (
                     <div className="space-y-2">
                       <Label htmlFor="fin">Hasta</Label>
-                      <Input
+                      <HoraSelect
                         id="fin"
-                        type="time"
-                        step={TRAMO_MINUTOS * 60}
                         value={fin}
-                        onChange={(e) => setFin(e.target.value)}
+                        opciones={horasEnTramos(horaAMinutos(inicio) + TRAMO_MINUTOS)}
+                        onChange={setFin}
                       />
                     </div>
                   )}

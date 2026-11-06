@@ -415,11 +415,13 @@ describe.skipIf(!hasDb)("reservas", () => {
     expect(r.ok).toBe(false);
   });
 
-  it("no se cambia la forma de reservar un servicio que ya tiene reservas", async () => {
+  it("no se cambia la forma de reservar un servicio con reservas pendientes", async () => {
+    // Una propia, lejos: las de arriba dejan de estar pendientes cuando pasan.
+    expect((await reservar(h102, noches("2035-01-10", "2035-01-12"), "Pendiente")).ok).toBe(true);
     const r = await configureServiceBooking(ctx, { serviceId: doble, unidad: "hora" });
     expect(r.ok).toBe(false);
     if (r.ok) return;
-    expect(r.error).toMatch(/ya tiene reservas/i);
+    expect(r.error).toMatch(/reservas? pendientes?/i);
   });
 
   it("sí se activa uno que nunca se reservó", async () => {

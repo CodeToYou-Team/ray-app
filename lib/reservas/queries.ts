@@ -31,7 +31,12 @@ import {
 } from "@/lib/db/schema";
 import { normalizeMoney, subtractMoney, sumMoney } from "@/lib/money";
 import { escapeLike } from "@/lib/finanzas/queries";
-import { bordesLocalesSql, periodoSql } from "./periodo";
+import {
+  bordesLocalesSql,
+  periodoSql,
+  reservaPendienteSql,
+  unidadDeReservaSql,
+} from "./periodo";
 import {
   describirCantidad,
   sinCeros,
@@ -250,8 +255,11 @@ export interface ServiceSetupRow {
   turnos: Turno[];
   horario: ModoHorario;
   tarifas: TarifaRow[];
-  /** Si ya tiene reservas, la unidad no se puede cambiar. */
-  bookingCount: number;
+  /**
+   * Reservas pendientes (en curso, o reservadas sin terminar). Mientras haya
+   * alguna, si se reserva por fechas u horas y el modo no se pueden cambiar.
+   */
+  pendientes: number;
   resources: ResourceRow[];
 }
 
@@ -260,6 +268,7 @@ export interface ServiceSetupRow {
  */
 export async function listServicesForSetup(
   tenantId: string,
+  options: { serviceId?: string } = {},
 ): Promise<ServiceSetupRow[]> {
   return withTenant(tenantId, async (tx) => {
     const servs = await tx
@@ -276,7 +285,13 @@ export async function listServicesForSetup(
         horario: services.scheduleMode,
       })
       .from(services)
-      .where(and(eq(services.tenantId, tenantId), isNull(services.deletedAt)))
+      .where(
+        and(
+          eq(services.tenantId, tenantId),
+          isNull(services.deletedAt),
+          options.serviceId ? eq(services.id, options.serviceId) : undefined,
+        ),
+      )
       .orderBy(asc(services.name));
 
     if (servs.length === 0) return [];
@@ -303,7 +318,13 @@ export async function listServicesForSetup(
       await tx
         .select({ serviceId: bookings.serviceId, n: count() })
         .from(bookings)
-        .where(and(eq(bookings.tenantId, tenantId), inArray(bookings.serviceId, ids)))
+        .where(
+          and(
+            eq(bookings.tenantId, tenantId),
+            inArray(bookings.serviceId, ids),
+            reservaPendienteSql(bookings.status, bookings.period),
+          ),
+        )
         .groupBy(bookings.serviceId),
     ];
 
@@ -315,7 +336,7 @@ export async function listServicesForSetup(
       ...s,
       turnos: turnos.get(s.id) ?? [],
       tarifas: tarifas.get(s.id) ?? [],
-      bookingCount: porServicio.get(s.id) ?? 0,
+      pendientes: porServicio.get(s.id) ?? 0,
       resources: recs
         .filter((r) => r.serviceId === s.id)
         .map(({ id, name, notes, capacity }) => ({ id, name, notes, capacity })),
@@ -417,7 +438,7 @@ async function consultarReservas(
   timezone: string,
   opciones: { where: (SQL | undefined)[]; orderBy: SQL[]; limit?: number; offset?: number },
 ): Promise<BookingRow[]> {
-  const bordes = bordesLocalesSql(bookings.period, timezone);
+  const bordes = bordesLocalesSql(bookings.period, timezone, bookings.rateUnit);
 
   const rows = await withTenant(tenantId, (tx) => {
     const q = tx
@@ -427,7 +448,7 @@ async function consultarReservas(
         resourceId: bookings.resourceId,
         serviceName: services.name,
         resourceName: resources.name,
-        unidad: services.bookingUnit,
+        unidad: unidadDeReservaSql(bookings.rateUnit),
         status: bookings.status,
         checkedInAt: bookings.checkedInAt,
         checkedOutAt: bookings.checkedOutAt,

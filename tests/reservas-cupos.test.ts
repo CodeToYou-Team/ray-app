@@ -352,7 +352,15 @@ describe.skipIf(!hasDb)("cupos en la base", () => {
   // Configuración y snapshots
   // -------------------------------------------------------------------------
 
-  it("con reservas, no se cambia de exclusivo a compartido", async () => {
+  it("con reservas pendientes, no se cambia de exclusivo a compartido", async () => {
+    // Una propia, lejos: las de arriba dejan de estar pendientes cuando pasan.
+    const pendiente = await createBooking(ctx, {
+      serviceId: habitacion,
+      resourceId: h301,
+      rango: { unidad: "noche", desde: "2035-01-10", hasta: "2035-01-12" },
+      holderName: "Pendiente",
+    });
+    expect(pendiente.ok).toBe(true);
     const r = await configureServiceBooking(ctx, {
       serviceId: habitacion,
       unidad: "noche",
@@ -360,7 +368,7 @@ describe.skipIf(!hasDb)("cupos en la base", () => {
     });
     expect(r.ok).toBe(false);
     if (r.ok) return;
-    expect(r.error).toMatch(/ya tiene reservas/i);
+    expect(r.error).toMatch(/reservas? pendientes?/i);
   });
 
   it("el cobro por persona sí cambia, y solo afecta a las reservas nuevas", async () => {

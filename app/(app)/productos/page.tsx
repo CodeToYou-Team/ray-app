@@ -18,7 +18,6 @@ export default async function ProductosPage() {
   return (
     <PageTransition>
       <CatalogView
-        kind="productos"
         products={products}
         categories={(catalogs.product_category ?? []).map((c) => ({
           id: c.id,
