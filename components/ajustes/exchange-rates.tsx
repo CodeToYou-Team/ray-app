@@ -127,7 +127,7 @@ export function ExchangeRates({
                   <p className="font-mono text-sm">
                     1 {r.baseCurrency} = {trim(r.rate)} {r.quoteCurrency}
                   </p>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     Fijada el {formatDate(r.updatedAt)}
                   </p>
                 </div>
@@ -199,7 +199,7 @@ export function ExchangeRates({
             </div>
 
             {base && quote && (
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 1 {currencyLabel(base)} = {valor || "…"} {quote}
               </p>
             )}

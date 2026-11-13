@@ -265,7 +265,7 @@ export function BookingBoard({
                         f === hoy ? "bg-primary/10 text-primary" : "text-muted-foreground",
                       )}
                     >
-                      <span className="block text-[10px] uppercase">{semana}</span>
+                      <span className="block text-2xs uppercase">{semana}</span>
                       <span className="block text-sm font-semibold">{dia}</span>
                     </th>
                   );
@@ -415,7 +415,7 @@ function GrupoServicio({
       <tr className="border-b bg-muted/40">
         <td
           colSpan={fechas.length + 1}
-          className="sticky left-0 px-3 py-1.5 text-[11px] font-medium"
+          className="sticky left-0 px-3 py-1.5 text-2xs font-medium"
         >
           {servicio.name}
           <span className="ml-2 font-mono font-normal text-muted-foreground">
@@ -426,7 +426,7 @@ function GrupoServicio({
             {servicio.shared && " · con cupos"}
           </span>
           {!servicio.active && (
-            <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
+            <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-2xs font-normal text-muted-foreground">
               No disponible: no acepta reservas nuevas
             </span>
           )}
@@ -437,7 +437,7 @@ function GrupoServicio({
         <tr className="border-b">
           <td
             colSpan={fechas.length + 1}
-            className="px-3 py-3 text-[11px] text-muted-foreground"
+            className="px-3 py-3 text-2xs text-muted-foreground"
           >
             Sin recursos todavía.{" "}
             {canSetup && (
@@ -702,7 +702,7 @@ function CeldasHoras({
                     onClick={() => onVer(b)}
                     title={`${b.holderName} · ${b.descripcion} · entró el ${b.inicio.slice(0, 10)} a las ${b.inicio.slice(11, 16)}`}
                     className={cn(
-                      "flex items-center gap-1 truncate rounded px-1 py-0.5 text-left font-mono text-[10px]",
+                      "flex items-center gap-1 truncate rounded px-1 py-0.5 text-left font-mono text-2xs",
                       claseReserva(b),
                     )}
                   >
@@ -718,7 +718,7 @@ function CeldasHoras({
                   onClick={() => onVer(b)}
                   title={`${b.holderName} · ${b.descripcion}${debe(b) ? ` · debe ${b.saldo} ${b.currency}` : ""}`}
                   className={cn(
-                    "flex items-center gap-1 truncate rounded px-1 py-0.5 text-left font-mono text-[10px]",
+                    "flex items-center gap-1 truncate rounded px-1 py-0.5 text-left font-mono text-2xs",
                     claseReserva(b),
                   )}
                 >
@@ -806,7 +806,7 @@ function CeldasCompartidas({
                   <button
                     type="button"
                     onClick={() => onNueva(inicial(f))}
-                    className="flex size-full items-center justify-center rounded font-mono text-[10px] text-muted-foreground/50 hover:bg-muted hover:text-muted-foreground"
+                    className="flex size-full items-center justify-center rounded font-mono text-2xs text-muted-foreground/50 hover:bg-muted hover:text-muted-foreground"
                   >
                     0/{cap}
                   </button>
@@ -829,7 +829,7 @@ function CeldasCompartidas({
                   })
                 }
                 className={cn(
-                  "flex size-full items-center justify-center gap-1 rounded font-mono text-[10px] font-medium",
+                  "flex size-full items-center justify-center gap-1 rounded font-mono text-2xs font-medium",
                   lleno
                     ? "bg-destructive/15 text-destructive hover:bg-destructive/25"
                     : "bg-primary/15 text-primary hover:bg-primary/25",
@@ -884,7 +884,7 @@ function CeldasCompartidas({
                   return (
                     <span
                       key={clave}
-                      className="truncate rounded px-1 py-0.5 font-mono text-[10px] text-muted-foreground/60"
+                      className="truncate rounded px-1 py-0.5 font-mono text-2xs text-muted-foreground/60"
                     >
                       {ini.slice(11, 16)} · 0/{cap}
                     </span>
@@ -906,7 +906,7 @@ function CeldasCompartidas({
                           })
                     }
                     className={cn(
-                      "flex items-center gap-1 truncate rounded px-1 py-0.5 text-left font-mono text-[10px]",
+                      "flex items-center gap-1 truncate rounded px-1 py-0.5 text-left font-mono text-2xs",
                       grupo.length === 0
                         ? "border border-dashed text-muted-foreground hover:bg-muted"
                         : lleno
@@ -979,7 +979,7 @@ function CeldaTurnosExclusiva({
                 onClick={() => onVer(b)}
                 title={`${b.holderName} · ${t.start}–${t.end}${debe(b) ? ` · debe ${b.saldo} ${b.currency}` : ""}`}
                 className={cn(
-                  "flex items-center gap-1 truncate rounded px-1 py-0.5 text-left font-mono text-[10px]",
+                  "flex items-center gap-1 truncate rounded px-1 py-0.5 text-left font-mono text-2xs",
                   claseReserva(b),
                 )}
               >
@@ -998,7 +998,7 @@ function CeldaTurnosExclusiva({
               key={t.id}
               type="button"
               onClick={() => onNueva(t)}
-              className="truncate rounded border border-dashed px-1 py-0.5 text-left font-mono text-[10px] text-muted-foreground hover:bg-muted"
+              className="truncate rounded border border-dashed px-1 py-0.5 text-left font-mono text-2xs text-muted-foreground hover:bg-muted"
             >
               {t.start}
               <span className="sr-only"> libre, reservar</span>
@@ -1006,7 +1006,7 @@ function CeldaTurnosExclusiva({
           ) : (
             <span
               key={t.id}
-              className="truncate px-1 py-0.5 font-mono text-[10px] text-muted-foreground/60"
+              className="truncate px-1 py-0.5 font-mono text-2xs text-muted-foreground/60"
             >
               {t.start}
             </span>
@@ -1019,7 +1019,7 @@ function CeldaTurnosExclusiva({
             onClick={() => onVer(b)}
             title={`${b.holderName} · fuera del horario`}
             className={cn(
-              "truncate rounded px-1 py-0.5 text-left font-mono text-[10px]",
+              "truncate rounded px-1 py-0.5 text-left font-mono text-2xs",
               claseReserva(b),
             )}
           >

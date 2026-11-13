@@ -33,7 +33,7 @@ export default async function AdminLayout({
     <div className="min-h-svh">
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border/70 bg-background/85 px-4 backdrop-blur-lg md:px-6">
         <Link href="/admin" className="flex items-center gap-2 font-semibold">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+          <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <ShieldCog className="size-4" />
           </span>
           <span className="hidden font-display text-base lg:inline">Administración</span>

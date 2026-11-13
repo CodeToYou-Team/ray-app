@@ -453,7 +453,7 @@ function EditorDia({
       </div>
 
       {atencion && sinHorario && tipo !== "todo" && (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-2xs text-muted-foreground">
           Hoy se reserva a cualquier hora. Al guardar, los días que no toques quedan abiertos
           todo el día.
         </p>

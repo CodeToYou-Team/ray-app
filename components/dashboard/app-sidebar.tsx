@@ -33,7 +33,7 @@ export function AppSidebar({
             <span className="font-display text-base leading-none tracking-tight text-sidebar-foreground">
               Ray App
             </span>
-            <span className="text-[11px] tracking-wide text-sidebar-foreground/60">
+            <span className="text-2xs tracking-wide text-sidebar-foreground/60">
               Gestión moderna para tu negocio
             </span>
           </div>

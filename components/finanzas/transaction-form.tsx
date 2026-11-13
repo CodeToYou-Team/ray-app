@@ -471,10 +471,10 @@ export function TransactionForm({
           {/* Tipo de operación. Al corregir es un dato fijo, no una elección. */}
           {editing ? (
             <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2">
-              <Badge variant="secondary" className="shrink-0 text-[10px]">
+              <Badge variant="secondary" className="shrink-0 text-2xs">
                 {opciones.find((o) => o.value === kind)?.label ?? kind}
               </Badge>
-              <span className="text-[11px] text-muted-foreground">
+              <span className="text-2xs text-muted-foreground">
                 Para cambiar de tipo, anula esta operación y registra otra.
               </span>
             </div>
@@ -498,7 +498,7 @@ export function TransactionForm({
                     )}
                   >
                     <span className="block text-sm font-medium">{o.label}</span>
-                    <span className="mt-0.5 block text-[11px] leading-tight text-muted-foreground">
+                    <span className="mt-0.5 block text-2xs leading-tight text-muted-foreground">
                       {o.hint}
                     </span>
                   </button>
@@ -562,7 +562,7 @@ export function TransactionForm({
                   {paymentMethods.map((m) => (
                     <SelectItem key={m.id} value={m.id}>
                       {m.label}
-                      <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">
+                      <span className="ml-1.5 font-mono text-2xs text-muted-foreground">
                         {m.currency}
                       </span>
                     </SelectItem>
@@ -716,7 +716,7 @@ function TasaDeCambio({
       )}
 
       {esLaSugerida && sugerida && (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-2xs text-muted-foreground">
           {sugerida.source === "configurada" ? (
             <>
               Es la que tienes fijada en Ajustes. Cámbiala aquí si hoy
@@ -841,14 +841,14 @@ function LineItemsEditor({
                       {productos.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
                           {p.name}
-                          <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">
+                          <span className="ml-1.5 font-mono text-2xs text-muted-foreground">
                             {p.price}
                           </span>
                           {/* Al vender importa cuánto queda; al comprar, no. */}
                           {!esCompra && p.stock !== undefined && (
                             <span
                               className={cn(
-                                "ml-1.5 text-[10px]",
+                                "ml-1.5 text-2xs",
                                 compareQuantity(p.stock, "0") <= 0
                                   ? "text-destructive"
                                   : "text-muted-foreground",
@@ -869,7 +869,7 @@ function LineItemsEditor({
                       {servicios.map((s) => (
                         <SelectItem key={s.id} value={s.id}>
                           {s.name}
-                          <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">
+                          <span className="ml-1.5 font-mono text-2xs text-muted-foreground">
                             {s.price}
                           </span>
                         </SelectItem>
@@ -879,7 +879,7 @@ function LineItemsEditor({
                 </SelectContent>
               </Select>
               {ref && (
-                <p className="mt-1 text-[11px] text-muted-foreground">
+                <p className="mt-1 text-2xs text-muted-foreground">
                   {esCompra && !isMoney(l.unitPrice) ? (
                     <span>
                       Escribe cuánto costó cada uno
@@ -899,7 +899,7 @@ function LineItemsEditor({
                 </p>
               )}
               {faltantes.has(l.refId) && (
-                <p role="alert" className="mt-1 text-[11px] text-destructive">
+                <p role="alert" className="mt-1 text-2xs text-destructive">
                   Solo quedan {formatQuantity(faltantes.get(l.refId)!)}. No se puede
                   vender más de lo que hay en inventario.
                 </p>

@@ -168,20 +168,20 @@ export function FieldManager({
                             {f.source === "fixed" && (
                               <Badge
                                 variant="outline"
-                                className="gap-1 text-[9px] font-normal"
+                                className="gap-1 text-2xs font-normal"
                                 title="Columna del sistema: su tipo no se puede cambiar"
                               >
-                                <Lock className="size-2.5" />
+                                <Lock className="size-3" />
                                 sistema
                               </Badge>
                             )}
                             {f.archived && (
-                              <Badge variant="secondary" className="text-[9px]">
+                              <Badge variant="secondary" className="text-2xs">
                                 archivada
                               </Badge>
                             )}
                             {f.hidden && !f.archived && (
-                              <Badge variant="secondary" className="text-[9px]">
+                              <Badge variant="secondary" className="text-2xs">
                                 oculta
                               </Badge>
                             )}
@@ -394,13 +394,13 @@ function FieldDialog({
           {existente && (
             <div className="grid grid-cols-2 gap-3 rounded-md bg-muted/50 px-3 py-2">
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                <p className="text-2xs uppercase tracking-wider text-muted-foreground">
                   Identificador
                 </p>
                 <code className="text-xs">{existente.key}</code>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                <p className="text-2xs uppercase tracking-wider text-muted-foreground">
                   Tipo
                 </p>
                 <span className="text-xs">{FIELD_TYPES[existente.type].label}</span>
@@ -560,7 +560,7 @@ function OptionsEditor({
 
       {archivadas.length > 0 && (
         <div className="rounded-md bg-muted/50 px-3 py-2">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <p className="text-2xs uppercase tracking-wider text-muted-foreground">
             Archivadas
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">

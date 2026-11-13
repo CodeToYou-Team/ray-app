@@ -155,7 +155,7 @@ export function StockTable({ rows }: { rows: StockRow[] }) {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={cn("gap-1 text-[10px]", meta.className)}
+                        className={cn("gap-1 text-2xs", meta.className)}
                       >
                         <meta.icon className="size-3" />
                         {meta.label}

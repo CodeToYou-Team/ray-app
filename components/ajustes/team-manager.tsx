@@ -138,7 +138,7 @@ export function TeamManager({
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">
             Miembros
-            <Badge variant="secondary" className="ml-2 text-[10px]">
+            <Badge variant="secondary" className="ml-2 text-2xs">
               {members.length}
             </Badge>
           </CardTitle>
@@ -286,7 +286,7 @@ function RoleCell({
           ))}
         </SelectContent>
       </Select>
-      {error && <p className="mt-1 text-[11px] text-destructive">{error}</p>}
+      {error && <p className="mt-1 text-2xs text-destructive">{error}</p>}
     </div>
   );
 }

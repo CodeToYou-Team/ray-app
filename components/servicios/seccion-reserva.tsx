@@ -216,7 +216,7 @@ function FormReserva({
                 <SelectItem value="compartido">Compartido: varias hasta llenar cupos</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               {compartido
                 ? "Cada recurso tiene cupos y se aceptan reservas hasta llenarlos: clases, tours, estacionamientos."
                 : "Una reserva ocupa el recurso entero: habitaciones, canchas, salas."}
@@ -237,7 +237,7 @@ function FormReserva({
                 <SelectItem value="persona">Por persona</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               {porPersona
                 ? "El precio de la tarifa por cada persona: el tour, la clase."
                 : "El mismo precio vayan 1 o 3: la habitación, la cancha."}{" "}
@@ -248,7 +248,7 @@ function FormReserva({
       )}
 
       {bloqueada && (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-2xs text-muted-foreground">
           Tiene reservas pendientes (en curso o por llegar): hasta que terminen, o las
           canceles, si se reserva por fechas u horas y el modo no se pueden cambiar.
         </p>

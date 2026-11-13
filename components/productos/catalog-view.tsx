@@ -235,12 +235,12 @@ export function CatalogView({
                       <span className="flex items-center gap-2">
                         {p.name}
                         {p.archived && (
-                          <Badge variant="secondary" className="text-[10px]">
+                          <Badge variant="secondary" className="text-2xs">
                             Archivado
                           </Badge>
                         )}
                         {!p.isActive && !p.archived && (
-                          <Badge variant="outline" className="text-[10px]">
+                          <Badge variant="outline" className="text-2xs">
                             Inactivo
                           </Badge>
                         )}
@@ -382,7 +382,7 @@ export function ArchiveButton({
           <button
             type="button"
             onClick={() => setError(null)}
-            className="mt-1 block text-[11px] text-muted-foreground underline underline-offset-2"
+            className="mt-1 block text-2xs text-muted-foreground underline underline-offset-2"
           >
             Entendido
           </button>

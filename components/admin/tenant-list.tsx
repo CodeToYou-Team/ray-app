@@ -62,7 +62,7 @@ export function TenantList({
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">
             Todos
-            <Badge variant="secondary" className="ml-2 text-[10px]">
+            <Badge variant="secondary" className="ml-2 text-2xs">
               {tenants.length}
             </Badge>
           </CardTitle>
@@ -156,7 +156,7 @@ function OwnerCell({ tenant }: { tenant: TenantSummary }) {
         {tenant.pendingOwners.map((email) => (
           <p key={email} className="truncate text-muted-foreground">
             {email}{" "}
-            <span className="text-[11px] text-warning">(sin registrarse)</span>
+            <span className="text-2xs text-warning">(sin registrarse)</span>
           </p>
         ))}
       </div>
@@ -224,7 +224,7 @@ function CreateTenantDialog({
 
   const fieldError = (field: string) =>
     error?.field === field ? (
-      <p className="text-[11px] text-destructive">{error.message}</p>
+      <p className="text-2xs text-destructive">{error.message}</p>
     ) : null;
 
   return (
@@ -268,7 +268,7 @@ function CreateTenantDialog({
               }}
             />
             {fieldError("slug") ?? (
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 Para soporte. No se puede cambiar después.
               </p>
             )}

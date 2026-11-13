@@ -293,7 +293,7 @@ function PestanasServicio({
 
 function Contador({ n }: { n: number }) {
   return (
-    <span className="rounded-full bg-muted px-1.5 font-mono text-[10px] text-muted-foreground">
+    <span className="rounded-full bg-muted px-1.5 font-mono text-2xs text-muted-foreground">
       {n}
     </span>
   );

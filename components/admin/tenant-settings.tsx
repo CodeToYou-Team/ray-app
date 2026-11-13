@@ -43,7 +43,7 @@ export function TenantSettings({ tenant }: { tenant: TenantSummary }) {
 
   const fieldError = (field: string) =>
     error?.field === field ? (
-      <p className="text-[11px] text-destructive">{error.message}</p>
+      <p className="text-2xs text-destructive">{error.message}</p>
     ) : null;
 
   return (

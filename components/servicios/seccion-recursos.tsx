@@ -282,7 +282,7 @@ function FormRecurso({
         />
       </div>
       {recurso && (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-2xs text-muted-foreground">
           {shared
             ? "No se pueden bajar los cupos por debajo de lo que ya está reservado."
             : "No se puede bajar por debajo de una reserva pendiente para más personas."}

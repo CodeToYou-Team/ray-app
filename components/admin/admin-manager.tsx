@@ -83,7 +83,7 @@ export function AdminManager({
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">
             Administradores
-            <Badge variant="secondary" className="ml-2 text-[10px]">
+            <Badge variant="secondary" className="ml-2 text-2xs">
               {admins.length}
             </Badge>
           </CardTitle>
@@ -229,7 +229,7 @@ function LevelCell({ admin }: { admin: PlatformAdmin }) {
           ))}
         </SelectContent>
       </Select>
-      {error && <p className="mt-1 text-[11px] text-destructive">{error}</p>}
+      {error && <p className="mt-1 text-2xs text-destructive">{error}</p>}
     </div>
   );
 }

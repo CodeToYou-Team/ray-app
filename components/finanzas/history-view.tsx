@@ -149,13 +149,13 @@ export function HistoryView({ currency, currencies, meses }: Props) {
  */
 function Variacion({ actual, previo }: { actual: string; previo?: string }) {
   if (previo === undefined) {
-    return <span className="text-[11px] text-muted-foreground">—</span>;
+    return <span className="text-2xs text-muted-foreground">—</span>;
   }
 
   const base = Number(previo);
   if (base === 0) {
     return (
-      <span className="text-[11px] text-muted-foreground">
+      <span className="text-2xs text-muted-foreground">
         {Number(actual) > 0 ? "primer mes" : "—"}
       </span>
     );
@@ -164,7 +164,7 @@ function Variacion({ actual, previo }: { actual: string; previo?: string }) {
   const pct = Math.round(((Number(actual) - base) / base) * 100);
   if (pct === 0) {
     return (
-      <span className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground">
+      <span className="inline-flex items-center gap-0.5 text-2xs text-muted-foreground">
         <Minus className="size-3" />
         igual
       </span>
@@ -175,7 +175,7 @@ function Variacion({ actual, previo }: { actual: string; previo?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-0.5 text-[11px] font-medium",
+        "inline-flex items-center gap-0.5 text-2xs font-medium",
         sube ? "text-success" : "text-destructive",
       )}
     >

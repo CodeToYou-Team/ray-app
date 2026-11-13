@@ -16,7 +16,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StaggerContainer, StaggerItem } from "@/components/motion";
-import { formatMoney, formatDate } from "@/lib/format";
+import { EmptyState } from "@/components/empty-state";
+import { Money, Num } from "@/components/dinero";
+import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { DashboardCurrency } from "@/lib/finanzas/dashboard";
 
@@ -50,7 +52,7 @@ interface Props {
 function Change({ value }: { value: number | null }) {
   if (value === null) {
     return (
-      <span className="text-[11px] text-muted-foreground">
+      <span className="text-2xs text-muted-foreground">
         sin mes anterior para comparar
       </span>
     );
@@ -59,7 +61,7 @@ function Change({ value }: { value: number | null }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-0.5 text-[11px]",
+        "inline-flex items-center gap-0.5 text-2xs",
         up ? "text-success" : "text-destructive",
       )}
     >
@@ -94,31 +96,25 @@ export function DashboardContent({
         }
       />
       {monedas.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <div className="flex size-11 items-center justify-center rounded-xl bg-muted">
-              <Plus className="size-5 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="font-medium">
-                {soloPropias
-                  ? "Todavía no registraste movimientos este mes"
-                  : "Todavía no hay movimientos este mes"}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Registra tu primer ingreso o gasto y los números aparecen aquí.
-              </p>
-            </div>
-            <div className="flex gap-2">
+        <EmptyState
+          icon={<Plus className="size-5" />}
+          title={
+            soloPropias
+              ? "Todavía no registraste movimientos este mes"
+              : "Todavía no hay movimientos este mes"
+          }
+          description="Registra tu primer ingreso o gasto y los números aparecen aquí."
+          action={
+            <>
               <Button size="sm" asChild>
                 <Link href="/finanzas/ingresos">Registrar ingreso</Link>
               </Button>
               <Button size="sm" variant="outline" asChild>
                 <Link href="/finanzas/gastos">Registrar gasto</Link>
               </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </>
+          }
+        />
       ) : (
         <StaggerContainer>
           {/*
@@ -133,7 +129,7 @@ export function DashboardContent({
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center justify-between text-sm">
                       <span>{soloPropias ? "Lo que registraste este mes" : "Este mes"}</span>
-                      <Badge variant="outline" className="font-mono text-[10px]">
+                      <Badge variant="outline" className="font-mono text-2xs">
                         {m.currency}
                       </Badge>
                     </CardTitle>
@@ -144,9 +140,12 @@ export function DashboardContent({
                         <span className="text-xs text-muted-foreground">
                           Ingresos
                         </span>
-                        <span className="font-mono text-base font-semibold text-success">
-                          {formatMoney(m.ingresos, m.currency)}
-                        </span>
+                        <Money
+                          value={m.ingresos}
+                          currency={m.currency}
+                          tone="success"
+                          className="text-base font-semibold"
+                        />
                       </div>
                       <div className="flex justify-end">
                         <Change value={m.ingresosChange} />
@@ -158,9 +157,12 @@ export function DashboardContent({
                         <span className="text-xs text-muted-foreground">
                           Gastos
                         </span>
-                        <span className="font-mono text-base font-semibold text-destructive">
-                          {formatMoney(m.gastos, m.currency)}
-                        </span>
+                        <Money
+                          value={m.gastos}
+                          currency={m.currency}
+                          tone="destructive"
+                          className="text-base font-semibold"
+                        />
                       </div>
                       <div className="flex justify-end">
                         <Change value={m.gastosChange} />
@@ -169,16 +171,12 @@ export function DashboardContent({
 
                     <div className="flex items-baseline justify-between border-t pt-2">
                       <span className="text-xs font-medium">Balance</span>
-                      <span
-                        className={cn(
-                          "font-mono text-base font-bold",
-                          Number(m.balance) < 0
-                            ? "text-destructive"
-                            : "text-foreground",
-                        )}
-                      >
-                        {formatMoney(m.balance, m.currency)}
-                      </span>
+                      <Money
+                        value={m.balance}
+                        currency={m.currency}
+                        tone={Number(m.balance) < 0 ? "destructive" : "default"}
+                        className="text-base font-bold"
+                      />
                     </div>
                   </CardContent>
                 </Card>
@@ -227,23 +225,21 @@ export function DashboardContent({
                   <p className="truncate text-sm font-medium">
                     {r.concept}
                     {r.kind !== "operacion" && (
-                      <Badge variant="secondary" className="ml-1.5 text-[9px]">
+                      <Badge variant="secondary" className="ml-1.5 text-2xs">
                         {r.kind === "venta" ? "Venta" : "Compra"}
                       </Badge>
                     )}
                   </p>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     {r.categoryLabel} · {formatDate(r.occurredOn)}
                   </p>
                 </div>
-                <span
-                  className={cn(
-                    "shrink-0 font-mono text-sm font-medium",
-                    r.type === "ingreso" ? "text-success" : "text-destructive",
-                  )}
-                >
-                  {formatMoney(r.amount, r.currency)}
-                </span>
+                <Money
+                  value={r.amount}
+                  currency={r.currency}
+                  tone={r.type === "ingreso" ? "success" : "destructive"}
+                  className="shrink-0 text-sm font-medium"
+                />
               </div>
             ))}
           </CardContent>
@@ -308,13 +304,13 @@ export function DashboardContent({
                     <Badge
                       variant="outline"
                       className={cn(
-                        "shrink-0 font-mono text-[10px]",
+                        "shrink-0 text-2xs",
                         a.status === "sin_stock"
                           ? "border-destructive/20 bg-destructive/10 text-destructive"
                           : "border-warning/20 bg-warning/10 text-warning",
                       )}
                     >
-                      {a.stock.replace(/\.?0+$/, "") || "0"}
+                      <Num value={a.stock} />
                     </Badge>
                   </div>
                 ))

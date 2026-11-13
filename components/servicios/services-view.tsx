@@ -159,12 +159,12 @@ export function ServicesView({
                         {s.name}
                       </Link>
                       {s.archived && (
-                        <Badge variant="secondary" className="text-[10px]">
+                        <Badge variant="secondary" className="text-2xs">
                           Archivado
                         </Badge>
                       )}
                       {!s.isActive && !s.archived && (
-                        <Badge variant="outline" className="text-[10px]">
+                        <Badge variant="outline" className="text-2xs">
                           Inactivo
                         </Badge>
                       )}
@@ -334,7 +334,7 @@ function NuevoServicio({
                   </SelectContent>
                 </Select>
               </div>
-              <p className="text-[11px] text-muted-foreground sm:col-span-2">
+              <p className="text-2xs text-muted-foreground sm:col-span-2">
                 La tarifa inicial sale del precio. Al guardar vas a su página para agregar{" "}
                 {unidad === "noche" ? "las habitaciones" : "las canchas o salas"} y ajustar
                 tarifas{unidad === "hora" ? " y horario" : ""}.

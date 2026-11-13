@@ -99,7 +99,7 @@ export function SidebarUser({ name, email, role, isPlatformAdmin }: SidebarUserP
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
-            <div className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="px-2 py-1.5 text-2xs uppercase tracking-wider text-muted-foreground">
               Rol: {role}
             </div>
             <DropdownMenuSeparator />

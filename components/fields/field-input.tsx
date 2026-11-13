@@ -47,7 +47,7 @@ export function FieldInput({
         {field.label}
         {field.required && <span className="text-destructive">*</span>}
         {field.source === "custom" && (
-          <Badge variant="outline" className="text-[9px] font-normal">
+          <Badge variant="outline" className="text-2xs font-normal">
             personalizada
           </Badge>
         )}
@@ -168,7 +168,7 @@ function Control({
             {faltante && (
               <SelectItem value={faltante.code}>
                 {faltante.label}
-                <span className="ml-1.5 text-[10px] text-muted-foreground">
+                <span className="ml-1.5 text-2xs text-muted-foreground">
                   (ya no disponible)
                 </span>
               </SelectItem>

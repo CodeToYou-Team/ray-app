@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Lock } from "lucide-react";
 import { PageTransition } from "@/components/motion";
+import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { AdminManager } from "@/components/admin/admin-manager";
 import { requirePlatformAdmin } from "@/lib/authz/session";
 import { listAdminHistory, listAdmins } from "@/lib/admin/admins";
@@ -24,22 +24,17 @@ export default async function AdministradoresPage() {
 
   if (admin.level !== "superadmin") {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
-          <div className="flex size-11 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-            <Lock className="size-5" />
-          </div>
-          <div>
-            <h1 className="font-semibold">Solo para superadmin</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Nombrar, cambiar y quitar administradores lo hace un superadmin.
-            </p>
-          </div>
+      <EmptyState
+        icon={<Lock className="size-5" />}
+        title="Solo para superadmin"
+        titleAs="h1"
+        description="Nombrar, cambiar y quitar administradores lo hace un superadmin."
+        action={
           <Button asChild variant="outline" size="sm">
             <Link href="/admin">Volver a negocios</Link>
           </Button>
-        </CardContent>
-      </Card>
+        }
+      />
     );
   }
 

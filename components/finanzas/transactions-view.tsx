@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { restoreTransaction, voidTransaction } from "@/lib/finanzas/actions";
 import { formatMoney, formatDate } from "@/lib/format";
+import { Money } from "@/components/dinero";
 import { cn } from "@/lib/utils";
 
 export interface ViewRow {
@@ -263,32 +264,29 @@ export function TransactionsView({
           {balances.map((b) => (
             <Card key={b.currency}>
               <CardContent className="space-y-2 p-4">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                <p className="text-2xs font-medium uppercase tracking-wider text-muted-foreground">
                   {b.currency}
                 </p>
                 <div className="flex items-baseline justify-between text-sm">
                   <span className="text-muted-foreground">Ingresos</span>
-                  <span className="font-mono text-success">
-                    {formatMoney(b.ingresos, b.currency)}
-                  </span>
+                  <Money value={b.ingresos} currency={b.currency} tone="success" />
                 </div>
                 <div className="flex items-baseline justify-between text-sm">
                   <span className="text-muted-foreground">Gastos</span>
-                  <span className="font-mono text-destructive">
-                    {formatMoney(b.gastos, b.currency)}
-                  </span>
+                  <Money
+                    value={b.gastos}
+                    currency={b.currency}
+                    tone="destructive"
+                  />
                 </div>
                 {/* El balance solo tiene sentido DENTRO de una moneda. */}
                 <div className="flex items-baseline justify-between border-t pt-2 text-sm font-semibold">
                   <span>Balance</span>
-                  <span
-                    className={cn(
-                      "font-mono",
-                      Number(b.balance) < 0 ? "text-destructive" : "text-success",
-                    )}
-                  >
-                    {formatMoney(b.balance, b.currency)}
-                  </span>
+                  <Money
+                    value={b.balance}
+                    currency={b.currency}
+                    tone={Number(b.balance) < 0 ? "destructive" : "success"}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -301,18 +299,16 @@ export function TransactionsView({
           {totals.map((t) => (
             <Card key={t.currency}>
               <CardContent className="p-4">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                <p className="text-2xs font-medium uppercase tracking-wider text-muted-foreground">
                   Total en {t.currency}
                 </p>
-                <p
-                  className={cn(
-                    "mt-1 font-mono text-lg font-semibold",
-                    type === "gasto" ? "text-destructive" : "text-success",
-                  )}
-                >
-                  {formatMoney(t.total, t.currency)}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
+                <Money
+                  value={t.total}
+                  currency={t.currency}
+                  tone={type === "gasto" ? "destructive" : "success"}
+                  className="mt-1 block text-lg font-semibold"
+                />
+                <p className="text-2xs text-muted-foreground">
                   {t.count} {t.count === 1 ? "operación" : "operaciones"}
                 </p>
               </CardContent>
@@ -434,7 +430,7 @@ export function TransactionsView({
                     <TableCell className="text-xs text-muted-foreground">
                       {formatDate(r.occurredOn)}
                       {r.voidedOn && (
-                        <span className="block text-[10px] text-destructive">
+                        <span className="block text-2xs text-destructive">
                           anulada el {formatDate(r.voidedOn)}
                         </span>
                       )}
@@ -443,7 +439,7 @@ export function TransactionsView({
                       <span className="flex items-center gap-2">
                         {r.concept}
                         {kindBadge && (
-                          <Badge variant="secondary" className="gap-1 text-[10px]">
+                          <Badge variant="secondary" className="gap-1 text-2xs">
                             <kindBadge.icon className="size-3" />
                             {kindBadge.label}
                           </Badge>
@@ -459,7 +455,7 @@ export function TransactionsView({
                     <TableCell className="text-right">
                       <span
                         className={cn(
-                          "inline-flex items-center gap-1 font-mono text-sm font-medium",
+                          "inline-flex items-center gap-1 text-sm font-medium",
                           r.type === "ingreso" ? "text-success" : "text-destructive",
                         )}
                       >
@@ -468,7 +464,7 @@ export function TransactionsView({
                         ) : (
                           <ArrowDownRight className="size-3.5" />
                         )}
-                        {formatMoney(r.amount, r.currency)}
+                        <Money value={r.amount} currency={r.currency} />
                       </span>
                       {/*
                         Si hubo conversión, la tasa se ve aquí. Un monto en Bs
@@ -476,7 +472,7 @@ export function TransactionsView({
                         nada después.
                       */}
                       {r.exchangeRate && r.baseCurrency && (
-                        <span className="block font-mono text-[10px] text-muted-foreground">
+                        <span className="block font-mono text-2xs text-muted-foreground">
                           1 {r.baseCurrency} = {trimRate(r.exchangeRate)} {r.currency}
                         </span>
                       )}
@@ -878,7 +874,7 @@ function AvisoAnulada({
       <Button
         size="icon"
         variant="ghost"
-        className="size-7"
+        className="size-8"
         disabled={pending}
         onClick={onCerrar}
       >
@@ -916,7 +912,7 @@ function RestaurarBoton({ row }: { row: ViewRow }) {
         <span className="sr-only"> {row.concept}</span>
       </Button>
       {error && (
-        <p role="alert" className="mt-1 text-left text-[11px] text-destructive">
+        <p role="alert" className="mt-1 text-left text-2xs text-destructive">
           {error}
         </p>
       )}

@@ -361,7 +361,7 @@ function StatCard({
           <Icon className="size-4" />
         </div>
         <div className="min-w-0">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <p className="text-2xs font-medium uppercase tracking-wider text-muted-foreground">
             {label}
           </p>
           <p
@@ -407,7 +407,7 @@ function BreakdownCard({
             <div className="flex items-baseline justify-between gap-2 text-sm">
               <span className="flex min-w-0 items-center gap-2">
                 <span className="truncate">{r.label}</span>
-                <Badge variant="outline" className="shrink-0 text-[9px]">
+                <Badge variant="outline" className="shrink-0 text-2xs">
                   {r.count}
                 </Badge>
               </span>

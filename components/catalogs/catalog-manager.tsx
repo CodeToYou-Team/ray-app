@@ -158,7 +158,7 @@ export function CatalogManager({ catalogs, canManage }: Props) {
                             <span className="flex items-center gap-2">
                               {item.label}
                               {item.archivedAt && (
-                                <Badge variant="secondary" className="text-[10px]">
+                                <Badge variant="secondary" className="text-2xs">
                                   Archivado
                                 </Badge>
                               )}
@@ -169,7 +169,7 @@ export function CatalogManager({ catalogs, canManage }: Props) {
                             <TableCell>
                               <Badge
                                 variant="outline"
-                                className="font-mono text-[10px]"
+                                className="font-mono text-2xs"
                                 title={findCurrency(item.currency ?? "")?.name}
                               >
                                 {item.currency}
@@ -373,7 +373,7 @@ function ItemDialog({
 
           {existing && (
             <div className="rounded-md bg-muted/50 px-3 py-2">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              <p className="text-2xs font-medium uppercase tracking-wider text-muted-foreground">
                 Identificador
               </p>
               <code className="text-xs">{existing.code}</code>

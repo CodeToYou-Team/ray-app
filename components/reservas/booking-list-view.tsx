@@ -191,13 +191,13 @@ export function BookingListView({
           {saldos.map((s) => (
             <Card key={s.currency}>
               <CardContent className="p-4">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                <p className="text-2xs font-medium uppercase tracking-wider text-muted-foreground">
                   Por cobrar en {s.currency}
                 </p>
                 <p className="mt-1 font-mono text-lg font-semibold text-destructive">
                   {formatMoney(s.saldo, s.currency)}
                 </p>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   en {s.count} {s.count === 1 ? "reserva" : "reservas"}
                   {hayFiltros && " de las filtradas"}
                 </p>
@@ -286,7 +286,7 @@ export function BookingListView({
                       <TableCell>
                         <span className="block font-medium">{b.holderName}</span>
                         {bajoTitular(b).length > 0 && (
-                          <span className="block text-[11px] text-muted-foreground">
+                          <span className="block text-2xs text-muted-foreground">
                             {bajoTitular(b).join(" · ")}
                           </span>
                         )}
@@ -308,7 +308,7 @@ export function BookingListView({
                       <TableCell className="text-center font-mono text-sm">{b.partySize}</TableCell>
                       <TableCell>
                         <span
-                          className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ${estado.className}`}
+                          className={`whitespace-nowrap rounded-full px-2 py-0.5 text-2xs font-medium ${estado.className}`}
                         >
                           {estado.label}
                         </span>

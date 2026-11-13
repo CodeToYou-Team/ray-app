@@ -116,7 +116,7 @@ export function PaymentForm({
           <Label htmlFor="monto">Cuánto abona ({reserva.currency})</Label>
           <button
             type="button"
-            className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            className="text-2xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
             onClick={() => setMonto(reserva.saldo)}
           >
             Todo el saldo: {formatMoney(reserva.saldo, reserva.currency)}
@@ -150,7 +150,7 @@ export function PaymentForm({
               {config.paymentMethods.map((m) => (
                 <SelectItem key={m.id} value={m.id}>
                   {m.label}
-                  <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">
+                  <span className="ml-1.5 font-mono text-2xs text-muted-foreground">
                     {m.currency}
                   </span>
                 </SelectItem>
@@ -198,7 +198,7 @@ export function PaymentForm({
             <span className="font-mono text-xs text-muted-foreground">{metodo.currency}</span>
           </div>
           {sugerida && rate === sugerida.rate && (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               {sugerida.source === "configurada"
                 ? "Es la que tienes fijada en Ajustes."
                 : `Es la que usaste el ${formatDate(sugerida.occurredOn)}.`}{" "}
