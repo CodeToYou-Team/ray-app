@@ -156,6 +156,42 @@
   and compare the suite's total duration — a pass in isolation means the clock,
   not the code.
 
+## Frontend
+
+Three voices, one job each. Loaded in `app/layout.tsx`, mapped role → face in
+`@theme` (`app/globals.css`):
+
+| Utility | Face | Job |
+| --- | --- | --- |
+| `font-display` | Instrument Serif | page titles, brand mark |
+| `font-sans` | Instrument Sans | everything else |
+| `font-mono` | Spline Sans Mono | money and quantities |
+
+- **Instrument Serif only exists in 400.** A title can never be `font-semibold`;
+  its weight comes from size (`text-3xl` + `tracking-tight`). If it reads thin,
+  raise the size — do not fake a bold.
+- Type scale: `text-3xl` page title, `text-xl` section, `text-sm` body, `text-xs`
+  meta, `text-2xs` (11px) dense tables. **Nothing below 11px.**
+- `<PageHeader>` (`components/layout/page-header.tsx`) owns the screen title.
+  The header bar is a utility strip with breadcrumbs and does not render an
+  `<h1>`; the title lives in exactly one place, the page. `route` reads
+  title/description from `ROUTES` in `lib/nav.ts`, which stays the single source.
+- Money and quantities go through `<Money>` / `<Num>` (`components/dinero.tsx`).
+  A hand-written `font-mono` span for an amount is a regression; `font-mono`
+  alone is for codes, slugs and IDs.
+- Icons: **Lucide only**. `components.json` declares `"iconLibrary": "lucide"`,
+  so the CLI and the code agree again. Sizes 12/14/16/20/24/32 (`size-3` …
+  `size-8`); icon-button containers are 36 (`size-9`) or 32 (`size-8`);
+  empty-state medallions are 44 (`size-11`). Keep the default stroke width —
+  `LucideProvider` exists, but React context does not cross the RSC boundary, so
+  icons rendered on the server would silently ignore it.
+- Empty states use `<EmptyState>` with a `tone`, not a fresh copy of the
+  medallion. That pattern was duplicated in four screens with three sizes.
+- `components/ui` is still shadcn-generated. The icon migration edited its
+  imports once, in place, instead of regenerating: a CLI overwrite would have
+  dragged unrelated upstream changes into the same diff. New primitives should
+  come from the CLI, which now emits Lucide.
+
 ## Plan of record
 
 `docs/plan_arquitectura_v2.md` is the current plan; `docs/plan_arquitectura_multitenant.md`
@@ -198,7 +234,8 @@ is superseded but remains the reference for infrastructure (Supabase pitfalls, R
 
 - Language: Spanish throughout (UI, metadata, content, code comments).
 - Theme: `next-themes` with light/dark via CSS variables.
-- Fonts: Plus Jakarta Sans + IBM Plex Mono (via next/font/google).
+- Fonts: see **Frontend** above. Three faces, three roles — never pick a family
+  per screen.
 - Forms: react-hook-form + Zod. Import from `zod`, not `zod/v4`.
 - Reads go through RSC; writes go through Server Actions, each with its own
   authorization check. Never put authorization in `proxy.ts`.
