@@ -163,15 +163,23 @@ Three voices, one job each. Loaded in `app/layout.tsx`, mapped role → face in
 
 | Utility | Face | Job |
 | --- | --- | --- |
-| `font-display` | Instrument Serif | page titles, brand mark |
-| `font-sans` | Instrument Sans | everything else |
-| `font-mono` | Spline Sans Mono | money and quantities |
+| `font-display` | Montserrat | page titles, brand wordmark |
+| `font-sans` | Google Sans | everything else |
+| `font-mono` | Google Sans Code | money and quantities |
 
-- **Instrument Serif only exists in 400.** A title can never be `font-semibold`;
-  its weight comes from size (`text-3xl` + `tracking-tight`). If it reads thin,
-  raise the size — do not fake a bold.
-- Type scale: `text-3xl` page title, `text-xl` section, `text-sm` body, `text-xs`
+- **Both display and body are geometric**, so hierarchy comes from size and
+  weight, not from shape: page title `text-2xl font-semibold tracking-tight`,
+  body 400. The auth hero is the only place that goes to `text-3xl`. Montserrat
+  is wide — do not push titles back to `text-3xl`, they collide with the actions.
+- Type scale: `text-2xl` page title, `text-xl` section, `text-sm` body, `text-xs`
   meta, `text-2xs` (11px) dense tables. **Nothing below 11px.**
+- The brand mark is `public/ray-mark.svg`, cropped from the bolt in
+  `ray-logo.svg`. The original is a 4267×4267 lockup where the drawing fills 28%
+  of the height, and its wordmark is live `<text>` — which an `<img>` renders in
+  a fallback font. The mark is white on purpose, so it only works on a coloured
+  surface: that is why it sits inside the `bg-sidebar-primary` tile. Render it
+  with `next/image` + `unoptimized` (the optimizer rejects SVG string sources);
+  the wordmark is always CSS text, never part of the image.
 - `<PageHeader>` (`components/layout/page-header.tsx`) owns the screen title.
   The header bar is a utility strip with breadcrumbs and does not render an
   `<h1>`; the title lives in exactly one place, the page. `route` reads
