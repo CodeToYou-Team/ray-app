@@ -43,7 +43,7 @@ export function PageHeader({
     >
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="font-display text-3xl leading-none tracking-tight text-foreground">
+          <h1 className="font-display text-2xl font-semibold leading-none tracking-tight text-foreground">
             {titulo}
           </h1>
           {badge}

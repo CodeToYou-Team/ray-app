@@ -1,41 +1,46 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 import {
-  Instrument_Sans,
-  Instrument_Serif,
-  Spline_Sans_Mono,
+  Google_Sans,
+  Google_Sans_Code,
+  Montserrat,
 } from "next/font/google";
 import "./globals.css";
 
 /**
  * Tres voces, cada una con un trabajo distinto:
  *
- * - `--font-instrument-serif`: el serif solo titula. Existe solo en 400, asi que
- *   un titulo no puede ir en negrita; el peso visual lo da el tamano.
- * - `--font-instrument-sans`: el trabajo diario (tablas, formularios, navegacion).
- * - `--font-spline-mono`: el dinero. Monoespaciado = columnas de cifras que se
- *   leen en vertical, y el 600 existe, que es lo que necesita un total.
+ * - `--font-montserrat`: titula. Es la voz que ya usa el logo (el archivo
+ *   original esta compuesto en Montserrat Alternates SemiBold), asi que la
+ *   interfaz y la marca hablan igual.
+ * - `--font-google-sans`: el trabajo diario (tablas, formularios, navegacion).
+ * - `--font-google-sans-code`: el dinero. Monoespaciado = columnas de cifras
+ *   que se leen en vertical, y viene de la misma familia que el texto.
+ *
+ * Montserrat y Google Sans son las dos geometricas, asi que la jerarquia ya no
+ * viene de la forma sino del tamano y el peso: el titulo va en 600 y el cuerpo
+ * en 400.
  *
  * Los nombres llevan la tipografia y no el rol (`-sans`, `-mono`) a proposito:
  * `@theme` en globals.css es quien traduce rol -> tipografia, y reusar el mismo
  * nombre en los dos lados crea una variable que se referencia a si misma.
  */
-const sans = Instrument_Sans({
-  variable: "--font-instrument-sans",
+const sans = Google_Sans({
+  variable: "--font-google-sans",
   subsets: ["latin"],
   display: "swap",
   weight: "variable",
 });
 
-const display = Instrument_Serif({
-  variable: "--font-instrument-serif",
+const display = Montserrat({
+  variable: "--font-montserrat",
   subsets: ["latin"],
   display: "swap",
-  weight: "400",
+  weight: "variable",
 });
 
-const mono = Spline_Sans_Mono({
-  variable: "--font-spline-mono",
+const mono = Google_Sans_Code({
+  variable: "--font-google-sans-code",
   subsets: ["latin"],
   display: "swap",
   weight: "variable",

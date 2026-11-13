@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   Sidebar,
   SidebarContent,
@@ -10,7 +11,6 @@ import {
 import { SidebarNav } from "./sidebar-nav";
 import { SidebarUser, type SidebarUserProps } from "./sidebar-user";
 import type { MembershipRole } from "@/lib/db/schema";
-import { Zap } from "lucide-react";
 
 export function AppSidebar({
   user,
@@ -26,11 +26,19 @@ export function AppSidebar({
     >
       <SidebarHeader className="p-4 pb-2">
         <div className="flex shrink-0 items-center gap-2.5 px-1">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-            <Zap className="size-4" />
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+            <Image
+              src="/ray-mark.svg"
+              alt=""
+              width={561}
+              height={1201}
+              unoptimized
+              priority
+              className="h-5 w-auto"
+            />
           </div>
           <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-            <span className="font-display text-base leading-none tracking-tight text-sidebar-foreground">
+            <span className="font-display text-base font-semibold leading-none tracking-tight text-sidebar-foreground">
               Ray App
             </span>
             <span className="text-2xs tracking-wide text-sidebar-foreground/60">

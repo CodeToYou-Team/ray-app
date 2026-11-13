@@ -6,9 +6,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-instrument-sans);
-  --font-display: var(--font-instrument-serif);
-  --font-mono: var(--font-spline-mono);
+  --font-sans: var(--font-google-sans);
+  --font-display: var(--font-montserrat);
+  --font-mono: var(--font-google-sans-code);
 
   /* ── Escala tipografica ─────────────────────────────────────────
      Cinco pasos y ninguno por debajo de 11px. El 2xs existe para las

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { redirect } from "next/navigation";
-import { Zap } from "lucide-react";
 import { LoginForm } from "@/components/auth/login-form";
 import { tryGetTenant } from "@/lib/authz/session";
 
@@ -17,10 +17,18 @@ export default async function LoginPage() {
     <div className="space-y-6">
       <div className="flex flex-col items-center gap-3 text-center">
         <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <Zap className="size-5" />
+          <Image
+            src="/ray-mark.svg"
+            alt=""
+            width={561}
+            height={1201}
+            unoptimized
+            priority
+            className="h-6 w-auto"
+          />
         </div>
         <div>
-          <h1 className="font-display text-2xl leading-none tracking-tight">Ray App</h1>
+          <h1 className="font-display text-3xl font-semibold leading-none tracking-tight">Ray App</h1>
           <p className="text-sm text-muted-foreground">
             Entra para gestionar tu negocio
           </p>
