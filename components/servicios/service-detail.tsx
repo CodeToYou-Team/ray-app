@@ -4,11 +4,11 @@ import { useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  IconArchive,
-  IconArchiveOff,
-  IconCalendarEvent,
-  IconPencil,
-} from "@tabler/icons-react";
+  Archive,
+  ArchiveX,
+  CalendarDays,
+  Pencil,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -103,7 +103,7 @@ export function ServiceDetail({
               {unidad && setup && setup.resources.length > 0 && !servicio.archived && (
                 <Button variant="outline" size="sm" className="gap-1.5" asChild>
                   <Link href="/reservas">
-                    <IconCalendarEvent className="size-4" />
+                    <CalendarDays className="size-4" />
                     Ver disponibilidad
                   </Link>
                 </Button>
@@ -138,7 +138,7 @@ export function ServiceDetail({
                       className="gap-1.5"
                       onClick={() => setEditandoDatos(true)}
                     >
-                      <IconPencil className="size-3.5" />
+                      <Pencil className="size-3.5" />
                       Editar
                     </Button>
                   )
@@ -326,12 +326,12 @@ function BotonArchivar({ servicio }: { servicio: ServiceRow }) {
       >
         {servicio.archived ? (
           <>
-            <IconArchiveOff className="size-4" />
+            <ArchiveX className="size-4" />
             Restaurar
           </>
         ) : (
           <>
-            <IconArchive className="size-4" />
+            <Archive className="size-4" />
             Archivar
           </>
         )}

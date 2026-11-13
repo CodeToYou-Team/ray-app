@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { IconBolt } from "@tabler/icons-react";
+import { Zap } from "lucide-react";
 import { LoginForm } from "@/components/auth/login-form";
 import { tryGetTenant } from "@/lib/authz/session";
 
@@ -17,7 +17,7 @@ export default async function LoginPage() {
     <div className="space-y-6">
       <div className="flex flex-col items-center gap-3 text-center">
         <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <IconBolt className="size-5" />
+          <Zap className="size-5" />
         </div>
         <div>
           <h1 className="font-display text-2xl leading-none tracking-tight">Ray App</h1>

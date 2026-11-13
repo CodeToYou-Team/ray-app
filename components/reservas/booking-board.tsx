@@ -4,11 +4,11 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
-  IconCalendarEvent,
-  IconChevronLeft,
-  IconChevronRight,
-  IconPlus,
-} from "@tabler/icons-react";
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -165,7 +165,7 @@ export function BookingBoard({
         <Encabezado />
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <IconCalendarEvent className="size-6 text-muted-foreground" />
+            <CalendarDays className="size-6 text-muted-foreground" />
             <div>
               <p className="font-medium">Todavía no hay nada que reservar</p>
               <p className="mt-1 max-w-md text-sm text-muted-foreground">
@@ -205,7 +205,7 @@ export function BookingBoard({
               })
             }
           >
-            <IconPlus className="size-3.5" />
+            <Plus className="size-3.5" />
             Nueva reserva
           </Button>
         )}
@@ -220,7 +220,7 @@ export function BookingBoard({
             disabled={navegando}
             onClick={() => irA(sumarDias(desde, -7))}
           >
-            <IconChevronLeft className="size-4" />
+            <ChevronLeft className="size-4" />
             <span className="sr-only sm:not-sr-only">Semana anterior</span>
           </Button>
           <Button
@@ -238,7 +238,7 @@ export function BookingBoard({
             onClick={() => irA(sumarDias(desde, 7))}
           >
             <span className="sr-only sm:not-sr-only">Semana siguiente</span>
-            <IconChevronRight className="size-4" />
+            <ChevronRight className="size-4" />
           </Button>
         </div>
       </div>
@@ -555,7 +555,7 @@ function CeldaLibre({
           onClick={onClick}
           className="group flex size-full items-center justify-center rounded text-muted-foreground/0 transition-colors hover:bg-muted hover:text-muted-foreground"
         >
-          <IconPlus className="size-3.5" />
+          <Plus className="size-3.5" />
           <span className="sr-only">Reservar el {fecha}</span>
         </button>
       ) : null}
@@ -741,7 +741,7 @@ function CeldasHoras({
                   }
                   className="flex h-6 items-center justify-center rounded text-muted-foreground/0 hover:bg-muted hover:text-muted-foreground"
                 >
-                  <IconPlus className="size-3" />
+                  <Plus className="size-3" />
                   <span className="sr-only">Reservar el {f}</span>
                 </button>
               )}
@@ -925,7 +925,7 @@ function CeldasCompartidas({
                   onClick={() => onNueva(inicial(f))}
                   className="flex h-6 items-center justify-center rounded text-muted-foreground/0 hover:bg-muted hover:text-muted-foreground"
                 >
-                  <IconPlus className="size-3" />
+                  <Plus className="size-3" />
                   <span className="sr-only">Reservar el {f}</span>
                 </button>
               )}

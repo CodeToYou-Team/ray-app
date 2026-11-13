@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { IconTrendingUp, IconTrendingDown, IconMinus } from "@tabler/icons-react";
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -165,7 +165,7 @@ function Variacion({ actual, previo }: { actual: string; previo?: string }) {
   if (pct === 0) {
     return (
       <span className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground">
-        <IconMinus className="size-3" />
+        <Minus className="size-3" />
         igual
       </span>
     );
@@ -180,9 +180,9 @@ function Variacion({ actual, previo }: { actual: string; previo?: string }) {
       )}
     >
       {sube ? (
-        <IconTrendingUp className="size-3" />
+        <TrendingUp className="size-3" />
       ) : (
-        <IconTrendingDown className="size-3" />
+        <TrendingDown className="size-3" />
       )}
       {sube ? "+" : ""}
       {pct}%

@@ -3,22 +3,21 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
-  IconArrowUpRight,
-  IconArrowDownRight,
-  IconPlus,
-  IconPackage,
-  IconShoppingCart,
-  IconChevronLeft,
-  IconChevronRight,
-  IconDotsVertical,
-  IconBan,
-  IconPencil,
-  IconSearch,
-  IconX,
-  IconArrowBackUp,
-  IconAlertCircle,
-  IconTrashOff,
-} from "@tabler/icons-react";
+  ArrowUpRight,
+  ArrowDownRight,
+  Plus,
+  Package,
+  ShoppingCart,
+  ChevronLeft,
+  ChevronRight,
+  EllipsisVertical,
+  Ban,
+  Pencil,
+  Search,
+  X,
+  Undo2,
+  CircleAlert,
+} from "lucide-react";
 import {
   Table,
   TableBody,
@@ -121,9 +120,9 @@ interface Props {
   ultimaTasa: Record<string, RateHint>;
 }
 
-const KIND_BADGE: Record<string, { label: string; icon: typeof IconPackage }> = {
-  venta: { label: "Venta", icon: IconShoppingCart },
-  compra: { label: "Compra", icon: IconPackage },
+const KIND_BADGE: Record<string, { label: string; icon: typeof Package }> = {
+  venta: { label: "Venta", icon: ShoppingCart },
+  compra: { label: "Compra", icon: Package },
 };
 
 export function TransactionsView({
@@ -232,7 +231,7 @@ export function TransactionsView({
                 setDialogOpen(true);
               }}
             >
-              <IconPlus className="size-3.5" />
+              <Plus className="size-3.5" />
               Registrar ingreso
             </Button>
           )}
@@ -247,7 +246,7 @@ export function TransactionsView({
                 setDialogOpen(true);
               }}
             >
-              <IconPlus className="size-3.5" />
+              <Plus className="size-3.5" />
               Registrar gasto
             </Button>
           )}
@@ -352,12 +351,12 @@ export function TransactionsView({
               >
                 {enAnuladas ? (
                   <>
-                    <IconX className="size-3.5" />
+                    <X className="size-3.5" />
                     Volver a las vigentes
                   </>
                 ) : (
                   <>
-                    <IconTrashOff className="size-3.5" />
+                    <Ban className="size-3.5" />
                     Ver anuladas
                   </>
                 )}
@@ -465,9 +464,9 @@ export function TransactionsView({
                         )}
                       >
                         {r.type === "ingreso" ? (
-                          <IconArrowUpRight className="size-3.5" />
+                          <ArrowUpRight className="size-3.5" />
                         ) : (
-                          <IconArrowDownRight className="size-3.5" />
+                          <ArrowDownRight className="size-3.5" />
                         )}
                         {formatMoney(r.amount, r.currency)}
                       </span>
@@ -521,7 +520,7 @@ export function TransactionsView({
               disabled={page === 0 || navigating}
               onClick={() => navegar({ page: page - 1 })}
             >
-              <IconChevronLeft className="size-4" />
+              <ChevronLeft className="size-4" />
               Anterior
             </Button>
             <Button
@@ -531,7 +530,7 @@ export function TransactionsView({
               onClick={() => navegar({ page: page + 1 })}
             >
               Siguiente
-              <IconChevronRight className="size-4" />
+              <ChevronRight className="size-4" />
             </Button>
           </div>
         </div>
@@ -606,7 +605,7 @@ function Filtros({
           Buscar por concepto
         </Label>
         <div className="relative">
-          <IconSearch className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             id="buscar"
             value={texto}
@@ -655,7 +654,7 @@ function Filtros({
             onFiltrar({ q: undefined, desde: undefined, hasta: undefined });
           }}
         >
-          <IconX className="size-3.5" />
+          <X className="size-3.5" />
           Limpiar
         </Button>
       )}
@@ -746,14 +745,14 @@ function RowMenu({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="size-8" disabled={pending}>
-            <IconDotsVertical className="size-4" />
+            <EllipsisVertical className="size-4" />
             <span className="sr-only">Acciones de {row.concept}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {canEdit && (
             <DropdownMenuItem onSelect={onEdit}>
-              <IconPencil className="mr-2 size-4" />
+              <Pencil className="mr-2 size-4" />
               Corregir
             </DropdownMenuItem>
           )}
@@ -767,7 +766,7 @@ function RowMenu({
                 setConfirmando(true);
               }}
             >
-              <IconBan className="mr-2 size-4" />
+              <Ban className="mr-2 size-4" />
               Anular
             </DropdownMenuItem>
           )}
@@ -803,7 +802,7 @@ function RowMenu({
                 role="alert"
                 className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-left text-sm text-destructive"
               >
-                <IconAlertCircle className="mt-px size-4 shrink-0" />
+                <CircleAlert className="mt-px size-4 shrink-0" />
                 {error}
               </p>
             )}
@@ -873,7 +872,7 @@ function AvisoAnulada({
           });
         }}
       >
-        <IconArrowBackUp className="size-3.5" />
+        <Undo2 className="size-3.5" />
         {pending ? "Deshaciendo…" : "Deshacer"}
       </Button>
       <Button
@@ -883,7 +882,7 @@ function AvisoAnulada({
         disabled={pending}
         onClick={onCerrar}
       >
-        <IconX className="size-3.5" />
+        <X className="size-3.5" />
         <span className="sr-only">Cerrar aviso</span>
       </Button>
     </div>
@@ -912,7 +911,7 @@ function RestaurarBoton({ row }: { row: ViewRow }) {
           });
         }}
       >
-        <IconArrowBackUp className="size-3.5" />
+        <Undo2 className="size-3.5" />
         {pending ? "Restaurando…" : "Restaurar"}
         <span className="sr-only"> {row.concept}</span>
       </Button>

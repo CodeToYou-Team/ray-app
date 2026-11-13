@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { IconPencil, IconPlus, IconSearch } from "@tabler/icons-react";
+import { Pencil, Plus, Search } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -96,7 +96,7 @@ export function ServicesView({
         />
         {canManage && (
           <Button size="sm" className="gap-1.5" onClick={() => setCreando(true)}>
-            <IconPlus className="size-3.5" />
+            <Plus className="size-3.5" />
             Nuevo servicio
           </Button>
         )}
@@ -104,7 +104,7 @@ export function ServicesView({
 
       <div className="flex items-center justify-end gap-3">
         <div className="relative">
-          <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -193,7 +193,7 @@ export function ServicesView({
                           asChild
                         >
                           <Link href={`/servicios/${s.id}`}>
-                            <IconPencil className="size-4" />
+                            <Pencil className="size-4" />
                             <span className="sr-only">Editar {s.name}</span>
                           </Link>
                         </Button>

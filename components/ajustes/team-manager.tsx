@@ -3,12 +3,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  IconUserPlus,
-  IconMail,
-  IconTrash,
-  IconAlertCircle,
-  IconInfoCircle,
-} from "@tabler/icons-react";
+  UserPlus,
+  Mail,
+  Trash2,
+  CircleAlert,
+  Info,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -128,7 +128,7 @@ export function TeamManager({
         description={description}
         actions={
           <Button size="sm" className="gap-1.5" onClick={() => setInviting(true)}>
-            <IconUserPlus className="size-3.5" />
+            <UserPlus className="size-3.5" />
             Invitar
           </Button>
         }
@@ -191,7 +191,7 @@ export function TeamManager({
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-sm">
-              <IconMail className="size-4 text-muted-foreground" />
+              <Mail className="size-4 text-muted-foreground" />
               Invitaciones pendientes
             </CardTitle>
             <p className="text-xs text-muted-foreground">
@@ -312,7 +312,7 @@ function RemoveButton({
         disabled={pending}
         onClick={() => setConfirmando(true)}
       >
-        <IconTrash className="size-4" />
+        <Trash2 className="size-4" />
         <span className="sr-only">Quitar a {member.email}</span>
       </Button>
 
@@ -332,7 +332,7 @@ function RemoveButton({
                 role="alert"
                 className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
               >
-                <IconAlertCircle className="mt-px size-4 shrink-0" />
+                <CircleAlert className="mt-px size-4 shrink-0" />
                 {error}
               </p>
             )}
@@ -395,7 +395,7 @@ function CancelButton({
         })
       }
     >
-      <IconTrash className="size-4" />
+      <Trash2 className="size-4" />
       <span className="sr-only">Cancelar la invitación de {email}</span>
     </Button>
   );
@@ -437,7 +437,7 @@ function InviteDialog({
           </div>
 
           <p className="flex items-start gap-2 text-xs text-muted-foreground">
-            <IconInfoCircle className="mt-px size-3.5 shrink-0" />
+            <Info className="mt-px size-3.5 shrink-0" />
             Registrarse sin invitación no da acceso a nada, así que el enlace se
             puede compartir sin riesgo.
           </p>
@@ -496,7 +496,7 @@ function InviteDialog({
               role="alert"
               className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             >
-              <IconAlertCircle className="mt-px size-4 shrink-0" />
+              <CircleAlert className="mt-px size-4 shrink-0" />
               {error}
             </p>
           )}

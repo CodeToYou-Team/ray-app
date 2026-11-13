@@ -1,9 +1,9 @@
 import Link from "next/link";
 import {
-  IconAlertTriangle,
-  IconPackageOff,
-  IconCheck,
-} from "@tabler/icons-react";
+  TriangleAlert,
+  PackageX,
+  Check,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageTransition } from "@/components/motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,7 +53,7 @@ export default async function AlertasPage() {
           <Card>
             <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
               <div className="flex size-11 items-center justify-center rounded-xl bg-success/10 text-success">
-                <IconCheck className="size-5" />
+                <Check className="size-5" />
               </div>
               <div>
                 <p className="font-medium">Todo en orden</p>
@@ -76,7 +76,7 @@ export default async function AlertasPage() {
               <AlertGroup
                 title="Agotados"
                 description="Sin unidades disponibles. No se pueden vender."
-                icon={IconPackageOff}
+                icon={PackageX}
                 tone="destructive"
                 rows={sinStock}
               />
@@ -85,7 +85,7 @@ export default async function AlertasPage() {
               <AlertGroup
                 title="Por debajo del mínimo"
                 description="Quedan menos unidades de las que definiste como mínimo."
-                icon={IconAlertTriangle}
+                icon={TriangleAlert}
                 tone="warning"
                 rows={bajos}
               />
@@ -139,7 +139,7 @@ function AlertGroup({
 }: {
   title: string;
   description: string;
-  icon: typeof IconAlertTriangle;
+  icon: typeof TriangleAlert;
   tone: "destructive" | "warning";
   rows: { productId: string; name: string; sku: string | null; stock: string; minStock: string | null }[];
 }) {

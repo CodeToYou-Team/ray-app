@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { IconPencil, IconPlus, IconX } from "@tabler/icons-react";
+import { Pencil, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -165,7 +165,7 @@ export function SeccionHorario({
                     className="size-8 shrink-0"
                     onClick={() => abrir(`dia:${dia}`)}
                   >
-                    <IconPencil className="size-4" />
+                    <Pencil className="size-4" />
                     <span className="sr-only">Editar el {DIAS_SEMANA[i]}</span>
                   </Button>
                 )}
@@ -400,13 +400,13 @@ function EditorDia({
                 className="size-8"
                 onClick={() => setFranjas((fs) => fs.filter((_, j) => j !== i))}
               >
-                <IconX className="size-4" />
+                <X className="size-4" />
                 <span className="sr-only">Quitar {f.start}–{f.end}</span>
               </Button>
             </div>
           ))}
           <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={agregar}>
-            <IconPlus className="size-3.5" />
+            <Plus className="size-3.5" />
             {atencion ? "Agregar franja" : "Agregar turno"}
           </Button>
           {falla && <p className="text-xs text-destructive">{falla}</p>}

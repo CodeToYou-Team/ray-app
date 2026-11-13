@@ -3,11 +3,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  IconAlertCircle,
-  IconCheck,
-  IconPlayerPause,
-  IconPlayerPlay,
-} from "@tabler/icons-react";
+  CircleAlert,
+  Check,
+  CirclePause,
+  CirclePlay,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -94,7 +94,7 @@ export function TenantSettings({ tenant }: { tenant: TenantSummary }) {
 
           {timezone !== tenant.timezone && (
             <p className="flex items-start gap-2 rounded-md bg-warning/10 p-3 text-xs text-warning">
-              <IconAlertCircle className="mt-px size-3.5 shrink-0" />
+              <CircleAlert className="mt-px size-3.5 shrink-0" />
               Cambiar la zona horaria cambia cómo se leen las horas ya
               registradas: reservas, horas pico y cortes por día. Hazlo solo
               para corregir una zona mal puesta.
@@ -106,7 +106,7 @@ export function TenantSettings({ tenant }: { tenant: TenantSummary }) {
               role="alert"
               className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             >
-              <IconAlertCircle className="mt-px size-4 shrink-0" />
+              <CircleAlert className="mt-px size-4 shrink-0" />
               {error.message}
             </p>
           )}
@@ -135,7 +135,7 @@ export function TenantSettings({ tenant }: { tenant: TenantSummary }) {
             </Button>
             {guardado && !cambio && (
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <IconCheck className="size-3.5" />
+                <Check className="size-3.5" />
                 Guardado
               </span>
             )}
@@ -173,9 +173,9 @@ function SuspendButton({ tenant }: { tenant: TenantSummary }) {
         onClick={() => setConfirmando(true)}
       >
         {suspendido ? (
-          <IconPlayerPlay className="size-3.5" />
+          <CirclePlay className="size-3.5" />
         ) : (
-          <IconPlayerPause className="size-3.5" />
+          <CirclePause className="size-3.5" />
         )}
         {suspendido ? "Reactivar" : "Suspender"}
       </Button>
@@ -199,7 +199,7 @@ function SuspendButton({ tenant }: { tenant: TenantSummary }) {
                 role="alert"
                 className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
               >
-                <IconAlertCircle className="mt-px size-4 shrink-0" />
+                <CircleAlert className="mt-px size-4 shrink-0" />
                 {error}
               </p>
             )}

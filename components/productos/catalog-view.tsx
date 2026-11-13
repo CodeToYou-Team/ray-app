@@ -3,14 +3,14 @@
 import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
-  IconPlus,
-  IconPencil,
-  IconArchive,
-  IconArchiveOff,
-  IconAlertCircle,
-  IconSearch,
-  IconAdjustments,
-} from "@tabler/icons-react";
+  Plus,
+  Pencil,
+  Archive,
+  ArchiveX,
+  CircleAlert,
+  Search,
+  SlidersHorizontal,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -165,7 +165,7 @@ export function CatalogView({
             className="gap-1.5"
             onClick={() => setEditing({ tab: "productos", row: null })}
           >
-            <IconPlus className="size-3.5" />
+            <Plus className="size-3.5" />
             Nuevo producto
           </Button>
         )}
@@ -175,7 +175,7 @@ export function CatalogView({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -285,7 +285,7 @@ export function CatalogView({
                               title="Ajustar inventario"
                               onClick={() => setAdjusting(p)}
                             >
-                              <IconAdjustments className="size-4" />
+                              <SlidersHorizontal className="size-4" />
                             </Button>
                           )}
                           <Button
@@ -296,7 +296,7 @@ export function CatalogView({
                               setEditing({ tab: "productos", row: p })
                             }
                           >
-                            <IconPencil className="size-4" />
+                            <Pencil className="size-4" />
                           </Button>
                           <ArchiveButton
                             archived={p.archived}
@@ -368,9 +368,9 @@ export function ArchiveButton({
         }}
       >
         {archived ? (
-          <IconArchiveOff className="size-4" />
+          <ArchiveX className="size-4" />
         ) : (
-          <IconArchive className="size-4" />
+          <Archive className="size-4" />
         )}
       </Button>
       {error && (
@@ -631,7 +631,7 @@ export function ItemDialog({
               role="alert"
               className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             >
-              <IconAlertCircle className="mt-px size-4 shrink-0" />
+              <CircleAlert className="mt-px size-4 shrink-0" />
               {error}
             </p>
           )}
@@ -738,7 +738,7 @@ function AdjustDialog({
               role="alert"
               className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             >
-              <IconAlertCircle className="mt-px size-4 shrink-0" />
+              <CircleAlert className="mt-px size-4 shrink-0" />
               {error}
             </p>
           )}

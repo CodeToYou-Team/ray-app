@@ -3,13 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  IconAlertCircle,
-  IconCalendarX,
-  IconCash,
-  IconLogin,
-  IconLogout,
-  IconPencil,
-} from "@tabler/icons-react";
+  CircleAlert,
+  CalendarX,
+  Banknote,
+  LogIn,
+  LogOut,
+  Pencil,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -106,7 +106,7 @@ function ErrorBox({ children }: { children: React.ReactNode }) {
       role="alert"
       className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
     >
-      <IconAlertCircle className="mt-px size-4 shrink-0" />
+      <CircleAlert className="mt-px size-4 shrink-0" />
       {children}
     </p>
   );
@@ -1239,7 +1239,7 @@ export function BookingDetail({
             <div className="flex flex-wrap gap-2">
               {puedeModificar && (
                 <Button size="sm" variant="ghost" className="gap-1.5" onClick={onModificar}>
-                  <IconPencil className="size-4" />
+                  <Pencil className="size-4" />
                   Modificar
                 </Button>
               )}
@@ -1250,7 +1250,7 @@ export function BookingDetail({
                   className="gap-1.5 text-destructive hover:text-destructive"
                   onClick={() => setModo("cancelando")}
                 >
-                  <IconCalendarX className="size-4" />
+                  <CalendarX className="size-4" />
                   Cancelar
                 </Button>
               )}
@@ -1269,7 +1269,7 @@ export function BookingDetail({
                   className="gap-1.5"
                   onClick={() => setModo("cobrando")}
                 >
-                  <IconCash className="size-4" />
+                  <Banknote className="size-4" />
                   Cobrar
                 </Button>
               )}
@@ -1280,7 +1280,7 @@ export function BookingDetail({
                   disabled={pending}
                   onClick={() => correr(() => checkIn({ id: reserva.id }))}
                 >
-                  <IconLogin className="size-4" />
+                  <LogIn className="size-4" />
                   {pending ? "Registrando…" : "Registrar llegada"}
                 </Button>
               )}
@@ -1293,7 +1293,7 @@ export function BookingDetail({
                     debe ? setModo("saliendo") : correr(() => checkOut({ id: reserva.id }))
                   }
                 >
-                  <IconLogout className="size-4" />
+                  <LogOut className="size-4" />
                   {pending ? "Registrando…" : "Registrar salida"}
                 </Button>
               )}

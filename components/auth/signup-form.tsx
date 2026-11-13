@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
-import { IconAlertCircle, IconMailCheck } from "@tabler/icons-react";
+import { CircleAlert, MailCheck } from "lucide-react";
 import { signUp, type SignupState } from "@/lib/authz/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,7 +28,7 @@ export function SignupForm() {
       <Card>
         <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
           <div className="flex size-10 items-center justify-center rounded-xl bg-success/10 text-success">
-            <IconMailCheck className="size-5" />
+            <MailCheck className="size-5" />
           </div>
           <div>
             <p className="font-medium">Revisa tu correo</p>
@@ -90,7 +90,7 @@ export function SignupForm() {
               role="alert"
               className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             >
-              <IconAlertCircle className="mt-px size-4 shrink-0" />
+              <CircleAlert className="mt-px size-4 shrink-0" />
               {state.error}
             </p>
           )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { IconAlertCircle, IconArrowsExchange } from "@tabler/icons-react";
+import { CircleAlert, ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -178,7 +178,7 @@ export function PaymentForm({
       {necesitaTasa && metodo && (
         <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 p-3">
           <div className="flex items-center gap-2">
-            <IconArrowsExchange className="size-4 text-primary" />
+            <ArrowLeftRight className="size-4 text-primary" />
             <Label htmlFor="tasa-cobro" className="text-sm">
               Tasa de cambio
             </Label>
@@ -226,7 +226,7 @@ export function PaymentForm({
           role="alert"
           className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
         >
-          <IconAlertCircle className="mt-px size-4 shrink-0" />
+          <CircleAlert className="mt-px size-4 shrink-0" />
           {error}
         </p>
       )}

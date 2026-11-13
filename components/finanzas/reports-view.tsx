@@ -15,7 +15,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { IconTrendingUp, IconTrendingDown, IconScale } from "@tabler/icons-react";
+import { TrendingUp, TrendingDown, Scale } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -162,19 +162,19 @@ export function ReportsView({
             <StatCard
               label="Ingresos"
               value={formatMoney(summary.ingresos, currency)}
-              icon={IconTrendingUp}
+              icon={TrendingUp}
               tone="success"
             />
             <StatCard
               label="Gastos"
               value={formatMoney(summary.gastos, currency)}
-              icon={IconTrendingDown}
+              icon={TrendingDown}
               tone="destructive"
             />
             <StatCard
               label="Balance"
               value={formatMoney(summary.balance, currency)}
-              icon={IconScale}
+              icon={Scale}
               tone={Number(summary.balance) < 0 ? "destructive" : "default"}
             />
           </div>
@@ -344,7 +344,7 @@ function StatCard({
 }: {
   label: string;
   value: string;
-  icon: typeof IconTrendingUp;
+  icon: typeof TrendingUp;
   tone: "success" | "destructive" | "default";
 }) {
   return (

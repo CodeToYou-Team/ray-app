@@ -3,11 +3,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  IconAlertCircle,
-  IconArrowsExchange,
-  IconPlus,
-  IconTrash,
-} from "@tabler/icons-react";
+  CircleAlert,
+  ArrowLeftRight,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -97,7 +97,7 @@ export function ExchangeRates({
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm">
-          <IconArrowsExchange className="size-4" />
+          <ArrowLeftRight className="size-4" />
           Tasas de cambio
         </CardTitle>
       </CardHeader>
@@ -138,7 +138,7 @@ export function ExchangeRates({
                   disabled={pending}
                   onClick={() => quitar(r.id)}
                 >
-                  <IconTrash className="size-4" />
+                  <Trash2 className="size-4" />
                   <span className="sr-only">
                     Quitar la tasa de {r.baseCurrency} a {r.quoteCurrency}
                   </span>
@@ -234,7 +234,7 @@ export function ExchangeRates({
             onClick={() => setAgregando(true)}
             disabled={pending}
           >
-            <IconPlus className="size-3.5" />
+            <Plus className="size-3.5" />
             {rates.length === 0 ? "Fijar una tasa" : "Fijar otra"}
           </Button>
         )}
@@ -244,7 +244,7 @@ export function ExchangeRates({
             role="alert"
             className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
           >
-            <IconAlertCircle className="mt-px size-4 shrink-0" />
+            <CircleAlert className="mt-px size-4 shrink-0" />
             {error}
           </p>
         )}

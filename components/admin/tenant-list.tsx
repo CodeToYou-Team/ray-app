@@ -4,11 +4,11 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  IconAlertCircle,
-  IconBuildingStore,
-  IconInfoCircle,
-  IconPlus,
-} from "@tabler/icons-react";
+  CircleAlert,
+  Store,
+  Info,
+  Plus,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +52,7 @@ export function TenantList({
         description="Alta, datos y suspensión de cada cliente de la plataforma."
         actions={
           <Button size="sm" className="gap-1.5" onClick={() => setCreating(true)}>
-            <IconPlus className="size-3.5" />
+            <Plus className="size-3.5" />
             Nuevo negocio
           </Button>
         }
@@ -70,7 +70,7 @@ export function TenantList({
         <CardContent className="p-0">
           {tenants.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-12 text-center">
-              <IconBuildingStore className="size-6 text-muted-foreground" />
+              <Store className="size-6 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
                 Todavía no hay negocios. Crea el primero.
               </p>
@@ -204,7 +204,7 @@ function CreateTenantDialog({
           </div>
 
           <p className="flex items-start gap-2 text-xs text-muted-foreground">
-            <IconInfoCircle className="mt-px size-3.5 shrink-0" />
+            <Info className="mt-px size-3.5 shrink-0" />
             Ya tiene sus catálogos por defecto: categorías de ingreso y gasto,
             métodos de pago y categorías de producto y servicio.
           </p>
@@ -304,7 +304,7 @@ function CreateTenantDialog({
             role="alert"
             className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
           >
-            <IconAlertCircle className="mt-px size-4 shrink-0" />
+            <CircleAlert className="mt-px size-4 shrink-0" />
             {error.message}
           </p>
         )}

@@ -2,12 +2,12 @@
 
 import { useState, useTransition } from "react";
 import {
-  IconPlus,
-  IconPencil,
-  IconArchive,
-  IconArchiveOff,
-  IconAlertCircle,
-} from "@tabler/icons-react";
+  Plus,
+  Pencil,
+  Archive,
+  ArchiveX,
+  CircleAlert,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -116,7 +116,7 @@ export function CatalogManager({ catalogs, canManage }: Props) {
                     size="sm"
                     onClick={() => setEditing({ mode: "create", catalogKey: key })}
                   >
-                    <IconPlus className="size-4" />
+                    <Plus className="size-4" />
                     Nuevo
                   </Button>
                 )}
@@ -227,7 +227,7 @@ function ItemActions({
   return (
     <div className="flex justify-end gap-1">
       <Button variant="ghost" size="icon" className="size-8" onClick={onEdit}>
-        <IconPencil className="size-4" />
+        <Pencil className="size-4" />
         <span className="sr-only">Editar {item.label}</span>
       </Button>
       <Button
@@ -242,9 +242,9 @@ function ItemActions({
         }
       >
         {archived ? (
-          <IconArchiveOff className="size-4" />
+          <ArchiveX className="size-4" />
         ) : (
-          <IconArchive className="size-4" />
+          <Archive className="size-4" />
         )}
         <span className="sr-only">
           {archived ? "Restaurar" : "Archivar"} {item.label}
@@ -385,7 +385,7 @@ function ItemDialog({
               role="alert"
               className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             >
-              <IconAlertCircle className="mt-px size-4 shrink-0" />
+              <CircleAlert className="mt-px size-4 shrink-0" />
               {error}
             </p>
           )}

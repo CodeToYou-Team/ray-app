@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import {
-  IconArrowUpRight,
-  IconArrowDownRight,
-  IconTrendingUp,
-  IconTrendingDown,
-  IconAlertTriangle,
-  IconPackage,
-  IconPlus,
-  IconShoppingCart,
-} from "@tabler/icons-react";
+  ArrowUpRight,
+  ArrowDownRight,
+  TrendingUp,
+  TrendingDown,
+  TriangleAlert,
+  Package,
+  Plus,
+  ShoppingCart,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -64,9 +64,9 @@ function Change({ value }: { value: number | null }) {
       )}
     >
       {up ? (
-        <IconTrendingUp className="size-3" />
+        <TrendingUp className="size-3" />
       ) : (
-        <IconTrendingDown className="size-3" />
+        <TrendingDown className="size-3" />
       )}
       {up ? "+" : ""}
       {value}% vs mes anterior
@@ -97,7 +97,7 @@ export function DashboardContent({
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <div className="flex size-11 items-center justify-center rounded-xl bg-muted">
-              <IconPlus className="size-5 text-muted-foreground" />
+              <Plus className="size-5 text-muted-foreground" />
             </div>
             <div>
               <p className="font-medium">
@@ -218,9 +218,9 @@ export function DashboardContent({
                   )}
                 >
                   {r.type === "ingreso" ? (
-                    <IconArrowUpRight className="size-4" />
+                    <ArrowUpRight className="size-4" />
                   ) : (
-                    <IconArrowDownRight className="size-4" />
+                    <ArrowDownRight className="size-4" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -257,25 +257,25 @@ export function DashboardContent({
             <CardContent className="grid grid-cols-2 gap-2">
               <Button variant="outline" size="sm" className="justify-start" asChild>
                 <Link href="/finanzas/ingresos">
-                  <IconArrowUpRight className="size-4" />
+                  <ArrowUpRight className="size-4" />
                   Ingreso
                 </Link>
               </Button>
               <Button variant="outline" size="sm" className="justify-start" asChild>
                 <Link href="/finanzas/gastos">
-                  <IconArrowDownRight className="size-4" />
+                  <ArrowDownRight className="size-4" />
                   Gasto
                 </Link>
               </Button>
               <Button variant="outline" size="sm" className="justify-start" asChild>
                 <Link href="/productos">
-                  <IconPackage className="size-4" />
+                  <Package className="size-4" />
                   Producto
                 </Link>
               </Button>
               <Button variant="outline" size="sm" className="justify-start" asChild>
                 <Link href="/inventario">
-                  <IconShoppingCart className="size-4" />
+                  <ShoppingCart className="size-4" />
                   Inventario
                 </Link>
               </Button>
@@ -285,7 +285,7 @@ export function DashboardContent({
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-sm">
-                <IconAlertTriangle className="size-4 text-warning" />
+                <TriangleAlert className="size-4 text-warning" />
                 Inventario
               </CardTitle>
             </CardHeader>

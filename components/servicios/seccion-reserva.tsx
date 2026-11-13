@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { IconCalendarPlus, IconPencil } from "@tabler/icons-react";
+import { CalendarPlus, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,7 +64,7 @@ export function SeccionReserva({
       >
         {puedeEditar ? (
           <Button size="sm" className="gap-1.5" onClick={() => abrir("reserva")}>
-            <IconCalendarPlus className="size-4" />
+            <CalendarPlus className="size-4" />
             Hacer reservable
           </Button>
         ) : (
@@ -87,7 +87,7 @@ export function SeccionReserva({
       accion={
         puedeEditar && (
           <Button variant="outline" size="sm" className="gap-1.5" onClick={() => abrir("reserva")}>
-            <IconPencil className="size-3.5" />
+            <Pencil className="size-3.5" />
             Editar
           </Button>
         )

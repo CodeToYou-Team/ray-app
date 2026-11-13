@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { IconLock } from "@tabler/icons-react";
+import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -34,7 +34,7 @@ export function SinPermiso({
       <Card>
         <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
           <div className="flex size-11 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-            <IconLock className="size-5" />
+            <Lock className="size-5" />
           </div>
 
           <div>

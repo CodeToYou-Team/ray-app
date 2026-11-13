@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { IconAlertTriangle, IconRefresh } from "@tabler/icons-react";
+import { TriangleAlert, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -34,7 +34,7 @@ export default function AppError({
       <Card>
         <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
           <div className="flex size-11 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
-            <IconAlertTriangle className="size-5" />
+            <TriangleAlert className="size-5" />
           </div>
 
           <div>
@@ -54,7 +54,7 @@ export default function AppError({
 
           <div className="flex gap-2">
             <Button size="sm" onClick={reset} className="gap-1.5">
-              <IconRefresh className="size-3.5" />
+              <RotateCw className="size-3.5" />
               Reintentar
             </Button>
             <Button variant="outline" size="sm" asChild>

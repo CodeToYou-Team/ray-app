@@ -3,16 +3,16 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  IconPlus,
-  IconPencil,
-  IconArchive,
-  IconArchiveOff,
-  IconAlertCircle,
-  IconTrash,
-  IconEye,
-  IconEyeOff,
-  IconLock,
-} from "@tabler/icons-react";
+  Plus,
+  Pencil,
+  Archive,
+  ArchiveX,
+  CircleAlert,
+  Trash2,
+  Eye,
+  EyeOff,
+  Lock,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -95,7 +95,7 @@ export function FieldManager({
           className="gap-1.5"
           onClick={() => setEditing({ mode: "create", entity: tab })}
         >
-          <IconPlus className="size-3.5" />
+          <Plus className="size-3.5" />
           Nueva columna
         </Button>
       </div>
@@ -171,7 +171,7 @@ export function FieldManager({
                                 className="gap-1 text-[9px] font-normal"
                                 title="Columna del sistema: su tipo no se puede cambiar"
                               >
-                                <IconLock className="size-2.5" />
+                                <Lock className="size-2.5" />
                                 sistema
                               </Badge>
                             )}
@@ -197,9 +197,9 @@ export function FieldManager({
                         </TableCell>
                         <TableCell className="text-center">
                           {f.showInTable ? (
-                            <IconEye className="mx-auto size-4 text-muted-foreground" />
+                            <Eye className="mx-auto size-4 text-muted-foreground" />
                           ) : (
-                            <IconEyeOff className="mx-auto size-4 text-muted-foreground/40" />
+                            <EyeOff className="mx-auto size-4 text-muted-foreground/40" />
                           )}
                         </TableCell>
                         <TableCell className="text-right">
@@ -212,7 +212,7 @@ export function FieldManager({
                                 setEditing({ mode: "edit", entity, field: f })
                               }
                             >
-                              <IconPencil className="size-4" />
+                              <Pencil className="size-4" />
                               <span className="sr-only">Editar {f.label}</span>
                             </Button>
                             {f.editable.archive && f.id && (
@@ -260,9 +260,9 @@ function ArchiveButton({ id, archived }: { id: string; archived: boolean }) {
       }
     >
       {archived ? (
-        <IconArchiveOff className="size-4" />
+        <ArchiveX className="size-4" />
       ) : (
-        <IconArchive className="size-4" />
+        <Archive className="size-4" />
       )}
     </Button>
   );
@@ -484,7 +484,7 @@ function FieldDialog({
               role="alert"
               className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             >
-              <IconAlertCircle className="mt-px size-4 shrink-0" />
+              <CircleAlert className="mt-px size-4 shrink-0" />
               {error}
             </p>
           )}
@@ -522,7 +522,7 @@ function OptionsEditor({
           size="sm"
           onClick={() => setOptions([...options, { label: "" }])}
         >
-          <IconPlus className="size-3.5" />
+          <Plus className="size-3.5" />
           Agregar
         </Button>
       </div>
@@ -547,7 +547,7 @@ function OptionsEditor({
             className="size-9 shrink-0"
             onClick={() => setOptions(options.filter((_, j) => j !== i))}
           >
-            <IconTrash className="size-4" />
+            <Trash2 className="size-4" />
             <span className="sr-only">Quitar opción</span>
           </Button>
         </div>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconBell, IconChevronRight, IconSearch } from "@tabler/icons-react";
+import { Bell, ChevronRight, Search } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,7 +39,7 @@ export function Header() {
         {migas.map((miga, i) => (
           <span key={miga.pattern} className="flex min-w-0 items-center gap-1.5">
             {i > 0 && (
-              <IconChevronRight className="size-3 shrink-0 text-muted-foreground/50" />
+              <ChevronRight className="size-3 shrink-0 text-muted-foreground/50" />
             )}
             <Link
               href={miga.href}
@@ -53,7 +53,7 @@ export function Header() {
 
       <div className="flex shrink-0 items-center gap-1">
         <div className="relative hidden md:block">
-          <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Buscar..."
             className="h-9 w-56 border-border/60 bg-card/80 pl-9 text-sm"
@@ -63,7 +63,7 @@ export function Header() {
         <ThemeToggle />
 
         <Button variant="ghost" size="icon" className="relative size-9">
-          <IconBell className="size-4.5 text-muted-foreground" />
+          <Bell className="size-4.5 text-muted-foreground" />
         </Button>
       </div>
     </header>

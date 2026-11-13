@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { IconLock } from "@tabler/icons-react";
+import { Lock } from "lucide-react";
 import { PageTransition } from "@/components/motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,7 +27,7 @@ export default async function AdministradoresPage() {
       <Card>
         <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
           <div className="flex size-11 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-            <IconLock className="size-5" />
+            <Lock className="size-5" />
           </div>
           <div>
             <h1 className="font-semibold">Solo para superadmin</h1>

@@ -3,13 +3,13 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  IconAlertCircle,
-  IconPlus,
-  IconTrash,
-  IconPackage,
-  IconTool,
-  IconArrowsExchange,
-} from "@tabler/icons-react";
+  CircleAlert,
+  Plus,
+  Trash2,
+  Package,
+  Wrench,
+  ArrowLeftRight,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -636,7 +636,7 @@ export function TransactionForm({
               role="alert"
               className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             >
-              <IconAlertCircle className="mt-px size-4 shrink-0" />
+              <CircleAlert className="mt-px size-4 shrink-0" />
               {error}
             </p>
           )}
@@ -684,7 +684,7 @@ function TasaDeCambio({
   return (
     <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
       <div className="flex items-center gap-2">
-        <IconArrowsExchange className="size-4 text-primary" />
+        <ArrowLeftRight className="size-4 text-primary" />
         <Label htmlFor="tasa" className="text-sm">
           Tasa de cambio
         </Label>
@@ -791,7 +791,7 @@ function LineItemsEditor({
             ])
           }
         >
-          <IconPlus className="size-3.5" />
+          <Plus className="size-3.5" />
           Agregar
         </Button>
       </div>
@@ -836,7 +836,7 @@ function LineItemsEditor({
                   {productos.length > 0 && (
                     <SelectGroup>
                       <SelectLabel className="flex items-center gap-1.5">
-                        <IconPackage className="size-3.5" /> Productos
+                        <Package className="size-3.5" /> Productos
                       </SelectLabel>
                       {productos.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
@@ -864,7 +864,7 @@ function LineItemsEditor({
                   {servicios.length > 0 && (
                     <SelectGroup>
                       <SelectLabel className="flex items-center gap-1.5">
-                        <IconTool className="size-3.5" /> Servicios
+                        <Wrench className="size-3.5" /> Servicios
                       </SelectLabel>
                       {servicios.map((s) => (
                         <SelectItem key={s.id} value={s.id}>
@@ -948,7 +948,7 @@ function LineItemsEditor({
               className="size-9 shrink-0"
               onClick={() => setLineas(lineas.filter((x) => x.key !== l.key))}
             >
-              <IconTrash className="size-4" />
+              <Trash2 className="size-4" />
               <span className="sr-only">Quitar renglón</span>
             </Button>
           </div>

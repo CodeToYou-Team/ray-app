@@ -4,12 +4,12 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
-  IconCalendarEvent,
-  IconChevronLeft,
-  IconChevronRight,
-  IconSearch,
-  IconX,
-} from "@tabler/icons-react";
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  X,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -176,7 +176,7 @@ export function BookingListView({
         />
         <Button variant="outline" size="sm" className="gap-1.5" asChild>
           <Link href="/reservas">
-            <IconCalendarEvent className="size-4" />
+            <CalendarDays className="size-4" />
             Ver disponibilidad
           </Link>
         </Button>
@@ -338,7 +338,7 @@ export function BookingListView({
                           className="flex size-8 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
                           title="Ver en la cuadrícula"
                         >
-                          <IconCalendarEvent className="size-4" />
+                          <CalendarDays className="size-4" />
                           <span className="sr-only">Ver en la cuadrícula</span>
                         </Link>
                       </TableCell>
@@ -363,7 +363,7 @@ export function BookingListView({
               disabled={page === 0 || navegando}
               onClick={() => navegar({ page: page - 1 })}
             >
-              <IconChevronLeft className="size-4" />
+              <ChevronLeft className="size-4" />
               Anterior
             </Button>
             <Button
@@ -373,7 +373,7 @@ export function BookingListView({
               onClick={() => navegar({ page: page + 1 })}
             >
               Siguiente
-              <IconChevronRight className="size-4" />
+              <ChevronRight className="size-4" />
             </Button>
           </div>
         </div>
@@ -464,7 +464,7 @@ function BarraFiltros({
           Buscar por titular, documento, teléfono o columna personalizada
         </Label>
         <div className="relative">
-          <IconSearch className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             id="buscar-reserva"
             value={texto}
@@ -570,7 +570,7 @@ function BarraFiltros({
             });
           }}
         >
-          <IconX className="size-3.5" />
+          <X className="size-3.5" />
           Limpiar
         </Button>
       )}

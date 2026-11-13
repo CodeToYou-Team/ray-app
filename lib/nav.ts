@@ -3,12 +3,12 @@ import type { Capability } from "@/lib/authz/roles";
 import { roleHas } from "@/lib/authz/roles";
 import type { MembershipRole } from "@/lib/db/schema";
 import {
-  IconLayoutDashboard,
-  IconWallet,
-  IconPackage,
-  IconSettings,
-  IconCalendarEvent,
-} from "@tabler/icons-react";
+  LayoutDashboard,
+  Wallet,
+  Package,
+  Settings,
+  CalendarDays,
+} from "lucide-react";
 
 /**
  * Registro unico de rutas de la app.
@@ -207,10 +207,10 @@ interface NavGroup {
 }
 
 const NAV_STRUCTURE: NavGroup[] = [
-  { href: "/dashboard", icon: IconLayoutDashboard },
+  { href: "/dashboard", icon: LayoutDashboard },
   {
     href: "/finanzas",
-    icon: IconWallet,
+    icon: Wallet,
     children: [
       "/finanzas/ingresos",
       "/finanzas/gastos",
@@ -223,7 +223,7 @@ const NAV_STRUCTURE: NavGroup[] = [
   // los servicios reservas. Las rutas de inventario y reservas no cambian.
   {
     href: "/productos",
-    icon: IconPackage,
+    icon: Package,
     children: [
       { href: "/productos", name: "Catálogo" },
       { href: "/inventario", name: "Stock" },
@@ -232,7 +232,7 @@ const NAV_STRUCTURE: NavGroup[] = [
   },
   {
     href: "/servicios",
-    icon: IconCalendarEvent,
+    icon: CalendarDays,
     children: [
       { href: "/servicios", name: "Catálogo" },
       { href: "/reservas", name: "Disponibilidad" },
@@ -259,7 +259,7 @@ const NAV_TREE_ALL: NavItem[] = buildNav(NAV_STRUCTURE);
 const NAV_BOTTOM_ALL: NavItem[] = buildNav([
   {
     href: "/ajustes",
-    icon: IconSettings,
+    icon: Settings,
     children: [
       "/ajustes/negocio",
       "/ajustes/catalogos",

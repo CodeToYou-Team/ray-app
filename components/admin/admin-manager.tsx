@@ -3,11 +3,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  IconAlertCircle,
-  IconHistory,
-  IconTrash,
-  IconUserPlus,
-} from "@tabler/icons-react";
+  CircleAlert,
+  History,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -73,7 +73,7 @@ export function AdminManager({
         description="Quién gestiona la plataforma. Siempre queda al menos un superadmin."
         actions={
           <Button size="sm" className="gap-1.5" onClick={() => setGranting(true)}>
-            <IconUserPlus className="size-3.5" />
+            <UserPlus className="size-3.5" />
             Nombrar
           </Button>
         }
@@ -133,7 +133,7 @@ export function AdminManager({
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm">
-            <IconHistory className="size-4 text-muted-foreground" />
+            <History className="size-4 text-muted-foreground" />
             Historial
           </CardTitle>
           <p className="text-xs text-muted-foreground">
@@ -249,7 +249,7 @@ function RevokeButton({ admin }: { admin: PlatformAdmin }) {
         disabled={pending}
         onClick={() => setConfirmando(true)}
       >
-        <IconTrash className="size-4" />
+        <Trash2 className="size-4" />
         <span className="sr-only">Quitar a {admin.email}</span>
       </Button>
 
@@ -269,7 +269,7 @@ function RevokeButton({ admin }: { admin: PlatformAdmin }) {
                 role="alert"
                 className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
               >
-                <IconAlertCircle className="mt-px size-4 shrink-0" />
+                <CircleAlert className="mt-px size-4 shrink-0" />
                 {error}
               </p>
             )}
@@ -361,7 +361,7 @@ function GrantDialog({ onClose }: { onClose: () => void }) {
               role="alert"
               className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             >
-              <IconAlertCircle className="mt-px size-4 shrink-0" />
+              <CircleAlert className="mt-px size-4 shrink-0" />
               {error}
             </p>
           )}
