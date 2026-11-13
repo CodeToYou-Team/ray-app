@@ -10,6 +10,7 @@ import {
   IconSearch,
   IconX,
 } from "@tabler/icons-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -168,12 +169,11 @@ export function BookingListView({
   return (
     <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold">Listado de reservas</h2>
-          <p className="text-sm text-muted-foreground">
-            Busca una reserva o mira cuánto se debe
-          </p>
-        </div>
+        <PageHeader
+          title="Listado de reservas"
+          description="Busca una reserva o mira cuánto se debe"
+          className="min-w-0 flex-1"
+        />
         <Button variant="outline" size="sm" className="gap-1.5" asChild>
           <Link href="/reservas">
             <IconCalendarEvent className="size-4" />

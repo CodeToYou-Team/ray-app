@@ -11,6 +11,7 @@ import {
   IconPlus,
   IconShoppingCart,
 } from "@tabler/icons-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -82,6 +83,16 @@ export function DashboardContent({
 }: Props) {
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
+      <PageHeader
+        route="/dashboard"
+        // Quien solo ve lo suyo no deberia leer "vista general de tu negocio":
+        // las cifras de abajo son las suyas, no las del negocio.
+        description={
+          soloPropias
+            ? "Lo que registraste tú, no el total del negocio"
+            : undefined
+        }
+      />
       {monedas.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">

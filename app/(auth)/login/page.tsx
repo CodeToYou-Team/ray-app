@@ -20,7 +20,7 @@ export default async function LoginPage() {
           <IconBolt className="size-5" />
         </div>
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Ray App</h1>
+          <h1 className="font-display text-2xl leading-none tracking-tight">Ray App</h1>
           <p className="text-sm text-muted-foreground">
             Entra para gestionar tu negocio
           </p>

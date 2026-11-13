@@ -4,6 +4,7 @@ import {
   IconPackageOff,
   IconCheck,
 } from "@tabler/icons-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { PageTransition } from "@/components/motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,13 +44,10 @@ export default async function AlertasPage() {
   return (
     <PageTransition>
       <div className="space-y-4 max-w-5xl mx-auto">
-        <div>
-          <h2 className="text-lg font-bold">Alertas de inventario</h2>
-          <p className="text-sm text-muted-foreground">
-            Productos que necesitan reposición. El stock sale de sumar cada
-            entrada y salida.
-          </p>
-        </div>
+        <PageHeader
+          title="Alertas de inventario"
+          description="Productos que necesitan reposición. El stock sale de sumar cada entrada y salida."
+        />
 
         {sinStock.length === 0 && bajos.length === 0 ? (
           <Card>

@@ -1,20 +1,44 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
-import { IBM_Plex_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import {
+  Instrument_Sans,
+  Instrument_Serif,
+  Spline_Sans_Mono,
+} from "next/font/google";
 import "./globals.css";
 
-const jakartaSans = Plus_Jakarta_Sans({
-  variable: "--font-geist-sans",
+/**
+ * Tres voces, cada una con un trabajo distinto:
+ *
+ * - `--font-instrument-serif`: el serif solo titula. Existe solo en 400, asi que
+ *   un titulo no puede ir en negrita; el peso visual lo da el tamano.
+ * - `--font-instrument-sans`: el trabajo diario (tablas, formularios, navegacion).
+ * - `--font-spline-mono`: el dinero. Monoespaciado = columnas de cifras que se
+ *   leen en vertical, y el 600 existe, que es lo que necesita un total.
+ *
+ * Los nombres llevan la tipografia y no el rol (`-sans`, `-mono`) a proposito:
+ * `@theme` en globals.css es quien traduce rol -> tipografia, y reusar el mismo
+ * nombre en los dos lados crea una variable que se referencia a si misma.
+ */
+const sans = Instrument_Sans({
+  variable: "--font-instrument-sans",
   subsets: ["latin"],
   display: "swap",
-  weight: ["400", "500", "600", "700", "800"],
+  weight: "variable",
 });
 
-const plexMono = IBM_Plex_Mono({
-  variable: "--font-geist-mono",
+const display = Instrument_Serif({
+  variable: "--font-instrument-serif",
   subsets: ["latin"],
   display: "swap",
-  weight: ["400", "500", "600"],
+  weight: "400",
+});
+
+const mono = Spline_Sans_Mono({
+  variable: "--font-spline-mono",
+  subsets: ["latin"],
+  display: "swap",
+  weight: "variable",
 });
 
 export const metadata: Metadata = {
@@ -31,7 +55,7 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body
-        className={`${jakartaSans.variable} ${plexMono.variable} antialiased`}
+        className={`${sans.variable} ${display.variable} ${mono.variable} antialiased`}
       >
         <ThemeProvider
           attribute="class"

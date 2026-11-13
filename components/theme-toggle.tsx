@@ -19,8 +19,8 @@ export function ThemeToggle() {
       aria-label="Cambiar tema"
       className="relative w-9 h-9 rounded-md hover:bg-accent hover:text-accent-foreground"
     >
-      <IconSun className="absolute size-[18px] rotate-0 scale-100 opacity-100 transition-all duration-300 ease-out dark:rotate-90 dark:scale-0 dark:opacity-0" />
-      <IconMoon className="absolute size-[18px] -rotate-90 scale-0 opacity-0 transition-all duration-300 ease-out dark:rotate-0 dark:scale-100 dark:opacity-100" />
+      <IconSun className="absolute size-4.5 rotate-0 scale-100 opacity-100 transition-all duration-300 ease-out dark:rotate-90 dark:scale-0 dark:opacity-0" />
+      <IconMoon className="absolute size-4.5 -rotate-90 scale-0 opacity-0 transition-all duration-300 ease-out dark:rotate-0 dark:scale-100 dark:opacity-100" />
     </Button>
   );
 }

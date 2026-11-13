@@ -36,7 +36,7 @@ export default async function AdminLayout({
           <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <IconShieldCog className="size-4" />
           </span>
-          <span className="hidden text-sm lg:inline">Administración</span>
+          <span className="hidden font-display text-base lg:inline">Administración</span>
         </Link>
 
         <AdminNav isSuperadmin={admin.level === "superadmin"} />

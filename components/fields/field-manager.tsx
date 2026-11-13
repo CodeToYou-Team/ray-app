@@ -13,6 +13,7 @@ import {
   IconEyeOff,
   IconLock,
 } from "@tabler/icons-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -84,14 +85,11 @@ export function FieldManager({
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold">Columnas</h2>
-          <p className="text-sm text-muted-foreground">
-            Qué información guardas de cada producto, servicio y reserva. Las
-            del sistema se pueden renombrar y ocultar; las que crees tú, además
-            archivar.
-          </p>
-        </div>
+        <PageHeader
+          title="Columnas"
+          description="Qué información guardas de cada producto, servicio y reserva. Las del sistema se pueden renombrar y ocultar; las que crees tú, además archivar."
+          className="min-w-0 flex-1"
+        />
         <Button
           size="sm"
           className="gap-1.5"

@@ -135,6 +135,29 @@ export function resolveRoute(pathname: string): RouteDef | null {
   return best;
 }
 
+/**
+ * Las migas de pan del header: los ANCESTROS de una ruta, del mas general al
+ * mas cercano. La ruta actual no va incluida a proposito: su titulo ya lo pinta
+ * el PageHeader justo debajo, y repetirlo era exactamente el motivo de que cada
+ * pantalla mostrara su nombre dos veces.
+ */
+export function ancestrosDe(
+  pathname: string,
+): (RouteDef & { href: string })[] {
+  const segments = pathname.split("/").filter(Boolean);
+  const out: (RouteDef & { href: string })[] = [];
+
+  for (let i = 1; i < segments.length; i++) {
+    // El href se arma con los segmentos REALES, no con el patron: un ancestro
+    // dinamico (/servicios/:id) no debe convertirse en un enlace roto.
+    const href = `/${segments.slice(0, i).join("/")}`;
+    const ancestro = resolveRoute(href);
+    if (ancestro) out.push({ ...ancestro, href });
+  }
+
+  return out;
+}
+
 function route(pattern: string): RouteDef {
   const found = ROUTES.find((r) => r.pattern === pattern);
   if (!found) throw new Error(`Ruta no registrada en ROUTES: ${pattern}`);

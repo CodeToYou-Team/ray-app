@@ -6,8 +6,16 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-instrument-sans);
+  --font-display: var(--font-instrument-serif);
+  --font-mono: var(--font-spline-mono);
+
+  /* ── Escala tipografica ─────────────────────────────────────────
+     Cinco pasos y ninguno por debajo de 11px. El 2xs existe para las
+     tablas densas; todo lo que antes era text-[9px]/[10px]/[11px]
+     aterriza aqui o en text-xs. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -175,7 +183,12 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  /* El dinero y las cantidades se leen en columna: cifras de ancho fijo. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
   }
 
   :root {

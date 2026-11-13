@@ -11,6 +11,7 @@ import {
   IconSearch,
   IconAdjustments,
 } from "@tabler/icons-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -153,12 +154,11 @@ export function CatalogView({
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold">Productos</h2>
-          <p className="text-sm text-muted-foreground">
-            Lo que vendes y llevas en inventario.
-          </p>
-        </div>
+        <PageHeader
+          title="Productos"
+          description="Lo que vendes y llevas en inventario."
+          className="min-w-0 flex-1"
+        />
         {canManage && (
           <Button
             size="sm"

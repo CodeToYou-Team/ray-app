@@ -9,6 +9,7 @@ import {
   IconInfoCircle,
   IconPlus,
 } from "@tabler/icons-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,18 +47,16 @@ export function TenantList({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold">Negocios</h2>
-          <p className="text-sm text-muted-foreground">
-            Alta, datos y suspensión de cada cliente de la plataforma.
-          </p>
-        </div>
-        <Button size="sm" className="gap-1.5" onClick={() => setCreating(true)}>
-          <IconPlus className="size-3.5" />
-          Nuevo negocio
-        </Button>
-      </div>
+      <PageHeader
+        title="Negocios"
+        description="Alta, datos y suspensión de cada cliente de la plataforma."
+        actions={
+          <Button size="sm" className="gap-1.5" onClick={() => setCreating(true)}>
+            <IconPlus className="size-3.5" />
+            Nuevo negocio
+          </Button>
+        }
+      />
 
       <Card>
         <CardHeader className="pb-3">

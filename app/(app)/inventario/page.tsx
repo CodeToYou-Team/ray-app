@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/layout/page-header";
 import { PageTransition } from "@/components/motion";
 import { StockTable } from "@/components/inventario/stock-table";
 import { requireTenant } from "@/lib/authz/session";
@@ -16,13 +17,10 @@ export default async function InventarioPage() {
   return (
     <PageTransition>
       <div className="space-y-4 max-w-7xl mx-auto">
-        <div>
-          <h2 className="text-lg font-bold">Inventario</h2>
-          <p className="text-sm text-muted-foreground">
-            El stock se calcula sumando cada entrada y salida. Se mueve al
-            registrar ventas y compras en Finanzas.
-          </p>
-        </div>
+        <PageHeader
+          title="Inventario"
+          description="El stock se calcula sumando cada entrada y salida. Se mueve al registrar ventas y compras en Finanzas."
+        />
 
         <StockTable rows={rows} />
       </div>

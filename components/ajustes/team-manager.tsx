@@ -9,6 +9,7 @@ import {
   IconAlertCircle,
   IconInfoCircle,
 } from "@tabler/icons-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -122,16 +123,16 @@ export function TeamManager({
 
   return (
     <div className="space-y-4 max-w-4xl mx-auto">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold">{title}</h2>
-          <p className="text-sm text-muted-foreground">{description}</p>
-        </div>
-        <Button size="sm" className="gap-1.5" onClick={() => setInviting(true)}>
-          <IconUserPlus className="size-3.5" />
-          Invitar
-        </Button>
-      </div>
+      <PageHeader
+        title={title}
+        description={description}
+        actions={
+          <Button size="sm" className="gap-1.5" onClick={() => setInviting(true)}>
+            <IconUserPlus className="size-3.5" />
+            Invitar
+          </Button>
+        }
+      />
 
       <Card>
         <CardHeader className="pb-3">

@@ -6,10 +6,10 @@ import { useRouter } from "next/navigation";
 import {
   IconArchive,
   IconArchiveOff,
-  IconArrowLeft,
   IconCalendarEvent,
   IconPencil,
 } from "@tabler/icons-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -70,35 +70,34 @@ export function ServiceDetail({
     <EdicionProvider>
       <div className="mx-auto max-w-4xl space-y-4">
         <div className="space-y-3">
-          <Link
-            href="/servicios"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <IconArrowLeft className="size-3.5" />
-            Servicios
-          </Link>
-
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className="flex flex-wrap items-center gap-2 text-lg font-bold">
-                {servicio.name}
-                {servicio.archived && <Badge variant="secondary">Archivado</Badge>}
-                {!servicio.archived && !servicio.isActive && (
-                  <Badge variant="outline">No disponible para vender</Badge>
-                )}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {servicio.categoryLabel}
-                {unidad && setup && (
-                  <>
-                    {" · "}
-                    {setup.resources.length === 0
-                      ? "sin recursos todavía"
-                      : `${setup.resources.length} ${setup.resources.length === 1 ? "recurso" : "recursos"}`}
-                  </>
-                )}
-              </p>
-            </div>
+            <PageHeader
+              title={servicio.name}
+              badge={
+                <>
+                  {servicio.archived && (
+                    <Badge variant="secondary">Archivado</Badge>
+                  )}
+                  {!servicio.archived && !servicio.isActive && (
+                    <Badge variant="outline">No disponible para vender</Badge>
+                  )}
+                </>
+              }
+              description={
+                <>
+                  {servicio.categoryLabel}
+                  {unidad && setup && (
+                    <>
+                      {" · "}
+                      {setup.resources.length === 0
+                        ? "sin recursos todavía"
+                        : `${setup.resources.length} ${setup.resources.length === 1 ? "recurso" : "recursos"}`}
+                    </>
+                  )}
+                </>
+              }
+              className="min-w-0 flex-1"
+            />
 
             <div className="flex flex-wrap gap-2">
               {unidad && setup && setup.resources.length > 0 && !servicio.archived && (

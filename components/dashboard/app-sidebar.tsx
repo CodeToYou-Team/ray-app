@@ -30,7 +30,7 @@ export function AppSidebar({
             <IconBolt className="size-4" />
           </div>
           <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-            <span className="text-sm font-bold tracking-tight text-sidebar-foreground">
+            <span className="font-display text-base leading-none tracking-tight text-sidebar-foreground">
               Ray App
             </span>
             <span className="text-[11px] tracking-wide text-sidebar-foreground/60">

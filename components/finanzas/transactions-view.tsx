@@ -27,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -215,10 +216,11 @@ export function TransactionsView({
       )}
 
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold">{title}</h2>
-          <p className="text-sm text-muted-foreground">{description}</p>
-        </div>
+        <PageHeader
+          title={title}
+          description={description}
+          className="min-w-0 flex-1"
+        />
         <div className="flex gap-2">
           {(type === undefined || type === "ingreso") && (
             <Button

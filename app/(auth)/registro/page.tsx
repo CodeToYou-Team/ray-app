@@ -26,7 +26,7 @@ export default async function RegistroPage() {
           <IconBolt className="size-5" />
         </div>
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Crear cuenta</h1>
+          <h1 className="font-display text-2xl leading-none tracking-tight">Crear cuenta</h1>
           <p className="text-sm text-muted-foreground">
             Usa el mismo correo con el que te invitaron
           </p>

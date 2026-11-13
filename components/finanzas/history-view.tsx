@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { IconTrendingUp, IconTrendingDown, IconMinus } from "@tabler/icons-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
@@ -56,12 +57,11 @@ export function HistoryView({ currency, currencies, meses }: Props) {
   return (
     <div className={cn("space-y-4 max-w-4xl mx-auto", navigating && "opacity-70")}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-bold">Historial</h2>
-          <p className="text-sm text-muted-foreground">
-            Mes a mes, con la variación respecto al mes anterior.
-          </p>
-        </div>
+        <PageHeader
+          title="Historial"
+          description="Mes a mes, con la variación respecto al mes anterior."
+          className="min-w-0 flex-1"
+        />
 
         <Select value={currency} onValueChange={setMoneda}>
           <SelectTrigger className="w-28">

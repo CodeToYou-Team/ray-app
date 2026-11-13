@@ -8,6 +8,7 @@ import {
   IconTrash,
   IconUserPlus,
 } from "@tabler/icons-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,18 +68,16 @@ export function AdminManager({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold">Administradores</h2>
-          <p className="text-sm text-muted-foreground">
-            Quién gestiona la plataforma. Siempre queda al menos un superadmin.
-          </p>
-        </div>
-        <Button size="sm" className="gap-1.5" onClick={() => setGranting(true)}>
-          <IconUserPlus className="size-3.5" />
-          Nombrar
-        </Button>
-      </div>
+      <PageHeader
+        title="Administradores"
+        description="Quién gestiona la plataforma. Siempre queda al menos un superadmin."
+        actions={
+          <Button size="sm" className="gap-1.5" onClick={() => setGranting(true)}>
+            <IconUserPlus className="size-3.5" />
+            Nombrar
+          </Button>
+        }
+      />
 
       <Card>
         <CardHeader className="pb-3">

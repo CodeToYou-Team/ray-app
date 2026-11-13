@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { IconPencil, IconPlus, IconSearch } from "@tabler/icons-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -88,13 +89,11 @@ export function ServicesView({
   return (
     <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold">Servicios</h2>
-          <p className="text-sm text-muted-foreground">
-            Lo que vendes sin inventario. Abre uno para ver cómo se reserva, sus tarifas,
-            recursos y horario.
-          </p>
-        </div>
+        <PageHeader
+          title="Servicios"
+          description="Lo que vendes sin inventario. Abre uno para ver cómo se reserva, sus tarifas, recursos y horario."
+          className="min-w-0 flex-1"
+        />
         {canManage && (
           <Button size="sm" className="gap-1.5" onClick={() => setCreando(true)}>
             <IconPlus className="size-3.5" />

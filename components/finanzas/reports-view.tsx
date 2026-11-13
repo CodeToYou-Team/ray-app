@@ -16,6 +16,7 @@ import {
   YAxis,
 } from "recharts";
 import { IconTrendingUp, IconTrendingDown, IconScale } from "@tabler/icons-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -109,13 +110,11 @@ export function ReportsView({
   return (
     <div className={cn("space-y-4 max-w-7xl mx-auto", navigating && "opacity-70")}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-bold">Reportes</h2>
-          <p className="text-sm text-muted-foreground">
-            Todo lo que ves es de una sola moneda. Los montos no se convierten
-            entre sí, así que mezclarlos en un gráfico no diría nada.
-          </p>
-        </div>
+        <PageHeader
+          title="Reportes"
+          description="Todo lo que ves es de una sola moneda. Los montos no se convierten entre sí, así que mezclarlos en un gráfico no diría nada."
+          className="min-w-0 flex-1"
+        />
 
         <div className="flex gap-2">
           <Select value={currency} onValueChange={(v) => setParam("moneda", v)}>

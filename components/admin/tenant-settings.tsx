@@ -8,6 +8,7 @@ import {
   IconPlayerPause,
   IconPlayerPlay,
 } from "@tabler/icons-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,18 +49,23 @@ export function TenantSettings({ tenant }: { tenant: TenantSummary }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="flex items-center gap-2 text-lg font-bold">
-            <span className="truncate">{tenant.name}</span>
-            {tenant.suspendedAt && <Badge variant="destructive">Suspendido</Badge>}
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            <span className="font-mono">{tenant.slug}</span> · alta el{" "}
-            {formatDate(tenant.createdAt.toISOString())}
-            {tenant.suspendedAt &&
-              ` · suspendido el ${formatDate(tenant.suspendedAt.toISOString())}`}
-          </p>
-        </div>
+        <PageHeader
+          title={tenant.name}
+          badge={
+            tenant.suspendedAt ? (
+              <Badge variant="destructive">Suspendido</Badge>
+            ) : null
+          }
+          description={
+            <>
+              <span className="font-mono">{tenant.slug}</span> · alta el{" "}
+              {formatDate(tenant.createdAt.toISOString())}
+              {tenant.suspendedAt &&
+                ` · suspendido el ${formatDate(tenant.suspendedAt.toISOString())}`}
+            </>
+          }
+          className="min-w-0 flex-1"
+        />
         <SuspendButton tenant={tenant} />
       </div>
 

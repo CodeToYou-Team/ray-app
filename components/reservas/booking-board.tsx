@@ -9,6 +9,7 @@ import {
   IconChevronRight,
   IconPlus,
 } from "@tabler/icons-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatMoney } from "@/lib/format";
@@ -367,12 +368,11 @@ export function BookingBoard({
 
 function Encabezado() {
   return (
-    <div>
-      <h2 className="text-lg font-bold">Disponibilidad</h2>
-      <p className="text-sm text-muted-foreground">
-        Qué está libre y qué está reservado, día por día
-      </p>
-    </div>
+    <PageHeader
+      title="Disponibilidad"
+      description="Qué está libre y qué está reservado, día por día"
+      className="min-w-0 flex-1"
+    />
   );
 }
 
