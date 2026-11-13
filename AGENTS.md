@@ -173,13 +173,16 @@ Three voices, one job each. Loaded in `app/layout.tsx`, mapped role → face in
   is wide — do not push titles back to `text-3xl`, they collide with the actions.
 - Type scale: `text-2xl` page title, `text-xl` section, `text-sm` body, `text-xs`
   meta, `text-2xs` (11px) dense tables. **Nothing below 11px.**
-- The brand mark is `public/ray-mark.svg`, cropped from the bolt in
-  `ray-logo.svg`. The original is a 4267×4267 lockup where the drawing fills 28%
-  of the height, and its wordmark is live `<text>` — which an `<img>` renders in
-  a fallback font. The mark is white on purpose, so it only works on a coloured
-  surface: that is why it sits inside the `bg-sidebar-primary` tile. Render it
-  with `next/image` + `unoptimized` (the optimizer rejects SVG string sources);
-  the wordmark is always CSS text, never part of the image.
+- The brand is two files: `public/ray-logo.svg` is the original (editable), and
+  `public/ray-logo-outlined.svg` is what the app renders. Same drawing, two
+  fixes applied to the shipped copy: the wordmark is converted from live
+  `<text>` to paths — an `<img>` cannot load webfonts, so the text would fall
+  back to a system face — and the 4267×4267 canvas is cropped to the artwork,
+  which only filled 28% of its height. The logo is white on purpose; the sidebar
+  inverts it in the light theme. Render it with `next/image` + `unoptimized`
+  (the optimizer rejects SVG string sources). If the logo changes, convert the
+  text to curves in the design tool before exporting, and point the app at the
+  outlined file — never at the original.
 - `<PageHeader>` (`components/layout/page-header.tsx`) owns the screen title.
   The header bar is a utility strip with breadcrumbs and does not render an
   `<h1>`; the title lives in exactly one place, the page. `route` reads

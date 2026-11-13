@@ -24,27 +24,26 @@ export function AppSidebar({
       collapsible="icon"
       className="border-r border-sidebar-border bg-sidebar"
     >
-      <SidebarHeader className="p-4 pb-2">
-        <div className="flex shrink-0 items-center gap-2.5 px-1">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-            <Image
-              src="/ray-mark.svg"
-              alt=""
-              width={561}
-              height={1201}
-              unoptimized
-              priority
-              className="h-5 w-auto"
-            />
-          </div>
-          <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-            <span className="font-display text-base font-semibold leading-none tracking-tight text-sidebar-foreground">
-              Ray App
-            </span>
-            <span className="text-2xs tracking-wide text-sidebar-foreground/60">
-              Gestión moderna para tu negocio
-            </span>
-          </div>
+      <SidebarHeader className="p-4 pb-2 group-data-[collapsible=icon]:p-2">
+        <div className="flex flex-col gap-2 px-1">
+          {/*
+            El logo completo, tal como esta dibujado: el rayo y la palabra RAY.
+            Va invertido en tema claro porque la marca es blanca; sobre el fondo
+            del sidebar (casi blanco) seria invisible. En el rail colapsado se
+            encoge solo: object-contain lo mete en 48px sin deformarlo.
+          */}
+          <Image
+            src="/ray-logo-outlined.svg"
+            alt="Ray App"
+            width={2611}
+            height={1201}
+            unoptimized
+            priority
+            className="h-7 w-auto max-w-full object-contain invert dark:invert-0"
+          />
+          <span className="text-2xs tracking-wide text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
+            Gestión moderna para tu negocio
+          </span>
         </div>
       </SidebarHeader>
 

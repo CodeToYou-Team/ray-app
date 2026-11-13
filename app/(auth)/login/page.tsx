@@ -16,19 +16,18 @@ export default async function LoginPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col items-center gap-3 text-center">
-        <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <Image
-            src="/ray-mark.svg"
-            alt=""
-            width={561}
-            height={1201}
-            unoptimized
-            priority
-            className="h-6 w-auto"
-          />
-        </div>
+        <Image
+          src="/ray-logo-outlined.svg"
+          alt=""
+          width={2611}
+          height={1201}
+          unoptimized
+          priority
+          className="h-10 w-auto invert dark:invert-0"
+        />
         <div>
-          <h1 className="font-display text-3xl font-semibold leading-none tracking-tight">Ray App</h1>
+          {/* El logo ya dice "RAY"; el h1 se queda para lectores de pantalla. */}
+          <h1 className="sr-only">Ray App</h1>
           <p className="text-sm text-muted-foreground">
             Entra para gestionar tu negocio
           </p>

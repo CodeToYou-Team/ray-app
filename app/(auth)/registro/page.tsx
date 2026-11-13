@@ -22,19 +22,17 @@ export default async function RegistroPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col items-center gap-3 text-center">
-        <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <Image
-            src="/ray-mark.svg"
-            alt=""
-            width={561}
-            height={1201}
-            unoptimized
-            priority
-            className="h-6 w-auto"
-          />
-        </div>
+        <Image
+          src="/ray-logo-outlined.svg"
+          alt="Ray App"
+          width={2611}
+          height={1201}
+          unoptimized
+          priority
+          className="h-10 w-auto invert dark:invert-0"
+        />
         <div>
-          <h1 className="font-display text-3xl font-semibold leading-none tracking-tight">Crear cuenta</h1>
+          <h1 className="font-display text-2xl font-semibold leading-none tracking-tight">Crear cuenta</h1>
           <p className="text-sm text-muted-foreground">
             Usa el mismo correo con el que te invitaron
           </p>
