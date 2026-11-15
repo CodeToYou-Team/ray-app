@@ -1,12 +1,12 @@
 "use client";
 
 import {
-  IconSelector,
-  IconLogout,
-  IconMoon,
-  IconSun,
-  IconShieldCog,
-} from "@tabler/icons-react";
+  ChevronsUpDown,
+  LogOut,
+  Moon,
+  Sun,
+  ShieldCog,
+} from "lucide-react";
 import Link from "next/link";
 import { useTransition } from "react";
 import { useTheme } from "next-themes";
@@ -71,7 +71,7 @@ export function SidebarUser({ name, email, role, isPlatformAdmin }: SidebarUserP
                   {email}
                 </span>
               </div>
-              <IconSelector className="ml-auto size-4 text-sidebar-foreground/40" />
+              <ChevronsUpDown className="ml-auto size-4 text-sidebar-foreground/40" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -84,22 +84,22 @@ export function SidebarUser({ name, email, role, isPlatformAdmin }: SidebarUserP
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             >
               {theme === "dark" ? (
-                <IconSun className="size-4 mr-2" />
+                <Sun className="size-4 mr-2" />
               ) : (
-                <IconMoon className="size-4 mr-2" />
+                <Moon className="size-4 mr-2" />
               )}
               {theme === "dark" ? "Modo claro" : "Modo oscuro"}
             </DropdownMenuItem>
             {isPlatformAdmin && (
               <DropdownMenuItem asChild>
                 <Link href="/admin">
-                  <IconShieldCog className="size-4 mr-2" />
+                  <ShieldCog className="size-4 mr-2" />
                   Administración
                 </Link>
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
-            <div className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="px-2 py-1.5 text-2xs uppercase tracking-wider text-muted-foreground">
               Rol: {role}
             </div>
             <DropdownMenuSeparator />
@@ -115,7 +115,7 @@ export function SidebarUser({ name, email, role, isPlatformAdmin }: SidebarUserP
                 });
               }}
             >
-              <IconLogout className="size-4 mr-2" />
+              <LogOut className="size-4 mr-2" />
               {signingOut ? "Cerrando sesión…" : "Cerrar sesión"}
             </DropdownMenuItem>
           </DropdownMenuContent>

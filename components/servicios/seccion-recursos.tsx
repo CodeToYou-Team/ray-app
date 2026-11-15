@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { IconArchive, IconPencil, IconPlus } from "@tabler/icons-react";
+import { Archive, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,7 +52,7 @@ export function SeccionRecursos({
             className="gap-1.5"
             onClick={() => abrir("recurso:nuevo")}
           >
-            <IconPlus className="size-3.5" />
+            <Plus className="size-3.5" />
             Agregar {etiqueta.toLowerCase()}
           </Button>
         )
@@ -149,7 +149,7 @@ function FilaRecurso({
         {puedeEditar && !confirmando && (
           <span className="flex shrink-0 gap-1">
             <Button variant="ghost" size="icon" className="size-8" onClick={onEditar}>
-              <IconPencil className="size-4" />
+              <Pencil className="size-4" />
               <span className="sr-only">Editar {recurso.name}</span>
             </Button>
             <Button
@@ -159,7 +159,7 @@ function FilaRecurso({
               title="Archivar"
               onClick={onArchivar}
             >
-              <IconArchive className="size-4" />
+              <Archive className="size-4" />
               <span className="sr-only">Archivar {recurso.name}</span>
             </Button>
           </span>
@@ -282,7 +282,7 @@ function FormRecurso({
         />
       </div>
       {recurso && (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-2xs text-muted-foreground">
           {shared
             ? "No se pueden bajar los cupos por debajo de lo que ya está reservado."
             : "No se puede bajar por debajo de una reserva pendiente para más personas."}

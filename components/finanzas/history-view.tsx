@@ -2,7 +2,8 @@
 
 import { useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { IconTrendingUp, IconTrendingDown, IconMinus } from "@tabler/icons-react";
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
@@ -56,12 +57,11 @@ export function HistoryView({ currency, currencies, meses }: Props) {
   return (
     <div className={cn("space-y-4 max-w-4xl mx-auto", navigating && "opacity-70")}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-bold">Historial</h2>
-          <p className="text-sm text-muted-foreground">
-            Mes a mes, con la variación respecto al mes anterior.
-          </p>
-        </div>
+        <PageHeader
+          title="Historial"
+          description="Mes a mes, con la variación respecto al mes anterior."
+          className="min-w-0 flex-1"
+        />
 
         <Select value={currency} onValueChange={setMoneda}>
           <SelectTrigger className="w-28">
@@ -149,13 +149,13 @@ export function HistoryView({ currency, currencies, meses }: Props) {
  */
 function Variacion({ actual, previo }: { actual: string; previo?: string }) {
   if (previo === undefined) {
-    return <span className="text-[11px] text-muted-foreground">—</span>;
+    return <span className="text-2xs text-muted-foreground">—</span>;
   }
 
   const base = Number(previo);
   if (base === 0) {
     return (
-      <span className="text-[11px] text-muted-foreground">
+      <span className="text-2xs text-muted-foreground">
         {Number(actual) > 0 ? "primer mes" : "—"}
       </span>
     );
@@ -164,8 +164,8 @@ function Variacion({ actual, previo }: { actual: string; previo?: string }) {
   const pct = Math.round(((Number(actual) - base) / base) * 100);
   if (pct === 0) {
     return (
-      <span className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground">
-        <IconMinus className="size-3" />
+      <span className="inline-flex items-center gap-0.5 text-2xs text-muted-foreground">
+        <Minus className="size-3" />
         igual
       </span>
     );
@@ -175,14 +175,14 @@ function Variacion({ actual, previo }: { actual: string; previo?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-0.5 text-[11px] font-medium",
+        "inline-flex items-center gap-0.5 text-2xs font-medium",
         sube ? "text-success" : "text-destructive",
       )}
     >
       {sube ? (
-        <IconTrendingUp className="size-3" />
+        <TrendingUp className="size-3" />
       ) : (
-        <IconTrendingDown className="size-3" />
+        <TrendingDown className="size-3" />
       )}
       {sube ? "+" : ""}
       {pct}%

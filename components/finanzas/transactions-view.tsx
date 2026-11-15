@@ -3,22 +3,21 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
-  IconArrowUpRight,
-  IconArrowDownRight,
-  IconPlus,
-  IconPackage,
-  IconShoppingCart,
-  IconChevronLeft,
-  IconChevronRight,
-  IconDotsVertical,
-  IconBan,
-  IconPencil,
-  IconSearch,
-  IconX,
-  IconArrowBackUp,
-  IconAlertCircle,
-  IconTrashOff,
-} from "@tabler/icons-react";
+  ArrowUpRight,
+  ArrowDownRight,
+  Plus,
+  Package,
+  ShoppingCart,
+  ChevronLeft,
+  ChevronRight,
+  EllipsisVertical,
+  Ban,
+  Pencil,
+  Search,
+  X,
+  Undo2,
+  CircleAlert,
+} from "lucide-react";
 import {
   Table,
   TableBody,
@@ -27,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { restoreTransaction, voidTransaction } from "@/lib/finanzas/actions";
 import { formatMoney, formatDate } from "@/lib/format";
+import { Money } from "@/components/dinero";
 import { cn } from "@/lib/utils";
 
 export interface ViewRow {
@@ -120,9 +121,9 @@ interface Props {
   ultimaTasa: Record<string, RateHint>;
 }
 
-const KIND_BADGE: Record<string, { label: string; icon: typeof IconPackage }> = {
-  venta: { label: "Venta", icon: IconShoppingCart },
-  compra: { label: "Compra", icon: IconPackage },
+const KIND_BADGE: Record<string, { label: string; icon: typeof Package }> = {
+  venta: { label: "Venta", icon: ShoppingCart },
+  compra: { label: "Compra", icon: Package },
 };
 
 export function TransactionsView({
@@ -215,10 +216,11 @@ export function TransactionsView({
       )}
 
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold">{title}</h2>
-          <p className="text-sm text-muted-foreground">{description}</p>
-        </div>
+        <PageHeader
+          title={title}
+          description={description}
+          className="min-w-0 flex-1"
+        />
         <div className="flex gap-2">
           {(type === undefined || type === "ingreso") && (
             <Button
@@ -230,7 +232,7 @@ export function TransactionsView({
                 setDialogOpen(true);
               }}
             >
-              <IconPlus className="size-3.5" />
+              <Plus className="size-3.5" />
               Registrar ingreso
             </Button>
           )}
@@ -245,7 +247,7 @@ export function TransactionsView({
                 setDialogOpen(true);
               }}
             >
-              <IconPlus className="size-3.5" />
+              <Plus className="size-3.5" />
               Registrar gasto
             </Button>
           )}
@@ -262,32 +264,29 @@ export function TransactionsView({
           {balances.map((b) => (
             <Card key={b.currency}>
               <CardContent className="space-y-2 p-4">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                <p className="text-2xs font-medium uppercase tracking-wider text-muted-foreground">
                   {b.currency}
                 </p>
                 <div className="flex items-baseline justify-between text-sm">
                   <span className="text-muted-foreground">Ingresos</span>
-                  <span className="font-mono text-success">
-                    {formatMoney(b.ingresos, b.currency)}
-                  </span>
+                  <Money value={b.ingresos} currency={b.currency} tone="success" />
                 </div>
                 <div className="flex items-baseline justify-between text-sm">
                   <span className="text-muted-foreground">Gastos</span>
-                  <span className="font-mono text-destructive">
-                    {formatMoney(b.gastos, b.currency)}
-                  </span>
+                  <Money
+                    value={b.gastos}
+                    currency={b.currency}
+                    tone="destructive"
+                  />
                 </div>
                 {/* El balance solo tiene sentido DENTRO de una moneda. */}
                 <div className="flex items-baseline justify-between border-t pt-2 text-sm font-semibold">
                   <span>Balance</span>
-                  <span
-                    className={cn(
-                      "font-mono",
-                      Number(b.balance) < 0 ? "text-destructive" : "text-success",
-                    )}
-                  >
-                    {formatMoney(b.balance, b.currency)}
-                  </span>
+                  <Money
+                    value={b.balance}
+                    currency={b.currency}
+                    tone={Number(b.balance) < 0 ? "destructive" : "success"}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -300,18 +299,16 @@ export function TransactionsView({
           {totals.map((t) => (
             <Card key={t.currency}>
               <CardContent className="p-4">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                <p className="text-2xs font-medium uppercase tracking-wider text-muted-foreground">
                   Total en {t.currency}
                 </p>
-                <p
-                  className={cn(
-                    "mt-1 font-mono text-lg font-semibold",
-                    type === "gasto" ? "text-destructive" : "text-success",
-                  )}
-                >
-                  {formatMoney(t.total, t.currency)}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
+                <Money
+                  value={t.total}
+                  currency={t.currency}
+                  tone={type === "gasto" ? "destructive" : "success"}
+                  className="mt-1 block text-lg font-semibold"
+                />
+                <p className="text-2xs text-muted-foreground">
                   {t.count} {t.count === 1 ? "operación" : "operaciones"}
                 </p>
               </CardContent>
@@ -350,12 +347,12 @@ export function TransactionsView({
               >
                 {enAnuladas ? (
                   <>
-                    <IconX className="size-3.5" />
+                    <X className="size-3.5" />
                     Volver a las vigentes
                   </>
                 ) : (
                   <>
-                    <IconTrashOff className="size-3.5" />
+                    <Ban className="size-3.5" />
                     Ver anuladas
                   </>
                 )}
@@ -433,7 +430,7 @@ export function TransactionsView({
                     <TableCell className="text-xs text-muted-foreground">
                       {formatDate(r.occurredOn)}
                       {r.voidedOn && (
-                        <span className="block text-[10px] text-destructive">
+                        <span className="block text-2xs text-destructive">
                           anulada el {formatDate(r.voidedOn)}
                         </span>
                       )}
@@ -442,7 +439,7 @@ export function TransactionsView({
                       <span className="flex items-center gap-2">
                         {r.concept}
                         {kindBadge && (
-                          <Badge variant="secondary" className="gap-1 text-[10px]">
+                          <Badge variant="secondary" className="gap-1 text-2xs">
                             <kindBadge.icon className="size-3" />
                             {kindBadge.label}
                           </Badge>
@@ -458,16 +455,16 @@ export function TransactionsView({
                     <TableCell className="text-right">
                       <span
                         className={cn(
-                          "inline-flex items-center gap-1 font-mono text-sm font-medium",
+                          "inline-flex items-center gap-1 text-sm font-medium",
                           r.type === "ingreso" ? "text-success" : "text-destructive",
                         )}
                       >
                         {r.type === "ingreso" ? (
-                          <IconArrowUpRight className="size-3.5" />
+                          <ArrowUpRight className="size-3.5" />
                         ) : (
-                          <IconArrowDownRight className="size-3.5" />
+                          <ArrowDownRight className="size-3.5" />
                         )}
-                        {formatMoney(r.amount, r.currency)}
+                        <Money value={r.amount} currency={r.currency} />
                       </span>
                       {/*
                         Si hubo conversión, la tasa se ve aquí. Un monto en Bs
@@ -475,7 +472,7 @@ export function TransactionsView({
                         nada después.
                       */}
                       {r.exchangeRate && r.baseCurrency && (
-                        <span className="block font-mono text-[10px] text-muted-foreground">
+                        <span className="block font-mono text-2xs text-muted-foreground">
                           1 {r.baseCurrency} = {trimRate(r.exchangeRate)} {r.currency}
                         </span>
                       )}
@@ -519,7 +516,7 @@ export function TransactionsView({
               disabled={page === 0 || navigating}
               onClick={() => navegar({ page: page - 1 })}
             >
-              <IconChevronLeft className="size-4" />
+              <ChevronLeft className="size-4" />
               Anterior
             </Button>
             <Button
@@ -529,7 +526,7 @@ export function TransactionsView({
               onClick={() => navegar({ page: page + 1 })}
             >
               Siguiente
-              <IconChevronRight className="size-4" />
+              <ChevronRight className="size-4" />
             </Button>
           </div>
         </div>
@@ -604,7 +601,7 @@ function Filtros({
           Buscar por concepto
         </Label>
         <div className="relative">
-          <IconSearch className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             id="buscar"
             value={texto}
@@ -653,7 +650,7 @@ function Filtros({
             onFiltrar({ q: undefined, desde: undefined, hasta: undefined });
           }}
         >
-          <IconX className="size-3.5" />
+          <X className="size-3.5" />
           Limpiar
         </Button>
       )}
@@ -744,14 +741,14 @@ function RowMenu({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="size-8" disabled={pending}>
-            <IconDotsVertical className="size-4" />
+            <EllipsisVertical className="size-4" />
             <span className="sr-only">Acciones de {row.concept}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {canEdit && (
             <DropdownMenuItem onSelect={onEdit}>
-              <IconPencil className="mr-2 size-4" />
+              <Pencil className="mr-2 size-4" />
               Corregir
             </DropdownMenuItem>
           )}
@@ -765,7 +762,7 @@ function RowMenu({
                 setConfirmando(true);
               }}
             >
-              <IconBan className="mr-2 size-4" />
+              <Ban className="mr-2 size-4" />
               Anular
             </DropdownMenuItem>
           )}
@@ -801,7 +798,7 @@ function RowMenu({
                 role="alert"
                 className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-left text-sm text-destructive"
               >
-                <IconAlertCircle className="mt-px size-4 shrink-0" />
+                <CircleAlert className="mt-px size-4 shrink-0" />
                 {error}
               </p>
             )}
@@ -871,17 +868,17 @@ function AvisoAnulada({
           });
         }}
       >
-        <IconArrowBackUp className="size-3.5" />
+        <Undo2 className="size-3.5" />
         {pending ? "Deshaciendo…" : "Deshacer"}
       </Button>
       <Button
         size="icon"
         variant="ghost"
-        className="size-7"
+        className="size-8"
         disabled={pending}
         onClick={onCerrar}
       >
-        <IconX className="size-3.5" />
+        <X className="size-3.5" />
         <span className="sr-only">Cerrar aviso</span>
       </Button>
     </div>
@@ -910,12 +907,12 @@ function RestaurarBoton({ row }: { row: ViewRow }) {
           });
         }}
       >
-        <IconArrowBackUp className="size-3.5" />
+        <Undo2 className="size-3.5" />
         {pending ? "Restaurando…" : "Restaurar"}
         <span className="sr-only"> {row.concept}</span>
       </Button>
       {error && (
-        <p role="alert" className="mt-1 text-left text-[11px] text-destructive">
+        <p role="alert" className="mt-1 text-left text-2xs text-destructive">
           {error}
         </p>
       )}

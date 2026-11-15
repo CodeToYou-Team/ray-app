@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { IconArrowLeft } from "@tabler/icons-react";
+import { ArrowLeft } from "lucide-react";
 import { PageTransition } from "@/components/motion";
 import { TeamManager } from "@/components/ajustes/team-manager";
 import { TenantSettings } from "@/components/admin/tenant-settings";
@@ -50,7 +50,7 @@ export default async function AdminTenantPage({
           href="/admin"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
         >
-          <IconArrowLeft className="size-3.5" />
+          <ArrowLeft className="size-3.5" />
           Negocios
         </Link>
 

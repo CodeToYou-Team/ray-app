@@ -3,11 +3,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  IconAlertCircle,
-  IconHistory,
-  IconTrash,
-  IconUserPlus,
-} from "@tabler/icons-react";
+  CircleAlert,
+  History,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,24 +68,22 @@ export function AdminManager({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold">Administradores</h2>
-          <p className="text-sm text-muted-foreground">
-            Quién gestiona la plataforma. Siempre queda al menos un superadmin.
-          </p>
-        </div>
-        <Button size="sm" className="gap-1.5" onClick={() => setGranting(true)}>
-          <IconUserPlus className="size-3.5" />
-          Nombrar
-        </Button>
-      </div>
+      <PageHeader
+        title="Administradores"
+        description="Quién gestiona la plataforma. Siempre queda al menos un superadmin."
+        actions={
+          <Button size="sm" className="gap-1.5" onClick={() => setGranting(true)}>
+            <UserPlus className="size-3.5" />
+            Nombrar
+          </Button>
+        }
+      />
 
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">
             Administradores
-            <Badge variant="secondary" className="ml-2 text-[10px]">
+            <Badge variant="secondary" className="ml-2 text-2xs">
               {admins.length}
             </Badge>
           </CardTitle>
@@ -134,7 +133,7 @@ export function AdminManager({
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm">
-            <IconHistory className="size-4 text-muted-foreground" />
+            <History className="size-4 text-muted-foreground" />
             Historial
           </CardTitle>
           <p className="text-xs text-muted-foreground">
@@ -230,7 +229,7 @@ function LevelCell({ admin }: { admin: PlatformAdmin }) {
           ))}
         </SelectContent>
       </Select>
-      {error && <p className="mt-1 text-[11px] text-destructive">{error}</p>}
+      {error && <p className="mt-1 text-2xs text-destructive">{error}</p>}
     </div>
   );
 }
@@ -250,7 +249,7 @@ function RevokeButton({ admin }: { admin: PlatformAdmin }) {
         disabled={pending}
         onClick={() => setConfirmando(true)}
       >
-        <IconTrash className="size-4" />
+        <Trash2 className="size-4" />
         <span className="sr-only">Quitar a {admin.email}</span>
       </Button>
 
@@ -270,7 +269,7 @@ function RevokeButton({ admin }: { admin: PlatformAdmin }) {
                 role="alert"
                 className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
               >
-                <IconAlertCircle className="mt-px size-4 shrink-0" />
+                <CircleAlert className="mt-px size-4 shrink-0" />
                 {error}
               </p>
             )}
@@ -362,7 +361,7 @@ function GrantDialog({ onClose }: { onClose: () => void }) {
               role="alert"
               className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             >
-              <IconAlertCircle className="mt-px size-4 shrink-0" />
+              <CircleAlert className="mt-px size-4 shrink-0" />
               {error}
             </p>
           )}

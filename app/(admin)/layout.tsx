@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { IconArrowLeft, IconShieldCog } from "@tabler/icons-react";
+import { ArrowLeft, ShieldCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AdminNav } from "@/components/admin/admin-nav";
@@ -33,10 +33,10 @@ export default async function AdminLayout({
     <div className="min-h-svh">
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border/70 bg-background/85 px-4 backdrop-blur-lg md:px-6">
         <Link href="/admin" className="flex items-center gap-2 font-semibold">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <IconShieldCog className="size-4" />
+          <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <ShieldCog className="size-4" />
           </span>
-          <span className="hidden text-sm lg:inline">Administración</span>
+          <span className="hidden font-display text-base font-semibold lg:inline">Administración</span>
         </Link>
 
         <AdminNav isSuperadmin={admin.level === "superadmin"} />
@@ -48,7 +48,7 @@ export default async function AdminLayout({
           {tenant && (
             <Button asChild variant="ghost" size="sm" className="gap-1.5">
               <Link href="/dashboard">
-                <IconArrowLeft className="size-3.5" />
+                <ArrowLeft className="size-3.5" />
                 <span className="hidden sm:inline">Volver a la app</span>
               </Link>
             </Button>

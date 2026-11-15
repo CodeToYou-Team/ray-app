@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { IconBolt } from "@tabler/icons-react";
 import { SignupForm } from "@/components/auth/signup-form";
 import { tryGetTenant } from "@/lib/authz/session";
 
@@ -22,11 +22,17 @@ export default async function RegistroPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col items-center gap-3 text-center">
-        <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <IconBolt className="size-5" />
-        </div>
+        <Image
+          src="/ray-logo-outlined.svg"
+          alt="Ray App"
+          width={2611}
+          height={1201}
+          unoptimized
+          priority
+          className="h-10 w-auto invert dark:invert-0"
+        />
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Crear cuenta</h1>
+          <h1 className="font-display text-2xl font-semibold leading-none tracking-tight">Crear cuenta</h1>
           <p className="text-sm text-muted-foreground">
             Usa el mismo correo con el que te invitaron
           </p>

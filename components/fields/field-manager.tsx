@@ -3,16 +3,17 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  IconPlus,
-  IconPencil,
-  IconArchive,
-  IconArchiveOff,
-  IconAlertCircle,
-  IconTrash,
-  IconEye,
-  IconEyeOff,
-  IconLock,
-} from "@tabler/icons-react";
+  Plus,
+  Pencil,
+  Archive,
+  ArchiveX,
+  CircleAlert,
+  Trash2,
+  Eye,
+  EyeOff,
+  Lock,
+} from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -84,20 +85,17 @@ export function FieldManager({
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold">Columnas</h2>
-          <p className="text-sm text-muted-foreground">
-            Qué información guardas de cada producto, servicio y reserva. Las
-            del sistema se pueden renombrar y ocultar; las que crees tú, además
-            archivar.
-          </p>
-        </div>
+        <PageHeader
+          title="Columnas"
+          description="Qué información guardas de cada producto, servicio y reserva. Las del sistema se pueden renombrar y ocultar; las que crees tú, además archivar."
+          className="min-w-0 flex-1"
+        />
         <Button
           size="sm"
           className="gap-1.5"
           onClick={() => setEditing({ mode: "create", entity: tab })}
         >
-          <IconPlus className="size-3.5" />
+          <Plus className="size-3.5" />
           Nueva columna
         </Button>
       </div>
@@ -170,20 +168,20 @@ export function FieldManager({
                             {f.source === "fixed" && (
                               <Badge
                                 variant="outline"
-                                className="gap-1 text-[9px] font-normal"
+                                className="gap-1 text-2xs font-normal"
                                 title="Columna del sistema: su tipo no se puede cambiar"
                               >
-                                <IconLock className="size-2.5" />
+                                <Lock className="size-3" />
                                 sistema
                               </Badge>
                             )}
                             {f.archived && (
-                              <Badge variant="secondary" className="text-[9px]">
+                              <Badge variant="secondary" className="text-2xs">
                                 archivada
                               </Badge>
                             )}
                             {f.hidden && !f.archived && (
-                              <Badge variant="secondary" className="text-[9px]">
+                              <Badge variant="secondary" className="text-2xs">
                                 oculta
                               </Badge>
                             )}
@@ -199,9 +197,9 @@ export function FieldManager({
                         </TableCell>
                         <TableCell className="text-center">
                           {f.showInTable ? (
-                            <IconEye className="mx-auto size-4 text-muted-foreground" />
+                            <Eye className="mx-auto size-4 text-muted-foreground" />
                           ) : (
-                            <IconEyeOff className="mx-auto size-4 text-muted-foreground/40" />
+                            <EyeOff className="mx-auto size-4 text-muted-foreground/40" />
                           )}
                         </TableCell>
                         <TableCell className="text-right">
@@ -214,7 +212,7 @@ export function FieldManager({
                                 setEditing({ mode: "edit", entity, field: f })
                               }
                             >
-                              <IconPencil className="size-4" />
+                              <Pencil className="size-4" />
                               <span className="sr-only">Editar {f.label}</span>
                             </Button>
                             {f.editable.archive && f.id && (
@@ -262,9 +260,9 @@ function ArchiveButton({ id, archived }: { id: string; archived: boolean }) {
       }
     >
       {archived ? (
-        <IconArchiveOff className="size-4" />
+        <ArchiveX className="size-4" />
       ) : (
-        <IconArchive className="size-4" />
+        <Archive className="size-4" />
       )}
     </Button>
   );
@@ -396,13 +394,13 @@ function FieldDialog({
           {existente && (
             <div className="grid grid-cols-2 gap-3 rounded-md bg-muted/50 px-3 py-2">
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                <p className="text-2xs uppercase tracking-wider text-muted-foreground">
                   Identificador
                 </p>
                 <code className="text-xs">{existente.key}</code>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                <p className="text-2xs uppercase tracking-wider text-muted-foreground">
                   Tipo
                 </p>
                 <span className="text-xs">{FIELD_TYPES[existente.type].label}</span>
@@ -486,7 +484,7 @@ function FieldDialog({
               role="alert"
               className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             >
-              <IconAlertCircle className="mt-px size-4 shrink-0" />
+              <CircleAlert className="mt-px size-4 shrink-0" />
               {error}
             </p>
           )}
@@ -524,7 +522,7 @@ function OptionsEditor({
           size="sm"
           onClick={() => setOptions([...options, { label: "" }])}
         >
-          <IconPlus className="size-3.5" />
+          <Plus className="size-3.5" />
           Agregar
         </Button>
       </div>
@@ -549,7 +547,7 @@ function OptionsEditor({
             className="size-9 shrink-0"
             onClick={() => setOptions(options.filter((_, j) => j !== i))}
           >
-            <IconTrash className="size-4" />
+            <Trash2 className="size-4" />
             <span className="sr-only">Quitar opción</span>
           </Button>
         </div>
@@ -562,7 +560,7 @@ function OptionsEditor({
 
       {archivadas.length > 0 && (
         <div className="rounded-md bg-muted/50 px-3 py-2">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <p className="text-2xs uppercase tracking-wider text-muted-foreground">
             Archivadas
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">

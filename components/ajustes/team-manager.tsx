@@ -3,12 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  IconUserPlus,
-  IconMail,
-  IconTrash,
-  IconAlertCircle,
-  IconInfoCircle,
-} from "@tabler/icons-react";
+  UserPlus,
+  Mail,
+  Trash2,
+  CircleAlert,
+  Info,
+} from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -122,22 +123,22 @@ export function TeamManager({
 
   return (
     <div className="space-y-4 max-w-4xl mx-auto">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold">{title}</h2>
-          <p className="text-sm text-muted-foreground">{description}</p>
-        </div>
-        <Button size="sm" className="gap-1.5" onClick={() => setInviting(true)}>
-          <IconUserPlus className="size-3.5" />
-          Invitar
-        </Button>
-      </div>
+      <PageHeader
+        title={title}
+        description={description}
+        actions={
+          <Button size="sm" className="gap-1.5" onClick={() => setInviting(true)}>
+            <UserPlus className="size-3.5" />
+            Invitar
+          </Button>
+        }
+      />
 
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">
             Miembros
-            <Badge variant="secondary" className="ml-2 text-[10px]">
+            <Badge variant="secondary" className="ml-2 text-2xs">
               {members.length}
             </Badge>
           </CardTitle>
@@ -190,7 +191,7 @@ export function TeamManager({
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-sm">
-              <IconMail className="size-4 text-muted-foreground" />
+              <Mail className="size-4 text-muted-foreground" />
               Invitaciones pendientes
             </CardTitle>
             <p className="text-xs text-muted-foreground">
@@ -285,7 +286,7 @@ function RoleCell({
           ))}
         </SelectContent>
       </Select>
-      {error && <p className="mt-1 text-[11px] text-destructive">{error}</p>}
+      {error && <p className="mt-1 text-2xs text-destructive">{error}</p>}
     </div>
   );
 }
@@ -311,7 +312,7 @@ function RemoveButton({
         disabled={pending}
         onClick={() => setConfirmando(true)}
       >
-        <IconTrash className="size-4" />
+        <Trash2 className="size-4" />
         <span className="sr-only">Quitar a {member.email}</span>
       </Button>
 
@@ -331,7 +332,7 @@ function RemoveButton({
                 role="alert"
                 className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
               >
-                <IconAlertCircle className="mt-px size-4 shrink-0" />
+                <CircleAlert className="mt-px size-4 shrink-0" />
                 {error}
               </p>
             )}
@@ -394,7 +395,7 @@ function CancelButton({
         })
       }
     >
-      <IconTrash className="size-4" />
+      <Trash2 className="size-4" />
       <span className="sr-only">Cancelar la invitación de {email}</span>
     </Button>
   );
@@ -436,7 +437,7 @@ function InviteDialog({
           </div>
 
           <p className="flex items-start gap-2 text-xs text-muted-foreground">
-            <IconInfoCircle className="mt-px size-3.5 shrink-0" />
+            <Info className="mt-px size-3.5 shrink-0" />
             Registrarse sin invitación no da acceso a nada, así que el enlace se
             puede compartir sin riesgo.
           </p>
@@ -495,7 +496,7 @@ function InviteDialog({
               role="alert"
               className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             >
-              <IconAlertCircle className="mt-px size-4 shrink-0" />
+              <CircleAlert className="mt-px size-4 shrink-0" />
               {error}
             </p>
           )}

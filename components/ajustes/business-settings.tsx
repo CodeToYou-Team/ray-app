@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IconAlertCircle, IconCheck } from "@tabler/icons-react";
+import { CircleAlert, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -108,7 +108,7 @@ export function BusinessSettings({ current }: { current: string }) {
               role="alert"
               className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             >
-              <IconAlertCircle className="mt-px size-4 shrink-0" />
+              <CircleAlert className="mt-px size-4 shrink-0" />
               {error}
             </p>
           )}
@@ -119,7 +119,7 @@ export function BusinessSettings({ current }: { current: string }) {
             </Button>
             {guardado && !cambio && (
               <span className="flex items-center gap-1.5 text-xs text-success">
-                <IconCheck className="size-3.5" />
+                <Check className="size-3.5" />
                 Guardado
               </span>
             )}

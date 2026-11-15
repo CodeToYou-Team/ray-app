@@ -4,12 +4,12 @@ import { useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  IconArchive,
-  IconArchiveOff,
-  IconArrowLeft,
-  IconCalendarEvent,
-  IconPencil,
-} from "@tabler/icons-react";
+  Archive,
+  ArchiveX,
+  CalendarDays,
+  Pencil,
+} from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -70,41 +70,40 @@ export function ServiceDetail({
     <EdicionProvider>
       <div className="mx-auto max-w-4xl space-y-4">
         <div className="space-y-3">
-          <Link
-            href="/servicios"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <IconArrowLeft className="size-3.5" />
-            Servicios
-          </Link>
-
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className="flex flex-wrap items-center gap-2 text-lg font-bold">
-                {servicio.name}
-                {servicio.archived && <Badge variant="secondary">Archivado</Badge>}
-                {!servicio.archived && !servicio.isActive && (
-                  <Badge variant="outline">No disponible para vender</Badge>
-                )}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {servicio.categoryLabel}
-                {unidad && setup && (
-                  <>
-                    {" · "}
-                    {setup.resources.length === 0
-                      ? "sin recursos todavía"
-                      : `${setup.resources.length} ${setup.resources.length === 1 ? "recurso" : "recursos"}`}
-                  </>
-                )}
-              </p>
-            </div>
+            <PageHeader
+              title={servicio.name}
+              badge={
+                <>
+                  {servicio.archived && (
+                    <Badge variant="secondary">Archivado</Badge>
+                  )}
+                  {!servicio.archived && !servicio.isActive && (
+                    <Badge variant="outline">No disponible para vender</Badge>
+                  )}
+                </>
+              }
+              description={
+                <>
+                  {servicio.categoryLabel}
+                  {unidad && setup && (
+                    <>
+                      {" · "}
+                      {setup.resources.length === 0
+                        ? "sin recursos todavía"
+                        : `${setup.resources.length} ${setup.resources.length === 1 ? "recurso" : "recursos"}`}
+                    </>
+                  )}
+                </>
+              }
+              className="min-w-0 flex-1"
+            />
 
             <div className="flex flex-wrap gap-2">
               {unidad && setup && setup.resources.length > 0 && !servicio.archived && (
                 <Button variant="outline" size="sm" className="gap-1.5" asChild>
                   <Link href="/reservas">
-                    <IconCalendarEvent className="size-4" />
+                    <CalendarDays className="size-4" />
                     Ver disponibilidad
                   </Link>
                 </Button>
@@ -139,7 +138,7 @@ export function ServiceDetail({
                       className="gap-1.5"
                       onClick={() => setEditandoDatos(true)}
                     >
-                      <IconPencil className="size-3.5" />
+                      <Pencil className="size-3.5" />
                       Editar
                     </Button>
                   )
@@ -294,7 +293,7 @@ function PestanasServicio({
 
 function Contador({ n }: { n: number }) {
   return (
-    <span className="rounded-full bg-muted px-1.5 font-mono text-[10px] text-muted-foreground">
+    <span className="rounded-full bg-muted px-1.5 font-mono text-2xs text-muted-foreground">
       {n}
     </span>
   );
@@ -327,12 +326,12 @@ function BotonArchivar({ servicio }: { servicio: ServiceRow }) {
       >
         {servicio.archived ? (
           <>
-            <IconArchiveOff className="size-4" />
+            <ArchiveX className="size-4" />
             Restaurar
           </>
         ) : (
           <>
-            <IconArchive className="size-4" />
+            <Archive className="size-4" />
             Archivar
           </>
         )}

@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { IconAlertCircle } from "@tabler/icons-react";
+import { CircleAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -78,7 +78,7 @@ export function ErrorBox({ children }: { children: ReactNode }) {
       role="alert"
       className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
     >
-      <IconAlertCircle className="mt-px size-4 shrink-0" />
+      <CircleAlert className="mt-px size-4 shrink-0" />
       {children}
     </p>
   );

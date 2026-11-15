@@ -156,6 +156,53 @@
   and compare the suite's total duration — a pass in isolation means the clock,
   not the code.
 
+## Frontend
+
+Three voices, one job each. Loaded in `app/layout.tsx`, mapped role → face in
+`@theme` (`app/globals.css`):
+
+| Utility | Face | Job |
+| --- | --- | --- |
+| `font-display` | Montserrat | page titles, brand wordmark |
+| `font-sans` | Google Sans | everything else |
+| `font-mono` | Google Sans Code | money and quantities |
+
+- **Both display and body are geometric**, so hierarchy comes from size and
+  weight, not from shape: page title `text-2xl font-semibold tracking-tight`,
+  body 400. The auth hero is the only place that goes to `text-3xl`. Montserrat
+  is wide — do not push titles back to `text-3xl`, they collide with the actions.
+- Type scale: `text-2xl` page title, `text-xl` section, `text-sm` body, `text-xs`
+  meta, `text-2xs` (11px) dense tables. **Nothing below 11px.**
+- The brand is two files: `public/ray-logo.svg` is the original (editable), and
+  `public/ray-logo-outlined.svg` is what the app renders. Same drawing, two
+  fixes applied to the shipped copy: the wordmark is converted from live
+  `<text>` to paths — an `<img>` cannot load webfonts, so the text would fall
+  back to a system face — and the 4267×4267 canvas is cropped to the artwork,
+  which only filled 28% of its height. The logo is white on purpose; the sidebar
+  inverts it in the light theme. Render it with `next/image` + `unoptimized`
+  (the optimizer rejects SVG string sources). If the logo changes, convert the
+  text to curves in the design tool before exporting, and point the app at the
+  outlined file — never at the original.
+- `<PageHeader>` (`components/layout/page-header.tsx`) owns the screen title.
+  The header bar is a utility strip with breadcrumbs and does not render an
+  `<h1>`; the title lives in exactly one place, the page. `route` reads
+  title/description from `ROUTES` in `lib/nav.ts`, which stays the single source.
+- Money and quantities go through `<Money>` / `<Num>` (`components/dinero.tsx`).
+  A hand-written `font-mono` span for an amount is a regression; `font-mono`
+  alone is for codes, slugs and IDs.
+- Icons: **Lucide only**. `components.json` declares `"iconLibrary": "lucide"`,
+  so the CLI and the code agree again. Sizes 12/14/16/20/24/32 (`size-3` …
+  `size-8`); icon-button containers are 36 (`size-9`) or 32 (`size-8`);
+  empty-state medallions are 44 (`size-11`). Keep the default stroke width —
+  `LucideProvider` exists, but React context does not cross the RSC boundary, so
+  icons rendered on the server would silently ignore it.
+- Empty states use `<EmptyState>` with a `tone`, not a fresh copy of the
+  medallion. That pattern was duplicated in four screens with three sizes.
+- `components/ui` is still shadcn-generated. The icon migration edited its
+  imports once, in place, instead of regenerating: a CLI overwrite would have
+  dragged unrelated upstream changes into the same diff. New primitives should
+  come from the CLI, which now emits Lucide.
+
 ## Plan of record
 
 `docs/plan_arquitectura_v2.md` is the current plan; `docs/plan_arquitectura_multitenant.md`
@@ -198,7 +245,8 @@ is superseded but remains the reference for infrastructure (Supabase pitfalls, R
 
 - Language: Spanish throughout (UI, metadata, content, code comments).
 - Theme: `next-themes` with light/dark via CSS variables.
-- Fonts: Plus Jakarta Sans + IBM Plex Mono (via next/font/google).
+- Fonts: see **Frontend** above. Three faces, three roles — never pick a family
+  per screen.
 - Forms: react-hook-form + Zod. Import from `zod`, not `zod/v4`.
 - Reads go through RSC; writes go through Server Actions, each with its own
   authorization check. Never put authorization in `proxy.ts`.

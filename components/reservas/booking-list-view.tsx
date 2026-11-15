@@ -4,12 +4,13 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
-  IconCalendarEvent,
-  IconChevronLeft,
-  IconChevronRight,
-  IconSearch,
-  IconX,
-} from "@tabler/icons-react";
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  X,
+} from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -168,15 +169,14 @@ export function BookingListView({
   return (
     <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold">Listado de reservas</h2>
-          <p className="text-sm text-muted-foreground">
-            Busca una reserva o mira cuánto se debe
-          </p>
-        </div>
+        <PageHeader
+          title="Listado de reservas"
+          description="Busca una reserva o mira cuánto se debe"
+          className="min-w-0 flex-1"
+        />
         <Button variant="outline" size="sm" className="gap-1.5" asChild>
           <Link href="/reservas">
-            <IconCalendarEvent className="size-4" />
+            <CalendarDays className="size-4" />
             Ver disponibilidad
           </Link>
         </Button>
@@ -191,13 +191,13 @@ export function BookingListView({
           {saldos.map((s) => (
             <Card key={s.currency}>
               <CardContent className="p-4">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                <p className="text-2xs font-medium uppercase tracking-wider text-muted-foreground">
                   Por cobrar en {s.currency}
                 </p>
                 <p className="mt-1 font-mono text-lg font-semibold text-destructive">
                   {formatMoney(s.saldo, s.currency)}
                 </p>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   en {s.count} {s.count === 1 ? "reserva" : "reservas"}
                   {hayFiltros && " de las filtradas"}
                 </p>
@@ -286,7 +286,7 @@ export function BookingListView({
                       <TableCell>
                         <span className="block font-medium">{b.holderName}</span>
                         {bajoTitular(b).length > 0 && (
-                          <span className="block text-[11px] text-muted-foreground">
+                          <span className="block text-2xs text-muted-foreground">
                             {bajoTitular(b).join(" · ")}
                           </span>
                         )}
@@ -308,7 +308,7 @@ export function BookingListView({
                       <TableCell className="text-center font-mono text-sm">{b.partySize}</TableCell>
                       <TableCell>
                         <span
-                          className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ${estado.className}`}
+                          className={`whitespace-nowrap rounded-full px-2 py-0.5 text-2xs font-medium ${estado.className}`}
                         >
                           {estado.label}
                         </span>
@@ -338,7 +338,7 @@ export function BookingListView({
                           className="flex size-8 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
                           title="Ver en la cuadrícula"
                         >
-                          <IconCalendarEvent className="size-4" />
+                          <CalendarDays className="size-4" />
                           <span className="sr-only">Ver en la cuadrícula</span>
                         </Link>
                       </TableCell>
@@ -363,7 +363,7 @@ export function BookingListView({
               disabled={page === 0 || navegando}
               onClick={() => navegar({ page: page - 1 })}
             >
-              <IconChevronLeft className="size-4" />
+              <ChevronLeft className="size-4" />
               Anterior
             </Button>
             <Button
@@ -373,7 +373,7 @@ export function BookingListView({
               onClick={() => navegar({ page: page + 1 })}
             >
               Siguiente
-              <IconChevronRight className="size-4" />
+              <ChevronRight className="size-4" />
             </Button>
           </div>
         </div>
@@ -464,7 +464,7 @@ function BarraFiltros({
           Buscar por titular, documento, teléfono o columna personalizada
         </Label>
         <div className="relative">
-          <IconSearch className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             id="buscar-reserva"
             value={texto}
@@ -570,7 +570,7 @@ function BarraFiltros({
             });
           }}
         >
-          <IconX className="size-3.5" />
+          <X className="size-3.5" />
           Limpiar
         </Button>
       )}

@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/layout/page-header";
 import { PageTransition } from "@/components/motion";
 import { BusinessSettings } from "@/components/ajustes/business-settings";
 import { ExchangeRates } from "@/components/ajustes/exchange-rates";
@@ -32,12 +33,10 @@ export default async function NegocioPage() {
   return (
     <PageTransition>
       <div className="max-w-2xl space-y-4">
-        <div>
-          <h2 className="text-lg font-bold">Negocio</h2>
-          <p className="text-sm text-muted-foreground">
-            La configuración que afecta a todo lo que registras
-          </p>
-        </div>
+        <PageHeader
+          title="Negocio"
+          description="La configuración que afecta a todo lo que registras"
+        />
 
         <BusinessSettings current={primaryCurrency} />
         <ExchangeRates

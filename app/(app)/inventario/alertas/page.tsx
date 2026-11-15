@@ -1,10 +1,12 @@
 import Link from "next/link";
 import {
-  IconAlertTriangle,
-  IconPackageOff,
-  IconCheck,
-} from "@tabler/icons-react";
+  TriangleAlert,
+  PackageX,
+  Check,
+} from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { PageTransition } from "@/components/motion";
+import { EmptyState } from "@/components/empty-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,42 +45,36 @@ export default async function AlertasPage() {
   return (
     <PageTransition>
       <div className="space-y-4 max-w-5xl mx-auto">
-        <div>
-          <h2 className="text-lg font-bold">Alertas de inventario</h2>
-          <p className="text-sm text-muted-foreground">
-            Productos que necesitan reposición. El stock sale de sumar cada
-            entrada y salida.
-          </p>
-        </div>
+        <PageHeader
+          title="Alertas de inventario"
+          description="Productos que necesitan reposición. El stock sale de sumar cada entrada y salida."
+        />
 
         {sinStock.length === 0 && bajos.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-              <div className="flex size-11 items-center justify-center rounded-xl bg-success/10 text-success">
-                <IconCheck className="size-5" />
-              </div>
-              <div>
-                <p className="font-medium">Todo en orden</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {stock.length === 0
-                    ? "Todavía no hay productos en el catálogo."
-                    : "Ningún producto está agotado ni por debajo de su mínimo."}
-                </p>
-              </div>
-              {stock.length === 0 && (
+          <EmptyState
+            tone="success"
+            icon={<Check className="size-5" />}
+            title="Todo en orden"
+            description={
+              stock.length === 0
+                ? "Todavía no hay productos en el catálogo."
+                : "Ningún producto está agotado ni por debajo de su mínimo."
+            }
+            action={
+              stock.length === 0 ? (
                 <Button size="sm" asChild>
                   <Link href="/productos">Crear un producto</Link>
                 </Button>
-              )}
-            </CardContent>
-          </Card>
+              ) : undefined
+            }
+          />
         ) : (
           <>
             {sinStock.length > 0 && (
               <AlertGroup
                 title="Agotados"
                 description="Sin unidades disponibles. No se pueden vender."
-                icon={IconPackageOff}
+                icon={PackageX}
                 tone="destructive"
                 rows={sinStock}
               />
@@ -87,7 +83,7 @@ export default async function AlertasPage() {
               <AlertGroup
                 title="Por debajo del mínimo"
                 description="Quedan menos unidades de las que definiste como mínimo."
-                icon={IconAlertTriangle}
+                icon={TriangleAlert}
                 tone="warning"
                 rows={bajos}
               />
@@ -113,7 +109,7 @@ export default async function AlertasPage() {
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {sinMinimo.map((s) => (
-                  <Badge key={s.productId} variant="outline" className="text-[11px]">
+                  <Badge key={s.productId} variant="outline" className="text-2xs">
                     {s.name}
                     <span className="ml-1.5 font-mono text-muted-foreground">
                       {cantidad(s.stock)}
@@ -141,7 +137,7 @@ function AlertGroup({
 }: {
   title: string;
   description: string;
-  icon: typeof IconAlertTriangle;
+  icon: typeof TriangleAlert;
   tone: "destructive" | "warning";
   rows: { productId: string; name: string; sku: string | null; stock: string; minStock: string | null }[];
 }) {
@@ -151,7 +147,7 @@ function AlertGroup({
         <CardTitle className="flex items-center gap-2 text-sm">
           <span
             className={cn(
-              "flex size-7 items-center justify-center rounded-lg",
+              "flex size-8 items-center justify-center rounded-lg",
               tone === "destructive"
                 ? "bg-destructive/10 text-destructive"
                 : "bg-warning/10 text-warning",
@@ -160,7 +156,7 @@ function AlertGroup({
             <Icon className="size-4" />
           </span>
           {title}
-          <Badge variant="secondary" className="text-[10px]">
+          <Badge variant="secondary" className="text-2xs">
             {rows.length}
           </Badge>
         </CardTitle>

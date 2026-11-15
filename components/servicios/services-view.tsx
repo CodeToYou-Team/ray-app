@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { IconPencil, IconPlus, IconSearch } from "@tabler/icons-react";
+import { Pencil, Plus, Search } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -88,16 +89,14 @@ export function ServicesView({
   return (
     <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold">Servicios</h2>
-          <p className="text-sm text-muted-foreground">
-            Lo que vendes sin inventario. Abre uno para ver cómo se reserva, sus tarifas,
-            recursos y horario.
-          </p>
-        </div>
+        <PageHeader
+          title="Servicios"
+          description="Lo que vendes sin inventario. Abre uno para ver cómo se reserva, sus tarifas, recursos y horario."
+          className="min-w-0 flex-1"
+        />
         {canManage && (
           <Button size="sm" className="gap-1.5" onClick={() => setCreando(true)}>
-            <IconPlus className="size-3.5" />
+            <Plus className="size-3.5" />
             Nuevo servicio
           </Button>
         )}
@@ -105,7 +104,7 @@ export function ServicesView({
 
       <div className="flex items-center justify-end gap-3">
         <div className="relative">
-          <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -160,12 +159,12 @@ export function ServicesView({
                         {s.name}
                       </Link>
                       {s.archived && (
-                        <Badge variant="secondary" className="text-[10px]">
+                        <Badge variant="secondary" className="text-2xs">
                           Archivado
                         </Badge>
                       )}
                       {!s.isActive && !s.archived && (
-                        <Badge variant="outline" className="text-[10px]">
+                        <Badge variant="outline" className="text-2xs">
                           Inactivo
                         </Badge>
                       )}
@@ -194,7 +193,7 @@ export function ServicesView({
                           asChild
                         >
                           <Link href={`/servicios/${s.id}`}>
-                            <IconPencil className="size-4" />
+                            <Pencil className="size-4" />
                             <span className="sr-only">Editar {s.name}</span>
                           </Link>
                         </Button>
@@ -335,7 +334,7 @@ function NuevoServicio({
                   </SelectContent>
                 </Select>
               </div>
-              <p className="text-[11px] text-muted-foreground sm:col-span-2">
+              <p className="text-2xs text-muted-foreground sm:col-span-2">
                 La tarifa inicial sale del precio. Al guardar vas a su página para agregar{" "}
                 {unidad === "noche" ? "las habitaciones" : "las canchas o salas"} y ajustar
                 tarifas{unidad === "hora" ? " y horario" : ""}.

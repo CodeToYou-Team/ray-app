@@ -3,11 +3,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  IconAlertCircle,
-  IconCheck,
-  IconPlayerPause,
-  IconPlayerPlay,
-} from "@tabler/icons-react";
+  CircleAlert,
+  Check,
+  CirclePause,
+  CirclePlay,
+} from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,24 +43,29 @@ export function TenantSettings({ tenant }: { tenant: TenantSummary }) {
 
   const fieldError = (field: string) =>
     error?.field === field ? (
-      <p className="text-[11px] text-destructive">{error.message}</p>
+      <p className="text-2xs text-destructive">{error.message}</p>
     ) : null;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="flex items-center gap-2 text-lg font-bold">
-            <span className="truncate">{tenant.name}</span>
-            {tenant.suspendedAt && <Badge variant="destructive">Suspendido</Badge>}
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            <span className="font-mono">{tenant.slug}</span> · alta el{" "}
-            {formatDate(tenant.createdAt.toISOString())}
-            {tenant.suspendedAt &&
-              ` · suspendido el ${formatDate(tenant.suspendedAt.toISOString())}`}
-          </p>
-        </div>
+        <PageHeader
+          title={tenant.name}
+          badge={
+            tenant.suspendedAt ? (
+              <Badge variant="destructive">Suspendido</Badge>
+            ) : null
+          }
+          description={
+            <>
+              <span className="font-mono">{tenant.slug}</span> · alta el{" "}
+              {formatDate(tenant.createdAt.toISOString())}
+              {tenant.suspendedAt &&
+                ` · suspendido el ${formatDate(tenant.suspendedAt.toISOString())}`}
+            </>
+          }
+          className="min-w-0 flex-1"
+        />
         <SuspendButton tenant={tenant} />
       </div>
 
@@ -88,7 +94,7 @@ export function TenantSettings({ tenant }: { tenant: TenantSummary }) {
 
           {timezone !== tenant.timezone && (
             <p className="flex items-start gap-2 rounded-md bg-warning/10 p-3 text-xs text-warning">
-              <IconAlertCircle className="mt-px size-3.5 shrink-0" />
+              <CircleAlert className="mt-px size-3.5 shrink-0" />
               Cambiar la zona horaria cambia cómo se leen las horas ya
               registradas: reservas, horas pico y cortes por día. Hazlo solo
               para corregir una zona mal puesta.
@@ -100,7 +106,7 @@ export function TenantSettings({ tenant }: { tenant: TenantSummary }) {
               role="alert"
               className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             >
-              <IconAlertCircle className="mt-px size-4 shrink-0" />
+              <CircleAlert className="mt-px size-4 shrink-0" />
               {error.message}
             </p>
           )}
@@ -129,7 +135,7 @@ export function TenantSettings({ tenant }: { tenant: TenantSummary }) {
             </Button>
             {guardado && !cambio && (
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <IconCheck className="size-3.5" />
+                <Check className="size-3.5" />
                 Guardado
               </span>
             )}
@@ -167,9 +173,9 @@ function SuspendButton({ tenant }: { tenant: TenantSummary }) {
         onClick={() => setConfirmando(true)}
       >
         {suspendido ? (
-          <IconPlayerPlay className="size-3.5" />
+          <CirclePlay className="size-3.5" />
         ) : (
-          <IconPlayerPause className="size-3.5" />
+          <CirclePause className="size-3.5" />
         )}
         {suspendido ? "Reactivar" : "Suspender"}
       </Button>
@@ -193,7 +199,7 @@ function SuspendButton({ tenant }: { tenant: TenantSummary }) {
                 role="alert"
                 className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
               >
-                <IconAlertCircle className="mt-px size-4 shrink-0" />
+                <CircleAlert className="mt-px size-4 shrink-0" />
                 {error}
               </p>
             )}

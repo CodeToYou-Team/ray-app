@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import {
-  IconAlertTriangle,
-  IconPackageOff,
-  IconCheck,
-  IconSearch,
-} from "@tabler/icons-react";
+  TriangleAlert,
+  PackageX,
+  Check,
+  Search,
+} from "lucide-react";
 import {
   Table,
   TableBody,
@@ -32,21 +32,21 @@ export interface StockRow {
 
 const STATUS: Record<
   StockStatus,
-  { label: string; icon: typeof IconCheck; className: string }
+  { label: string; icon: typeof Check; className: string }
 > = {
   sin_stock: {
     label: "Sin stock",
-    icon: IconPackageOff,
+    icon: PackageX,
     className: "bg-destructive/10 text-destructive border-destructive/20",
   },
   bajo: {
     label: "Bajo",
-    icon: IconAlertTriangle,
+    icon: TriangleAlert,
     className: "bg-warning/10 text-warning border-warning/20",
   },
   ok: {
     label: "Disponible",
-    icon: IconCheck,
+    icon: Check,
     className: "bg-success/10 text-success border-success/20",
   },
 };
@@ -105,7 +105,7 @@ export function StockTable({ rows }: { rows: StockRow[] }) {
       <Card>
         <CardContent className="space-y-3 p-4">
           <div className="relative">
-            <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -155,7 +155,7 @@ export function StockTable({ rows }: { rows: StockRow[] }) {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={cn("gap-1 text-[10px]", meta.className)}
+                        className={cn("gap-1 text-2xs", meta.className)}
                       >
                         <meta.icon className="size-3" />
                         {meta.label}

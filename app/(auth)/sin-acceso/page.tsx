@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { IconMailQuestion, IconPlayerPause } from "@tabler/icons-react";
+import { MailQuestionMark, CirclePause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getAccess } from "@/lib/authz/session";
@@ -35,7 +35,7 @@ export default async function SinAccesoPage() {
       <Card>
         <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
           <div className="flex size-11 items-center justify-center rounded-xl bg-warning/10 text-warning">
-            <IconMailQuestion className="size-5" />
+            <MailQuestionMark className="size-5" />
           </div>
 
           <div>
@@ -70,7 +70,7 @@ function Suspendido({ tenantName }: { tenantName: string }) {
       <Card>
         <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
           <div className="flex size-11 items-center justify-center rounded-xl bg-warning/10 text-warning">
-            <IconPlayerPause className="size-5" />
+            <CirclePause className="size-5" />
           </div>
 
           <div>

@@ -24,7 +24,7 @@ export function SidebarNav({ role }: { role: MembershipRole }) {
     <div className="flex flex-col h-full">
       <div className="flex-1">
         <SidebarGroup>
-          <SidebarGroupLabel className="text-sidebar-foreground/40 text-[10px] uppercase tracking-widest font-semibold mb-1">
+          <SidebarGroupLabel className="text-sidebar-foreground/40 text-2xs uppercase tracking-widest font-semibold mb-1">
             Principal
           </SidebarGroupLabel>
           <SidebarMenu>

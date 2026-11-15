@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { IconArchive, IconPencil, IconPlus } from "@tabler/icons-react";
+import { Archive, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -77,7 +77,7 @@ export function SeccionTarifas({
             className="gap-1.5"
             onClick={() => abrir("tarifa:nueva")}
           >
-            <IconPlus className="size-3.5" />
+            <Plus className="size-3.5" />
             Agregar tarifa
           </Button>
         )
@@ -108,7 +108,7 @@ export function SeccionTarifas({
                       disabled={pending}
                       onClick={() => abrir(`tarifa:${t.id}`)}
                     >
-                      <IconPencil className="size-4" />
+                      <Pencil className="size-4" />
                       <span className="sr-only">Editar {nombreTarifa(t)}</span>
                     </Button>
                     {/* La única no se archiva: sin tarifas no se podría reservar. */}
@@ -121,7 +121,7 @@ export function SeccionTarifas({
                         title="Archivar"
                         onClick={() => correr(() => archiveRate({ id: t.id }))}
                       >
-                        <IconArchive className="size-4" />
+                        <Archive className="size-4" />
                         <span className="sr-only">Archivar {nombreTarifa(t)}</span>
                       </Button>
                     )}

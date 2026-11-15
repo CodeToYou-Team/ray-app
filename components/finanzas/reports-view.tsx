@@ -15,7 +15,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { IconTrendingUp, IconTrendingDown, IconScale } from "@tabler/icons-react";
+import { TrendingUp, TrendingDown, Scale } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -109,13 +110,11 @@ export function ReportsView({
   return (
     <div className={cn("space-y-4 max-w-7xl mx-auto", navigating && "opacity-70")}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-bold">Reportes</h2>
-          <p className="text-sm text-muted-foreground">
-            Todo lo que ves es de una sola moneda. Los montos no se convierten
-            entre sí, así que mezclarlos en un gráfico no diría nada.
-          </p>
-        </div>
+        <PageHeader
+          title="Reportes"
+          description="Todo lo que ves es de una sola moneda. Los montos no se convierten entre sí, así que mezclarlos en un gráfico no diría nada."
+          className="min-w-0 flex-1"
+        />
 
         <div className="flex gap-2">
           <Select value={currency} onValueChange={(v) => setParam("moneda", v)}>
@@ -163,19 +162,19 @@ export function ReportsView({
             <StatCard
               label="Ingresos"
               value={formatMoney(summary.ingresos, currency)}
-              icon={IconTrendingUp}
+              icon={TrendingUp}
               tone="success"
             />
             <StatCard
               label="Gastos"
               value={formatMoney(summary.gastos, currency)}
-              icon={IconTrendingDown}
+              icon={TrendingDown}
               tone="destructive"
             />
             <StatCard
               label="Balance"
               value={formatMoney(summary.balance, currency)}
-              icon={IconScale}
+              icon={Scale}
               tone={Number(summary.balance) < 0 ? "destructive" : "default"}
             />
           </div>
@@ -345,7 +344,7 @@ function StatCard({
 }: {
   label: string;
   value: string;
-  icon: typeof IconTrendingUp;
+  icon: typeof TrendingUp;
   tone: "success" | "destructive" | "default";
 }) {
   return (
@@ -362,7 +361,7 @@ function StatCard({
           <Icon className="size-4" />
         </div>
         <div className="min-w-0">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <p className="text-2xs font-medium uppercase tracking-wider text-muted-foreground">
             {label}
           </p>
           <p
@@ -408,7 +407,7 @@ function BreakdownCard({
             <div className="flex items-baseline justify-between gap-2 text-sm">
               <span className="flex min-w-0 items-center gap-2">
                 <span className="truncate">{r.label}</span>
-                <Badge variant="outline" className="shrink-0 text-[9px]">
+                <Badge variant="outline" className="shrink-0 text-2xs">
                   {r.count}
                 </Badge>
               </span>

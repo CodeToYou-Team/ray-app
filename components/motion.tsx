@@ -1,19 +1,30 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
+
+/**
+ * Una sola forma de aparecer.
+ *
+ * Antes cada pieza elegia sus propios numeros (0.25/0.35, y:8/12/16) y
+ * `PageTransition` envolvia el contenido en `AnimatePresence` con un `exit`
+ * que nunca corria: al cambiar de ruta Next desmonta el arbol entero, asi que
+ * no hay salida que animar. Se quito la promesa falsa y quedaron dos
+ * duraciones con nombre.
+ */
+
+const DURACION = 0.3;
+const DESPLAZAMIENTO = 8;
+const ESCALONADO = 0.05;
 
 export function PageTransition({ children }: { children: React.ReactNode }) {
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -8 }}
-        transition={{ duration: 0.25, ease: "easeOut" }}
-      >
-        {children}
-      </motion.div>
-    </AnimatePresence>
+    <motion.div
+      initial={{ opacity: 0, y: DESPLAZAMIENTO }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: DURACION, ease: "easeOut" }}
+    >
+      {children}
+    </motion.div>
   );
 }
 
@@ -28,9 +39,9 @@ export function FadeIn({
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: DESPLAZAMIENTO }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay, ease: "easeOut" }}
+      transition={{ duration: DURACION, delay, ease: "easeOut" }}
       className={className}
     >
       {children}
@@ -51,7 +62,7 @@ export function StaggerContainer({
       animate="visible"
       variants={{
         hidden: {},
-        visible: { transition: { staggerChildren: 0.06 } },
+        visible: { transition: { staggerChildren: ESCALONADO } },
       }}
       className={className}
     >
@@ -70,11 +81,11 @@ export function StaggerItem({
   return (
     <motion.div
       variants={{
-        hidden: { opacity: 0, y: 16 },
+        hidden: { opacity: 0, y: DESPLAZAMIENTO },
         visible: {
           opacity: 1,
           y: 0,
-          transition: { duration: 0.35, ease: "easeOut" },
+          transition: { duration: DURACION, ease: "easeOut" },
         },
       }}
       className={className}

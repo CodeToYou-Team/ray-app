@@ -4,11 +4,12 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  IconAlertCircle,
-  IconBuildingStore,
-  IconInfoCircle,
-  IconPlus,
-} from "@tabler/icons-react";
+  CircleAlert,
+  Store,
+  Info,
+  Plus,
+} from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,24 +47,22 @@ export function TenantList({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold">Negocios</h2>
-          <p className="text-sm text-muted-foreground">
-            Alta, datos y suspensión de cada cliente de la plataforma.
-          </p>
-        </div>
-        <Button size="sm" className="gap-1.5" onClick={() => setCreating(true)}>
-          <IconPlus className="size-3.5" />
-          Nuevo negocio
-        </Button>
-      </div>
+      <PageHeader
+        title="Negocios"
+        description="Alta, datos y suspensión de cada cliente de la plataforma."
+        actions={
+          <Button size="sm" className="gap-1.5" onClick={() => setCreating(true)}>
+            <Plus className="size-3.5" />
+            Nuevo negocio
+          </Button>
+        }
+      />
 
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">
             Todos
-            <Badge variant="secondary" className="ml-2 text-[10px]">
+            <Badge variant="secondary" className="ml-2 text-2xs">
               {tenants.length}
             </Badge>
           </CardTitle>
@@ -71,7 +70,7 @@ export function TenantList({
         <CardContent className="p-0">
           {tenants.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-12 text-center">
-              <IconBuildingStore className="size-6 text-muted-foreground" />
+              <Store className="size-6 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
                 Todavía no hay negocios. Crea el primero.
               </p>
@@ -157,7 +156,7 @@ function OwnerCell({ tenant }: { tenant: TenantSummary }) {
         {tenant.pendingOwners.map((email) => (
           <p key={email} className="truncate text-muted-foreground">
             {email}{" "}
-            <span className="text-[11px] text-warning">(sin registrarse)</span>
+            <span className="text-2xs text-warning">(sin registrarse)</span>
           </p>
         ))}
       </div>
@@ -205,7 +204,7 @@ function CreateTenantDialog({
           </div>
 
           <p className="flex items-start gap-2 text-xs text-muted-foreground">
-            <IconInfoCircle className="mt-px size-3.5 shrink-0" />
+            <Info className="mt-px size-3.5 shrink-0" />
             Ya tiene sus catálogos por defecto: categorías de ingreso y gasto,
             métodos de pago y categorías de producto y servicio.
           </p>
@@ -225,7 +224,7 @@ function CreateTenantDialog({
 
   const fieldError = (field: string) =>
     error?.field === field ? (
-      <p className="text-[11px] text-destructive">{error.message}</p>
+      <p className="text-2xs text-destructive">{error.message}</p>
     ) : null;
 
   return (
@@ -269,7 +268,7 @@ function CreateTenantDialog({
               }}
             />
             {fieldError("slug") ?? (
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 Para soporte. No se puede cambiar después.
               </p>
             )}
@@ -305,7 +304,7 @@ function CreateTenantDialog({
             role="alert"
             className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
           >
-            <IconAlertCircle className="mt-px size-4 shrink-0" />
+            <CircleAlert className="mt-px size-4 shrink-0" />
             {error.message}
           </p>
         )}

@@ -3,14 +3,15 @@
 import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
-  IconPlus,
-  IconPencil,
-  IconArchive,
-  IconArchiveOff,
-  IconAlertCircle,
-  IconSearch,
-  IconAdjustments,
-} from "@tabler/icons-react";
+  Plus,
+  Pencil,
+  Archive,
+  ArchiveX,
+  CircleAlert,
+  Search,
+  SlidersHorizontal,
+} from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -153,19 +154,18 @@ export function CatalogView({
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold">Productos</h2>
-          <p className="text-sm text-muted-foreground">
-            Lo que vendes y llevas en inventario.
-          </p>
-        </div>
+        <PageHeader
+          title="Productos"
+          description="Lo que vendes y llevas en inventario."
+          className="min-w-0 flex-1"
+        />
         {canManage && (
           <Button
             size="sm"
             className="gap-1.5"
             onClick={() => setEditing({ tab: "productos", row: null })}
           >
-            <IconPlus className="size-3.5" />
+            <Plus className="size-3.5" />
             Nuevo producto
           </Button>
         )}
@@ -175,7 +175,7 @@ export function CatalogView({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -235,12 +235,12 @@ export function CatalogView({
                       <span className="flex items-center gap-2">
                         {p.name}
                         {p.archived && (
-                          <Badge variant="secondary" className="text-[10px]">
+                          <Badge variant="secondary" className="text-2xs">
                             Archivado
                           </Badge>
                         )}
                         {!p.isActive && !p.archived && (
-                          <Badge variant="outline" className="text-[10px]">
+                          <Badge variant="outline" className="text-2xs">
                             Inactivo
                           </Badge>
                         )}
@@ -285,7 +285,7 @@ export function CatalogView({
                               title="Ajustar inventario"
                               onClick={() => setAdjusting(p)}
                             >
-                              <IconAdjustments className="size-4" />
+                              <SlidersHorizontal className="size-4" />
                             </Button>
                           )}
                           <Button
@@ -296,7 +296,7 @@ export function CatalogView({
                               setEditing({ tab: "productos", row: p })
                             }
                           >
-                            <IconPencil className="size-4" />
+                            <Pencil className="size-4" />
                           </Button>
                           <ArchiveButton
                             archived={p.archived}
@@ -368,9 +368,9 @@ export function ArchiveButton({
         }}
       >
         {archived ? (
-          <IconArchiveOff className="size-4" />
+          <ArchiveX className="size-4" />
         ) : (
-          <IconArchive className="size-4" />
+          <Archive className="size-4" />
         )}
       </Button>
       {error && (
@@ -382,7 +382,7 @@ export function ArchiveButton({
           <button
             type="button"
             onClick={() => setError(null)}
-            className="mt-1 block text-[11px] text-muted-foreground underline underline-offset-2"
+            className="mt-1 block text-2xs text-muted-foreground underline underline-offset-2"
           >
             Entendido
           </button>
@@ -631,7 +631,7 @@ export function ItemDialog({
               role="alert"
               className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             >
-              <IconAlertCircle className="mt-px size-4 shrink-0" />
+              <CircleAlert className="mt-px size-4 shrink-0" />
               {error}
             </p>
           )}
@@ -738,7 +738,7 @@ function AdjustDialog({
               role="alert"
               className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             >
-              <IconAlertCircle className="mt-px size-4 shrink-0" />
+              <CircleAlert className="mt-px size-4 shrink-0" />
               {error}
             </p>
           )}

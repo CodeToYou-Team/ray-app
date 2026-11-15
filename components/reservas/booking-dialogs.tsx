@@ -3,13 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  IconAlertCircle,
-  IconCalendarX,
-  IconCash,
-  IconLogin,
-  IconLogout,
-  IconPencil,
-} from "@tabler/icons-react";
+  CircleAlert,
+  CalendarX,
+  Banknote,
+  LogIn,
+  LogOut,
+  Pencil,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -106,7 +106,7 @@ function ErrorBox({ children }: { children: React.ReactNode }) {
       role="alert"
       className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
     >
-      <IconAlertCircle className="mt-px size-4 shrink-0" />
+      <CircleAlert className="mt-px size-4 shrink-0" />
       {children}
     </p>
   );
@@ -456,7 +456,7 @@ export function BookingForm({
                     return (
                       <SelectItem key={r.id} value={r.id} disabled={tomado}>
                         {r.name}
-                        <span className="ml-1.5 text-[10px] text-muted-foreground">
+                        <span className="ml-1.5 text-2xs text-muted-foreground">
                           {tomado
                             ? shared
                               ? "lleno"
@@ -491,7 +491,7 @@ export function BookingForm({
                     {servicio.tarifas.map((t) => (
                       <SelectItem key={t.id} value={t.id}>
                         {nombreTarifa(t)}
-                        <span className="ml-1.5 text-[10px] text-muted-foreground">
+                        <span className="ml-1.5 text-2xs text-muted-foreground">
                           {formatMoney(t.price, t.currency)} {porUnidad(t)}
                         </span>
                       </SelectItem>
@@ -528,7 +528,7 @@ export function BookingForm({
                   className="font-mono"
                 />
                 {cant.ok && (
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     Hasta el {formatDate(hastaFechas)}
                   </p>
                 )}
@@ -683,7 +683,7 @@ export function BookingForm({
                         className="font-mono"
                       />
                       {finBloques && cuantasValidas && (
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-2xs text-muted-foreground">
                           {finBloques.fechaFin === fecha
                             ? `Hasta las ${finBloques.fin}`
                             : `Hasta el ${formatDate(finBloques.fechaFin)} a las ${finBloques.fin}`}
@@ -728,7 +728,7 @@ export function BookingForm({
           {conFranjas && (
             <p
               className={cn(
-                "text-[11px]",
+                "text-2xs",
                 turnoOk ? "text-muted-foreground" : "text-destructive",
               )}
             >
@@ -1006,7 +1006,7 @@ export function BookingDetail({
           <div className="flex items-center gap-2">
             <DialogTitle className="text-base">{reserva.holderName}</DialogTitle>
             <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${estado.className}`}
+              className={`rounded-full px-2 py-0.5 text-2xs font-medium ${estado.className}`}
             >
               {estado.label}
             </span>
@@ -1069,7 +1069,7 @@ export function BookingDetail({
                     {formatMoney(p.amount, p.currency)}
                     {/* Si se cobró en otra moneda, lo que abonó en la de la reserva. */}
                     {p.currency !== reserva.currency && (
-                      <span className="block text-[10px] text-muted-foreground">
+                      <span className="block text-2xs text-muted-foreground">
                         = {formatMoney(p.appliedAmount, reserva.currency)}
                       </span>
                     )}
@@ -1149,7 +1149,7 @@ export function BookingDetail({
               </span>
               .
             </p>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               Si sale así, el saldo queda pendiente y se puede cobrar después.
               Queda registrado quién aceptó la salida con saldo.
             </p>
@@ -1174,7 +1174,7 @@ export function BookingDetail({
         {modo === "noshow" && (
           <div className="space-y-2 rounded-lg border p-3">
             <p className="text-sm">¿Marcar que no se presentó?</p>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               Libera {reserva.resourceName} para esas fechas.
               {compareMoney(reserva.pagado, "0") > 0 &&
                 ` Lo cobrado (${formatMoney(reserva.pagado, reserva.currency)}) se conserva.`}
@@ -1204,7 +1204,7 @@ export function BookingDetail({
               onChange={(e) => setMotivo(e.target.value)}
               placeholder="Llamó para cancelar"
             />
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               La reserva no se borra: queda como cancelada y el recurso se libera
               para esas fechas.
               {compareMoney(reserva.pagado, "0") > 0 &&
@@ -1239,7 +1239,7 @@ export function BookingDetail({
             <div className="flex flex-wrap gap-2">
               {puedeModificar && (
                 <Button size="sm" variant="ghost" className="gap-1.5" onClick={onModificar}>
-                  <IconPencil className="size-4" />
+                  <Pencil className="size-4" />
                   Modificar
                 </Button>
               )}
@@ -1250,7 +1250,7 @@ export function BookingDetail({
                   className="gap-1.5 text-destructive hover:text-destructive"
                   onClick={() => setModo("cancelando")}
                 >
-                  <IconCalendarX className="size-4" />
+                  <CalendarX className="size-4" />
                   Cancelar
                 </Button>
               )}
@@ -1269,7 +1269,7 @@ export function BookingDetail({
                   className="gap-1.5"
                   onClick={() => setModo("cobrando")}
                 >
-                  <IconCash className="size-4" />
+                  <Banknote className="size-4" />
                   Cobrar
                 </Button>
               )}
@@ -1280,7 +1280,7 @@ export function BookingDetail({
                   disabled={pending}
                   onClick={() => correr(() => checkIn({ id: reserva.id }))}
                 >
-                  <IconLogin className="size-4" />
+                  <LogIn className="size-4" />
                   {pending ? "Registrando…" : "Registrar llegada"}
                 </Button>
               )}
@@ -1293,7 +1293,7 @@ export function BookingDetail({
                     debe ? setModo("saliendo") : correr(() => checkOut({ id: reserva.id }))
                   }
                 >
-                  <IconLogout className="size-4" />
+                  <LogOut className="size-4" />
                   {pending ? "Registrando…" : "Registrar salida"}
                 </Button>
               )}
@@ -1365,7 +1365,7 @@ export function BookingList({
                       )}
                       {b.holderName}
                       <span
-                        className={`rounded-full px-1.5 py-0.5 text-[10px] ${estado.className}`}
+                        className={`rounded-full px-1.5 py-0.5 text-2xs ${estado.className}`}
                       >
                         {estado.label}
                       </span>

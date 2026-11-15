@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { IconAlertCircle, IconArrowsExchange } from "@tabler/icons-react";
+import { CircleAlert, ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -116,7 +116,7 @@ export function PaymentForm({
           <Label htmlFor="monto">Cuánto abona ({reserva.currency})</Label>
           <button
             type="button"
-            className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            className="text-2xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
             onClick={() => setMonto(reserva.saldo)}
           >
             Todo el saldo: {formatMoney(reserva.saldo, reserva.currency)}
@@ -150,7 +150,7 @@ export function PaymentForm({
               {config.paymentMethods.map((m) => (
                 <SelectItem key={m.id} value={m.id}>
                   {m.label}
-                  <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">
+                  <span className="ml-1.5 font-mono text-2xs text-muted-foreground">
                     {m.currency}
                   </span>
                 </SelectItem>
@@ -178,7 +178,7 @@ export function PaymentForm({
       {necesitaTasa && metodo && (
         <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 p-3">
           <div className="flex items-center gap-2">
-            <IconArrowsExchange className="size-4 text-primary" />
+            <ArrowLeftRight className="size-4 text-primary" />
             <Label htmlFor="tasa-cobro" className="text-sm">
               Tasa de cambio
             </Label>
@@ -198,7 +198,7 @@ export function PaymentForm({
             <span className="font-mono text-xs text-muted-foreground">{metodo.currency}</span>
           </div>
           {sugerida && rate === sugerida.rate && (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               {sugerida.source === "configurada"
                 ? "Es la que tienes fijada en Ajustes."
                 : `Es la que usaste el ${formatDate(sugerida.occurredOn)}.`}{" "}
@@ -226,7 +226,7 @@ export function PaymentForm({
           role="alert"
           className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
         >
-          <IconAlertCircle className="mt-px size-4 shrink-0" />
+          <CircleAlert className="mt-px size-4 shrink-0" />
           {error}
         </p>
       )}
