@@ -1,0 +1,16 @@
+# Solo variables de build. NO agregar un bloque [build] aqui: el comando
+# (`pnpm run build`) y el publish (`.next`) se configuran en la UI de Netlify y
+# un [build] en este archivo los pisaria.
+#
+# Next 16 activa por defecto la cache de build de Turbopack, que escribe un
+# volcado en texto plano de TODO el process.env dentro de
+# `.next/cache/turbopack`. El runtime de Netlify copia `.next` a `.netlify/.next`
+# y el escaneo de secretos recorre ese directorio, asi que encuentra ahi cada
+# variable marcada como secreta y falla el build ("Secrets scanning found ...
+# instance(s) of secrets in build output or repo code").
+#
+# Ese directorio es cache de build: no se publica ni se sirve, y ninguna
+# variable de la app llega al bundle del cliente (.next/static) ni al servidor
+# (.next/server). Por eso se excluye del escaneo en lugar de desactivarlo.
+[build.environment]
+  SECRETS_SCAN_OMIT_PATHS = ".netlify/.next/cache,.next/cache"
