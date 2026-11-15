@@ -41,9 +41,6 @@ export function AppSidebar({
             priority
             className="h-7 w-auto max-w-full object-contain invert dark:invert-0"
           />
-          <span className="text-2xs tracking-wide text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
-            Gestión moderna para tu negocio
-          </span>
         </div>
       </SidebarHeader>
 
