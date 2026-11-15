@@ -33,7 +33,7 @@ function client(): Sql {
        * prepara en un backend y se ejecuta en otro.
        */
       prepare: false,
-      max: 10,
+      max: 1,
       idle_timeout: 20,
     });
   }
